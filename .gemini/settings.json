@@ -7,6 +7,7 @@
       "ShellTool(ls)",
       "ShellTool(grep)",
       "ShellTool(glob)",
+      "ShellTool(cargo build)",
       "ShellTool(git status)",
       "ShellTool(git rev-parse)",
       "ShellTool(git log)",
