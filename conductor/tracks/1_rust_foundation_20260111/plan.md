@@ -1,10 +1,10 @@
 # 計画書: Rust プラグイン基盤の構築
 
 ## フェーズ 1: プロジェクトの初期化
-- [ ] タスク: Rust プロジェクトの初期化
-  - [ ] 新しい Cargo ライブラリプロジェクトを作成する (`cargo new --lib`)。
-  - [ ] `Cargo.toml` を `crate-type = ["cdylib"]` を使用するように構成する。
-  - [ ] 必要な依存関係（`windows` 等）を追加する。
+- [x] タスク: Rust プロジェクトの初期化
+  - [x] 新しい Cargo ライブラリプロジェクトを作成する (`cargo new --lib`)。
+  - [x] `Cargo.toml` を `crate-type = ["cdylib"]` を使用するように構成する。
+  - [x] 必要な依存関係（`windows` 等）を追加する。
 - [ ] タスク: Conductor - ユーザー手動検証 'プロジェクトの初期化' (workflow.md のプロトコルに従う)
 
 ## フェーズ 2: EmEditor SDK 統合 (FFI)
