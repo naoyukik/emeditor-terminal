@@ -15,6 +15,8 @@
 ## Build Tools & Environment
 - **Cargo**: Rust のビルドおよび依存関係管理。
 - **MSVC Toolchain**: Windows ネイティブ DLL の生成に使用。
+- **Clippy**: Rust の静的解析ツール（リンター）。
+- **rustfmt**: Rust のコードフォーマッタ。
 
 ## Architecture
 - **FFI Layer**: EmEditor SDK と Rust コードを繋ぐ、最小限の `unsafe` 境界。

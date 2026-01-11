@@ -39,7 +39,10 @@
   },
   "mcpServers": {
     "jetbrains": {
-      "url": "http://localhost:$JETBRAINS_PORT/sse"
+      "url": "http://localhost:$JETBRAINS_PORT/sse",
+      "headers": {
+        "IJ_MCP_SERVER_PROJECT_PATH": "$IJ_MCP_SERVER_PROJECT_PATH"
+      }
     }
   },
   "model": {

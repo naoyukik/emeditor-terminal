@@ -5,6 +5,7 @@
   - [x] 新しい Cargo ライブラリプロジェクトを作成する (`cargo new --lib`)。
   - [x] `Cargo.toml` を `crate-type = ["cdylib"]` を使用するように構成する。
   - [x] 必要な依存関係（`windows` 等）を追加する。
+  - [x] Clippy と rustfmt によるチェック体制を整える。
 - [ ] タスク: Conductor - ユーザー手動検証 'プロジェクトの初期化' (workflow.md のプロトコルに従う)
 
 ## フェーズ 2: EmEditor SDK 統合 (FFI)
