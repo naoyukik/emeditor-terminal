@@ -1,0 +1,61 @@
+description = "Draft PRを作成する"
+
+# language=markdown
+prompt = """
+1. 情報収集と分析
+あなたが以下の情報を自動的に収集・分析する。
+以下のコマンドリストは、**修正や最適化を行わず、文字列として完全に一致する状態で**実行すること。別コマンドへの置換は禁止する。
+セキュリティエラーが発生するので `&&` などでコマンドを接続することは禁止する。
+
+    !{echo "=== 現在のブランチ名 ==="}
+    !{git rev-parse --abbrev-ref HEAD}
+    !{echo "=== mainからの差分コミット ==="}
+    !{git log main..HEAD --oneline --pretty=format:"%h - %s"}
+    !{echo "=== リモートURL ==="}
+    !{git remote get-url origin}
+    !{echo "=== PRテンプレート ==="}
+    !{cat "$(git rev-parse --show-toplevel)/.github/pull_request_template.md"}
+    !{echo "=== GitHub CLI確認 ==="}
+    !{gh version}
+    !{echo "=== チケット番号 ==="}
+    !{git rev-parse --abbrev-ref HEAD | grep -oE '^[0-9]+'}
+    !{echo "=== Actual Code Changes (Diff) ロックファイルなどのノイズを除外し、本質的な変更差分のみを取得する ==="}
+    !{git diff main..HEAD -- . ':(exclude)package-lock.json' ':(exclude)yarn.lock' ':(exclude)*.lock'}
+
+2. Issueの確認
+チケット番号が存在する場合、Issueを確認するため下記の `gh issue view` コマンドを使用してissueの内容を取得すること
+
+3. 推論と構築 (Reasoning)
+取得した情報を以下の優先順位で統合し、PRの内容を構築せよ。
+
+    1. **Diff情報**: 実際のコード変更が最優先。「何をしたか」の事実とする。
+    2. **Issue情報**: 「なぜそれをしたか」の背景情報として利用する。
+    3. **Commit情報**: 作業の流れを補足する情報として利用する。
+
+4. PR内容の生成
+分析結果に基づき、以下の項目を生成する。
+
+    * **PRタイトル**: 変更内容の要点を的確に表現したタイトルを生成する。
+    * **PR本文**: 読み込んだテンプレートに基づき、変更の概要、背景、詳細などを具体的に記述する。テンプレートがない場合は適当に作る。
+    * チケット番号の頭には `#` を付与する。
+
+5. コマンド生成
+以下の仕様に基づき、Draft PR作成する。記載の無いオプションは指定しないこと
+
+    * `--draft`: Draft PRとして作成する。
+    * `--title`: 生成したPRタイトルを設定する。
+    * `--body`: 生成したPR本文を設定する。
+    * `--base`: ベースブランチは常に`main`とする。
+    * `--head`: 自動取得した現在のブランチ名を設定する。
+    * `--assignee`: `"@me"` を設定する。valueは必ずダブルクォーテーションで囲むこと。
+
+    a. 使用可能ならGitHub CLIを使用し、収集・生成した情報に基づき、上記の仕様でCreate Draft PRのコマンドを生成する。
+    b. GitHub CLIが使用できない場合、収集・生成した情報に基づき、GitHub MCPを使用し上記の仕様でCreate Draft PRのコマンドを生成する
+    c. GitHub MCPとGitHub CLIが使用できない場合、PRタイトル、PR本文を出力する
+
+6. コマンド実行:
+    生成したコマンドを実行し、Draft PRを作成する。
+
+7. 結果報告
+    PRが正常に作成されたことをユーザーに報告する。
+"""
