@@ -39,3 +39,11 @@
 
 # debug information files
 *.dwo
+
+# Environment variables
+.env
+.env.*
+!.env.example
+
+# AI files
+*.local.md
