@@ -23,6 +23,6 @@ To build and install the plugin automatically to your EmEditor plugins folder:
    cargo build --release
    ```
 2. Copy `target/release/emeditor_terminal.dll` to:
-   `%AppData%\Emurasoft\EmEditor\PlugIns`
+   `$env:LOCALAPPDATA\Programs\EmEditor\PlugIns`
 
 3. Restart EmEditor.
