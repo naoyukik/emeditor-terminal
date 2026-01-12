@@ -13,10 +13,10 @@
 - [x] タスク: `install.ps1` の機能強化
   - [x] `cargo build` の成功判定 (`$LASTEXITCODE`) を追加する。
   - [x] `--dest` 引数によるインストール先ディレクトリの指定機能を追加する。
-- [ ] Task: Conductor - User Manual Verification 'ビルド・インストールプロセスの確認' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'ビルド・インストールプロセスの確認' (Protocol in workflow.md)
 
 ## フェーズ 3: ソースコードの安全性向上
-- [ ] タスク: `src/lib.rs` の修正
-  - [ ] `QueryStatus` に `pbChecked` の null チェックを追加する。
-  - [ ] `EVENT_CLOSE` に将来的な用途を説明するコメントを追加する。
+- [x] タスク: `src/lib.rs` の修正
+  - [x] `QueryStatus` に `pbChecked` の null チェックを追加する。
+  - [x] `EVENT_CLOSE` に将来的な用途を説明するコメントを追加する。
 - [ ] Task: Conductor - User Manual Verification 'コード修正後の動作確認' (Protocol in workflow.md)

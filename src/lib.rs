@@ -6,6 +6,7 @@ use std::ffi::c_void;
 
 // EmEditor SDK Constants
 pub const EVENT_CREATE: u32 = 0x00000400;
+// Future use: To be used for cleanup when the plugin is closed
 pub const EVENT_CLOSE: u32 = 0x00000800;
 
 #[no_mangle]
@@ -43,6 +44,11 @@ pub extern "system" fn OnCommand(hwnd: HWND) {
 #[no_mangle]
 #[allow(non_snake_case, unused_variables)]
 pub extern "system" fn QueryStatus(hwnd: HWND, pbChecked: *mut BOOL) -> BOOL {
+    if !pbChecked.is_null() {
+        unsafe {
+            *pbChecked = BOOL(0); // Unchecked by default
+        }
+    }
     // Return TRUE (1) to enable the command
     BOOL(1)
 }
