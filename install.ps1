@@ -12,7 +12,7 @@ if ($configuration -eq "release") {
     cargo build
 }
 
-$destDir = "$env:APPDATA\Emurasoft\EmEditor\PlugIns"
+$destDir = "$env:LOCALAPPDATA\Programs\EmEditor\PlugIns"
 if (!(Test-Path $destDir)) {
     Write-Host "Creating Plugins directory: $destDir"
     New-Item -ItemType Directory -Path $destDir | Out-Null

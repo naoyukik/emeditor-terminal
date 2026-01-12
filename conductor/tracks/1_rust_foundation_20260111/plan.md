@@ -14,7 +14,7 @@
 - [x] タスク: DLL エントリポイントの実装
   - [x] `#[no_mangle]` を使用して `DllMain` エントリポイントを実装する。
   - [x] 必要な EmEditor エクスポート関数（`OnCommand`, `QueryStatus` など）をスタブとして実装する。
-- [x] タスク: Conductor - ユーザー手動検証 'EmEditor SDK 統合 (FFI)' (workflow.md のプロトコルに従う)
+- [ ] タスク: Conductor - ユーザー手動検証 'EmEditor SDK 統合 (FFI)' (workflow.md のプロトコルに従う)
 
 ## フェーズ 3: 「Hello World」動作確認
 - [x] タスク: Hello World ロジックの実装
@@ -22,4 +22,4 @@
 - [x] タスク: ビルドおよび配置スクリプトの作成
   - [x] DLL をコンパイルするためのビルドスクリプトまたは手順を作成する。
   - [x] EmEditor が認識できるように DLL を配置する場所をドキュメント化する。
-- [x] タスク: Conductor - ユーザー手動検証 'Hello World 動作確認' (workflow.md のプロトコルに従う)
+- [ ] タスク: Conductor - ユーザー手動検証 'Hello World 動作確認' (workflow.md のプロトコルに従う)
