@@ -22,6 +22,8 @@ To build and install the plugin automatically to your EmEditor plugins folder:
    ```bash
    cargo build --release
    ```
+   > **Note:** The Cargo package name is `emeditor-terminal` (hyphen), but the generated DLL file will be named `emeditor_terminal.dll` (underscore). Rust automatically converts hyphens to underscores for library names.
+
 2. Copy `target/release/emeditor_terminal.dll` to:
    `$env:LOCALAPPDATA\Programs\EmEditor\PlugIns`
 
