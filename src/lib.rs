@@ -1,8 +1,8 @@
-use windows::Win32::Foundation::{BOOL, HINSTANCE, HWND, WPARAM, LPARAM, LRESULT};
+use std::ffi::c_void;
+use windows::core::w;
+use windows::Win32::Foundation::{BOOL, HINSTANCE, HWND, LPARAM, LRESULT, WPARAM};
 use windows::Win32::System::SystemServices::{DLL_PROCESS_ATTACH, DLL_PROCESS_DETACH};
 use windows::Win32::UI::WindowsAndMessaging::{MessageBoxW, MB_OK};
-use windows::core::w;
-use std::ffi::c_void;
 
 // EmEditor SDK Constants
 pub const EVENT_CREATE: u32 = 0x00000400;
@@ -43,7 +43,7 @@ pub extern "system" fn OnCommand(hwnd: HWND) {
 }
 
 #[no_mangle]
-#[allow(non_snake_case, unused_variables)]
+#[allow(non_snake_case, unused_variables, clippy::not_unsafe_ptr_arg_deref)]
 pub extern "system" fn QueryStatus(hwnd: HWND, pbChecked: *mut BOOL) -> BOOL {
     if !pbChecked.is_null() {
         unsafe {
@@ -82,7 +82,12 @@ pub extern "system" fn GetBitmapID() -> u32 {
 
 #[no_mangle]
 #[allow(non_snake_case, unused_variables)]
-pub extern "system" fn PlugInProc(hwnd: HWND, nMsg: u32, wParam: WPARAM, lParam: LPARAM) -> LRESULT {
+pub extern "system" fn PlugInProc(
+    hwnd: HWND,
+    nMsg: u32,
+    wParam: WPARAM,
+    lParam: LPARAM,
+) -> LRESULT {
     LRESULT(0)
 }
 
