@@ -7,6 +7,7 @@ use std::ffi::c_void;
 // EmEditor SDK Constants
 pub const EVENT_CREATE: u32 = 0x00000400;
 // Future use: To be used for cleanup when the plugin is closed
+#[allow(dead_code)]
 pub const EVENT_CLOSE: u32 = 0x00000800;
 
 #[no_mangle]
@@ -83,4 +84,22 @@ pub extern "system" fn GetBitmapID() -> u32 {
 #[allow(non_snake_case, unused_variables)]
 pub extern "system" fn PlugInProc(hwnd: HWND, nMsg: u32, wParam: WPARAM, lParam: LPARAM) -> LRESULT {
     LRESULT(0)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_constants() {
+        assert_eq!(EVENT_CREATE, 0x00000400);
+        assert_eq!(EVENT_CLOSE, 0x00000800);
+    }
+
+    #[test]
+    fn test_resource_ids() {
+        assert_eq!(GetMenuTextID(), 0);
+        assert_eq!(GetStatusMessageID(), 0);
+        assert_eq!(GetBitmapID(), 0);
+    }
 }

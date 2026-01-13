@@ -12,11 +12,20 @@
   - [x] `CARGO_MANIFEST_DIR` を使用して `exports.def` を絶対パスで指定するように修正する。
 - [x] タスク: `install.ps1` の機能強化
   - [x] `cargo build` の成功判定 (`$LASTEXITCODE`) を追加する。
-  - [x] `--dest` 引数によるインストール先ディレクトリの指定機能を追加する。
+  - [x] `-Dest` 引数によるインストール先ディレクトリの指定機能を追加する。
 - [x] Task: Conductor - User Manual Verification 'ビルド・インストールプロセスの確認' (Protocol in workflow.md)
 
 ## フェーズ 3: ソースコードの安全性向上
 - [x] タスク: `src/lib.rs` の修正
   - [x] `QueryStatus` に `pbChecked` の null チェックを追加する。
   - [x] `EVENT_CLOSE` に将来的な用途を説明するコメントを追加する。
-- [ ] Task: Conductor - User Manual Verification 'コード修正後の動作確認' (Protocol in workflow.md)
+## フェーズ 4: 第2回レビュー指摘への対応
+- [x] タスク: コード品質の向上 (Rust)
+  - [x] `src/lib.rs`: `EVENT_CLOSE` に `#[allow(dead_code)]` を追加する。
+  - [x] `build.rs`: `CARGO_MANIFEST_DIR` 取得時の `unwrap()` を `expect()` に変更し、詳細なエラーメッセージを追加する。
+- [x] タスク: ドキュメントと引数の整合性修正
+  - [x] `docs/INSTALL.md`: PowerShell の引数指定を `--release` から `-Release` に修正する。
+  - [x] `conductor/tracks/copilot_review_fixes_20260112/plan.md`: 計画書内の記述 `--dest` を `-Dest` に修正する。
+- [x] タスク: テストの追加
+  - [x] `src/lib.rs`: 定数やエクスポート関数の基本的なユニットテストを追加する。
+- [ ] Task: Conductor - User Manual Verification '第2回修正の確認' (Protocol in workflow.md)

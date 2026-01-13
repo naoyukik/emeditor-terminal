@@ -14,7 +14,7 @@ To build and install the plugin automatically to your EmEditor plugins folder:
    ```
    For a release build:
    ```powershell
-   .\install.ps1 --release
+   .\install.ps1 -Release
    ```
 
 ## Manual Installation
