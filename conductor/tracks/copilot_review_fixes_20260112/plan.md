@@ -29,3 +29,10 @@
 - [x] タスク: テストの追加
   - [x] `src/lib.rs`: 定数やエクスポート関数の基本的なユニットテストを追加する。
 - [ ] Task: Conductor - User Manual Verification '第2回修正の確認' (Protocol in workflow.md)
+
+## フェーズ 5: 第3回レビュー指摘への対応
+- [x] タスク: 計画書の記述修正
+  - [x] `conductor/tracks/copilot_review_fixes_20260112/plan.md`: フェーズ1のタイポ修正タスクの記述を、「誤字を修正する」と明確な表現に変更する（修正前後の文字列が同一で混乱を招くため）。
+- [x] タスク: 命名規則のドキュメント化
+  - [x] `docs/INSTALL.md`: Cargoパッケージ名（ハイフン区切り）と生成されるDLL名（アンダースコア区切り）の違いについて注記を追加する。
+- [x] Task: Conductor - User Manual Verification '第3回修正の確認' (Protocol in workflow.md)
