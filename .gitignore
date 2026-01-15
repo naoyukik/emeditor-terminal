@@ -47,3 +47,13 @@
 
 # AI files
 *.local.md
+
+
+# Added by cargo
+
+/target
+/sdk/
+
+
+# IDE settings
+.idea/
