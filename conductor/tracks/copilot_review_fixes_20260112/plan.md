@@ -36,3 +36,9 @@
 - [x] タスク: 命名規則のドキュメント化
   - [x] `docs/INSTALL.md`: Cargoパッケージ名（ハイフン区切り）と生成されるDLL名（アンダースコア区切り）の違いについて注記を追加する。
 - [x] Task: Conductor - User Manual Verification '第3回修正の確認' (Protocol in workflow.md)
+
+## フェーズ 6: 最終的な修正
+- [x] タスク: 仕様書の整合性修正
+  - [x] `conductor/tracks/copilot_review_fixes_20260112/spec.md`: `--dest` の記述を `-Dest` に修正する。
+- [x] タスク: スクリプトの可読性向上
+  - [x] `install.ps1`: エラーメッセージ内の変数展開を明確にするため、`$LASTEXITCODE` を `${LASTEXITCODE}` に変更する。

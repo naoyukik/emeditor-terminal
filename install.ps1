@@ -17,8 +17,8 @@ if ($Release) {
     cargo build
 }
 
-if ($LASTEXITCODE -ne 0) {
-    Write-Error "Build failed with exit code $LASTEXITCODE"
+if (${LASTEXITCODE} -ne 0) {
+    Write-Error "Build failed with exit code ${LASTEXITCODE}"
 }
 
 $destDir = "$env:LOCALAPPDATA\Programs\EmEditor\PlugIns"
