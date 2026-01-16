@@ -8,6 +8,8 @@ use windows::Win32::Foundation::{BOOL, HINSTANCE, HWND, LPARAM, LRESULT, WPARAM}
 use windows::Win32::System::SystemServices::{DLL_PROCESS_ATTACH, DLL_PROCESS_DETACH};
 use windows::Win32::UI::WindowsAndMessaging::{MessageBoxW, MB_OK};
 
+mod session;
+
 // EmEditor SDK Constants
 pub const EVENT_CREATE: u32 = 0x00000400;
 #[allow(dead_code)]
