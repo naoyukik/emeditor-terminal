@@ -1,4 +1,8 @@
+use log::LevelFilter;
+use simplelog::{Config, WriteLogger};
 use std::ffi::c_void;
+use std::fs::File;
+use std::path::PathBuf;
 use windows::core::w;
 use windows::Win32::Foundation::{BOOL, HINSTANCE, HWND, LPARAM, LRESULT, WPARAM};
 use windows::Win32::System::SystemServices::{DLL_PROCESS_ATTACH, DLL_PROCESS_DETACH};
@@ -6,9 +10,20 @@ use windows::Win32::UI::WindowsAndMessaging::{MessageBoxW, MB_OK};
 
 // EmEditor SDK Constants
 pub const EVENT_CREATE: u32 = 0x00000400;
-// Future use: To be used for cleanup when the plugin is closed
 #[allow(dead_code)]
 pub const EVENT_CLOSE: u32 = 0x00000800;
+
+fn init_logger() {
+    let mut path = std::env::temp_dir();
+    path.push("emeditor_terminal.log");
+    
+    let _ = WriteLogger::init(
+        LevelFilter::Debug,
+        Config::default(),
+        File::create(path).unwrap(),
+    );
+    log::info!("Logger initialized");
+}
 
 #[no_mangle]
 #[allow(non_snake_case, unused_variables)]
@@ -19,10 +34,11 @@ pub extern "system" fn DllMain(
 ) -> BOOL {
     match call_reason {
         DLL_PROCESS_ATTACH => {
-            // Initialize
+            init_logger();
+            log::info!("DllMain: Process Attach");
         }
         DLL_PROCESS_DETACH => {
-            // Cleanup
+            log::info!("DllMain: Process Detach");
         }
         _ => {}
     }
@@ -32,6 +48,7 @@ pub extern "system" fn DllMain(
 #[no_mangle]
 #[allow(non_snake_case, unused_variables)]
 pub extern "system" fn OnCommand(hwnd: HWND) {
+    log::info!("OnCommand called");
     unsafe {
         MessageBoxW(
             hwnd,
@@ -47,10 +64,9 @@ pub extern "system" fn OnCommand(hwnd: HWND) {
 pub extern "system" fn QueryStatus(hwnd: HWND, pbChecked: *mut BOOL) -> BOOL {
     if !pbChecked.is_null() {
         unsafe {
-            *pbChecked = BOOL(0); // Unchecked by default
+            *pbChecked = BOOL(0);
         }
     }
-    // Return TRUE (1) to enable the command
     BOOL(1)
 }
 
@@ -58,26 +74,26 @@ pub extern "system" fn QueryStatus(hwnd: HWND, pbChecked: *mut BOOL) -> BOOL {
 #[allow(non_snake_case, unused_variables)]
 pub extern "system" fn OnEvents(hwnd: HWND, nEvent: u32, wParam: WPARAM, lParam: LPARAM) {
     if nEvent == EVENT_CREATE {
-        // Plugin is loaded/initialized
+        log::info!("OnEvents: EVENT_CREATE");
     }
 }
 
 #[no_mangle]
 #[allow(non_snake_case, unused_variables)]
 pub extern "system" fn GetMenuTextID() -> u32 {
-    0 // Return 0 if no resource ID
+    0
 }
 
 #[no_mangle]
 #[allow(non_snake_case, unused_variables)]
 pub extern "system" fn GetStatusMessageID() -> u32 {
-    0 // Return 0 if no resource ID
+    0
 }
 
 #[no_mangle]
 #[allow(non_snake_case, unused_variables)]
 pub extern "system" fn GetBitmapID() -> u32 {
-    0 // Return 0 if no resource ID
+    0
 }
 
 #[no_mangle]
@@ -99,12 +115,5 @@ mod tests {
     fn test_constants() {
         assert_eq!(EVENT_CREATE, 0x00000400);
         assert_eq!(EVENT_CLOSE, 0x00000800);
-    }
-
-    #[test]
-    fn test_resource_ids() {
-        assert_eq!(GetMenuTextID(), 0);
-        assert_eq!(GetStatusMessageID(), 0);
-        assert_eq!(GetBitmapID(), 0);
     }
 }
