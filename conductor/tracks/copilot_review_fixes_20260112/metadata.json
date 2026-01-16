@@ -1,8 +1,0 @@
-{
-  "track_id": "copilot_review_fixes_20260112",
-  "type": "chore",
-  "status": "new",
-  "created_at": "2026-01-12T21:39:00Z",
-  "updated_at": "2026-01-12T21:39:00Z",
-  "description": "PRにGitHub Copilotから指摘が来ている。これに対応してください"
-}
