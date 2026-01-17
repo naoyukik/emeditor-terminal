@@ -78,6 +78,9 @@ pub extern "system" fn OnCommand(hwnd: HWND) {
                 *session_guard = Some(s);
                 log::info!("Session started successfully");
                 
+                // Show output bar automatically
+                editor::show_output_bar(hwnd);
+
                 // Initial command to verify output
                 if let Some(session) = session_guard.as_mut() {
                     let _ = session.send("echo Session Started");
@@ -100,6 +103,8 @@ pub extern "system" fn OnCommand(hwnd: HWND) {
         }
     } else {
         log::info!("Session already running. Sending 'dir' command.");
+        // Also show output bar when interacting with existing session
+        editor::show_output_bar(hwnd);
         if let Some(session) = session_guard.as_mut() {
              let _ = session.send("dir");
         }
