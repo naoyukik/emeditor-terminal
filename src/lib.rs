@@ -97,6 +97,9 @@ pub extern "system" fn QueryStatus(hwnd: HWND, pbChecked: *mut BOOL) -> BOOL {
 pub extern "system" fn OnEvents(hwnd: HWND, nEvent: u32, wParam: WPARAM, lParam: LPARAM) {
     if nEvent == EVENT_CREATE {
         log::info!("OnEvents: EVENT_CREATE");
+    } else if nEvent == EVENT_CLOSE {
+        log::info!("OnEvents: EVENT_CLOSE - cleaning up plugin resources");
+        custom_bar::cleanup_terminal();
     }
 }
 

@@ -6,7 +6,7 @@ use windows::Win32::UI::WindowsAndMessaging::{
     CS_HREDRAW, CS_VREDRAW, IDC_ARROW, WM_PAINT, WNDCLASSW,
     WS_CHILD, WS_VISIBLE, WS_CLIPCHILDREN, WS_CLIPSIBLINGS,
     SendMessageW, PostMessageW, WM_CHAR, WM_LBUTTONDOWN, WM_SETFOCUS, WM_KILLFOCUS, WM_KEYDOWN, WM_GETDLGCODE, DLGC_WANTALLKEYS,
-    SetWindowsHookExW, UnhookWindowsHookEx, CallNextHookEx, WH_KEYBOARD, HHOOK,
+    SetWindowsHookExW, UnhookWindowsHookEx, CallNextHookEx, WH_KEYBOARD, HHOOK, WM_SIZE, WM_DESTROY,
 };
 use windows::Win32::UI::Input::KeyboardAndMouse::{SetFocus, VK_BACK, GetKeyState};
 use windows::Win32::Storage::FileSystem::{ReadFile, WriteFile};
@@ -203,6 +203,18 @@ pub fn send_input(text: &str) {
                 None
             );
         }
+    }
+}
+
+pub fn cleanup_terminal() {
+    log::info!("cleanup_terminal: Starting cleanup");
+    let data_arc = get_terminal_data();
+    let mut data = data_arc.lock().unwrap();
+    if let Some(_conpty) = data.conpty.take() {
+        log::info!("ConPTY instance found, will be dropped and cleaned up");
+        // Drop happens automatically
+    } else {
+        log::info!("No ConPTY instance to clean up");
     }
 }
 
@@ -412,6 +424,48 @@ extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM
             // Handle repaint request from background thread
             unsafe {
                 let _ = InvalidateRect(hwnd, None, BOOL(0));
+            }
+            LRESULT(0)
+        }
+        WM_SIZE => {
+            let width = (lparam.0 & 0xFFFF) as i32;
+            let height = ((lparam.0 >> 16) & 0xFFFF) as i32;
+            log::info!("WM_SIZE: width={}, height={}", width, height);
+
+            // Convert pixel dimensions to console character dimensions
+            let char_width = 8; // Approximate fixed-width character width
+            let char_height = 16; // Fixed font height from WM_PAINT
+            let cols = (width / char_width).max(1) as i16;
+            let rows = (height / char_height).max(1) as i16;
+
+            log::info!("Resizing ConPTY to cols={}, rows={}", cols, rows);
+
+            let data_arc = get_terminal_data();
+            let mut data = data_arc.lock().unwrap();
+            if let Some(conpty) = &data.conpty {
+                match conpty.resize(cols, rows) {
+                    Ok(_) => {
+                        log::info!("ConPTY resized successfully to {}x{}", cols, rows);
+                        // Update the buffer size as well
+                        data.buffer = TerminalBuffer::new(cols as usize, rows as usize);
+                    }
+                    Err(e) => {
+                        log::error!("Failed to resize ConPTY: {}", e);
+                    }
+                }
+            }
+            LRESULT(0)
+        }
+        WM_DESTROY => {
+            log::info!("WM_DESTROY: Cleaning up terminal resources");
+            uninstall_keyboard_hook();
+
+            // Clean up ConPTY
+            let data_arc = get_terminal_data();
+            let mut data = data_arc.lock().unwrap();
+            if let Some(_conpty) = data.conpty.take() {
+                log::info!("ConPTY will be dropped and cleaned up");
+                // Drop happens automatically when _conpty goes out of scope
             }
             LRESULT(0)
         }

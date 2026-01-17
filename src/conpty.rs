@@ -1,7 +1,7 @@
 use windows::core::PWSTR;
 use windows::Win32::Foundation::{BOOL, HANDLE, INVALID_HANDLE_VALUE, CloseHandle};
 use windows::Win32::System::Console::{
-    CreatePseudoConsole, ClosePseudoConsole, COORD, HPCON,
+    CreatePseudoConsole, ClosePseudoConsole, ResizePseudoConsole, COORD, HPCON,
 };
 use windows::Win32::System::Pipes::CreatePipe;
 use windows::Win32::System::Threading::{
@@ -147,6 +147,14 @@ impl ConPTY {
 
     pub fn get_input_handle(&self) -> SendHandle {
         self.h_pipe_in_write
+    }
+
+    pub fn resize(&self, width: i16, height: i16) -> Result<(), String> {
+        let size = COORD { X: width, Y: height };
+        unsafe {
+            ResizePseudoConsole(self.h_pcon.0, size)
+                .map_err(|e| format!("Failed to resize pseudo console: {}", e))
+        }
     }
 }
 
