@@ -13,14 +13,25 @@ use std::ptr::null_mut;
 use std::mem::size_of;
 use std::ffi::c_void;
 
-pub struct ConPTY {
-    h_pcon: HPCON,
-    h_pipe_in_write: HANDLE,
-    h_pipe_out_read: HANDLE,
-    process_info: PROCESS_INFORMATION,
-}
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct SendHPCON(pub HPCON);
+unsafe impl Send for SendHPCON {}
+unsafe impl Sync for SendHPCON {}
 
-unsafe impl Send for ConPTY {}
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct SendHandle(pub HANDLE);
+unsafe impl Send for SendHandle {}
+unsafe impl Sync for SendHandle {}
+
+pub struct ConPTY {
+    h_pcon: SendHPCON,
+    h_pipe_in_write: SendHandle,
+    h_pipe_out_read: SendHandle,
+    h_process: SendHandle,
+    h_thread: SendHandle,
+}
 
 impl ConPTY {
     pub fn new(cmd_line: &str, width: i16, height: i16) -> Result<Self, String> {
@@ -33,45 +44,49 @@ impl ConPTY {
             if CreatePipe(&mut h_pipe_pt_in, &mut h_pipe_in_write, None, 0).is_err() {
                 return Err("Failed to create input pipe".to_string());
             }
+
             if CreatePipe(&mut h_pipe_out_read, &mut h_pipe_pt_out, None, 0).is_err() {
-                CloseHandle(h_pipe_pt_in);
-                CloseHandle(h_pipe_in_write);
+                let _ = CloseHandle(h_pipe_pt_in);
+                let _ = CloseHandle(h_pipe_in_write);
                 return Err("Failed to create output pipe".to_string());
             }
+
+            log::info!("ConPTY pipes created: in_read={:?}, in_write={:?}, out_read={:?}, out_write={:?}",
+                h_pipe_pt_in, h_pipe_in_write, h_pipe_out_read, h_pipe_pt_out);
 
             let size = COORD { X: width, Y: height };
             let h_pcon = match CreatePseudoConsole(size, h_pipe_pt_in, h_pipe_pt_out, 0) {
                 Ok(h) => h,
                 Err(e) => {
-                    CloseHandle(h_pipe_pt_in);
-                    CloseHandle(h_pipe_in_write);
-                    CloseHandle(h_pipe_out_read);
-                    CloseHandle(h_pipe_pt_out);
+                    let _ = CloseHandle(h_pipe_pt_in);
+                    let _ = CloseHandle(h_pipe_in_write);
+                    let _ = CloseHandle(h_pipe_out_read);
+                    let _ = CloseHandle(h_pipe_pt_out);
                     return Err(format!("Failed to create pseudo console: {}", e));
                 }
             };
 
             // Close the PTY-side pipe handles as the PTY now owns them
-            CloseHandle(h_pipe_pt_in);
-            CloseHandle(h_pipe_pt_out);
+            let _ = CloseHandle(h_pipe_pt_in);
+            let _ = CloseHandle(h_pipe_pt_out);
 
             // Prepare Startup Info
             let mut si_ex = STARTUPINFOEXW::default();
             si_ex.StartupInfo.cb = size_of::<STARTUPINFOEXW>() as u32;
-            
+
             let mut size: usize = 0;
             let _ = InitializeProcThreadAttributeList(LPPROC_THREAD_ATTRIBUTE_LIST(null_mut()), 1, 0, &mut size);
-            
+
             let mut attr_list_buffer = vec![0u8; size];
             let lp_attribute_list = LPPROC_THREAD_ATTRIBUTE_LIST(attr_list_buffer.as_mut_ptr() as *mut c_void);
-            
+
             if InitializeProcThreadAttributeList(lp_attribute_list, 1, 0, &mut size).is_err() {
                  ClosePseudoConsole(h_pcon);
-                 CloseHandle(h_pipe_in_write);
-                 CloseHandle(h_pipe_out_read);
+                 let _ = CloseHandle(h_pipe_in_write);
+                 let _ = CloseHandle(h_pipe_out_read);
                  return Err("Failed to initialize attribute list".to_string());
             }
-            
+
             if UpdateProcThreadAttribute(
                 lp_attribute_list,
                 0,
@@ -83,11 +98,11 @@ impl ConPTY {
             ).is_err() {
                 DeleteProcThreadAttributeList(lp_attribute_list);
                 ClosePseudoConsole(h_pcon);
-                CloseHandle(h_pipe_in_write);
-                CloseHandle(h_pipe_out_read);
+                let _ = CloseHandle(h_pipe_in_write);
+                let _ = CloseHandle(h_pipe_out_read);
                 return Err("Failed to update attribute list".to_string());
             }
-            
+
             si_ex.lpAttributeList = lp_attribute_list;
 
             let mut pi = PROCESS_INFORMATION::default();
@@ -96,7 +111,7 @@ impl ConPTY {
 
             let success = CreateProcessW(
                 None,
-                PWSTR(cmd_line_w.as_mut_ptr()), // PWSTR expects *mut u16
+                PWSTR(cmd_line_w.as_mut_ptr()),
                 None,
                 None,
                 BOOL(0),
@@ -111,37 +126,47 @@ impl ConPTY {
 
             if success.is_err() {
                 ClosePseudoConsole(h_pcon);
-                CloseHandle(h_pipe_in_write);
-                CloseHandle(h_pipe_out_read);
+                let _ = CloseHandle(h_pipe_in_write);
+                let _ = CloseHandle(h_pipe_out_read);
                 return Err("Failed to create process".to_string());
             }
 
             Ok(ConPTY {
-                h_pcon,
-                h_pipe_in_write,
-                h_pipe_out_read,
-                process_info: pi,
+                h_pcon: SendHPCON(h_pcon),
+                h_pipe_in_write: SendHandle(h_pipe_in_write),
+                h_pipe_out_read: SendHandle(h_pipe_out_read),
+                h_process: SendHandle(pi.hProcess),
+                h_thread: SendHandle(pi.hThread),
             })
         }
     }
     
-    pub fn get_output_handle(&self) -> HANDLE {
+    pub fn get_output_handle(&self) -> SendHandle {
         self.h_pipe_out_read
+    }
+
+    pub fn get_input_handle(&self) -> SendHandle {
+        self.h_pipe_in_write
     }
 }
 
+unsafe impl Send for ConPTY {}
+unsafe impl Sync for ConPTY {}
+
 impl Drop for ConPTY {
     fn drop(&mut self) {
+        log::info!("ConPTY dropping... closing handles.");
         unsafe {
-            if self.process_info.hProcess != INVALID_HANDLE_VALUE {
-                CloseHandle(self.process_info.hProcess);
+            if self.h_process.0 != INVALID_HANDLE_VALUE {
+                let _ = CloseHandle(self.h_process.0);
             }
-            if self.process_info.hThread != INVALID_HANDLE_VALUE {
-                CloseHandle(self.process_info.hThread);
+            if self.h_thread.0 != INVALID_HANDLE_VALUE {
+                let _ = CloseHandle(self.h_thread.0);
             }
-            ClosePseudoConsole(self.h_pcon);
-            CloseHandle(self.h_pipe_in_write);
-            CloseHandle(self.h_pipe_out_read);
+            ClosePseudoConsole(self.h_pcon.0);
+            let _ = CloseHandle(self.h_pipe_in_write.0);
+            let _ = CloseHandle(self.h_pipe_out_read.0);
         }
+        log::info!("ConPTY dropped.");
     }
 }

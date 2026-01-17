@@ -1,5 +1,5 @@
 use log::LevelFilter;
-use simplelog::{Config, WriteLogger};
+use simplelog::{ConfigBuilder, WriteLogger};
 use std::ffi::c_void;
 use std::fs::File;
 use std::sync::{Arc, Mutex, OnceLock};
@@ -13,6 +13,7 @@ mod editor;
 mod session;
 mod custom_bar;
 mod conpty;
+mod terminal;
 
 // EmEditor SDK Constants
 pub const EVENT_CREATE: u32 = 0x00000400;
@@ -35,9 +36,14 @@ fn init_logger() {
     let mut path = std::env::temp_dir();
     path.push("emeditor_terminal.log");
     
+    // Set offset to +09:00:00 for JST
+    let config = ConfigBuilder::new()
+        .set_time_offset(time::UtcOffset::from_hms(9, 0, 0).unwrap())
+        .build();
+
     let _ = WriteLogger::init(
         LevelFilter::Debug,
-        Config::default(),
+        config,
         File::create(path).unwrap(),
     );
     log::info!("Logger initialized");

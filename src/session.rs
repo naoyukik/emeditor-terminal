@@ -1,9 +1,9 @@
 use std::io::{Read, Write};
 use std::os::windows::process::CommandExt;
 use std::process::{Child, Command, Stdio};
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use std::thread;
-use windows::Win32::Globalization::{MultiByteToWideChar, WideCharToMultiByte, CP_THREAD_ACP, MULTI_BYTE_TO_WIDE_CHAR_FLAGS, WC_COMPOSITECHECK};
+use windows::Win32::Globalization::{MultiByteToWideChar, WideCharToMultiByte, MULTI_BYTE_TO_WIDE_CHAR_FLAGS, WC_COMPOSITECHECK};
 
 const CREATE_NO_WINDOW: u32 = 0x08000000;
 // Use CP_THREAD_ACP (ANSI Code Page) which is usually 932 on Japanese Windows
