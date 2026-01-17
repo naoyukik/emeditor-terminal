@@ -11,6 +11,7 @@ use windows::Win32::UI::WindowsAndMessaging::{MessageBoxW, MB_OK};
 mod dialog;
 mod editor;
 mod session;
+mod custom_bar;
 
 // EmEditor SDK Constants
 pub const EVENT_CREATE: u32 = 0x00000400;
@@ -18,9 +19,15 @@ pub const EVENT_CREATE: u32 = 0x00000400;
 pub const EVENT_CLOSE: u32 = 0x00000800;
 
 static SESSION: OnceLock<Arc<Mutex<Option<session::ShellSession>>>> = OnceLock::new();
+static INSTANCE_HANDLE: OnceLock<usize> = OnceLock::new();
 
 fn get_session() -> Arc<Mutex<Option<session::ShellSession>>> {
     SESSION.get_or_init(|| Arc::new(Mutex::new(None))).clone()
+}
+
+pub fn get_instance_handle() -> HINSTANCE {
+    let ptr = *INSTANCE_HANDLE.get().unwrap_or(&0) as *mut c_void;
+    HINSTANCE(ptr)
 }
 
 fn init_logger() {
@@ -44,6 +51,7 @@ pub extern "system" fn DllMain(
 ) -> BOOL {
     match call_reason {
         DLL_PROCESS_ATTACH => {
+            let _ = INSTANCE_HANDLE.set(dll_module.0 as usize);
             init_logger();
             log::info!("DllMain: Process Attach");
         }
@@ -78,8 +86,8 @@ pub extern "system" fn OnCommand(hwnd: HWND) {
                 *session_guard = Some(s);
                 log::info!("Session started successfully");
                 
-                // Show output bar automatically
-                editor::show_output_bar(hwnd);
+                // Show custom bar
+                custom_bar::open_custom_bar(hwnd);
 
                 // Initial command to verify output
                 if let Some(session) = session_guard.as_mut() {

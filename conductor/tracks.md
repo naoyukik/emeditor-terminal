@@ -4,5 +4,5 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 ---
 
-- [ ] **Track: EmEditorのカスタムバー機能を活用し、Windows Pseudo Console (ConPTY) をバックエンドとしたターミナル画面を表示する**
+- [~] **Track: EmEditorのカスタムバー機能を活用し、Windows Pseudo Console (ConPTY) をバックエンドとしたターミナル画面を表示する**
 *Link: [./tracks/custom_window_conpty_20260117/](./tracks/custom_window_conpty_20260117/)*
