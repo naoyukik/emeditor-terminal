@@ -12,6 +12,7 @@ mod dialog;
 mod editor;
 mod session;
 mod custom_bar;
+mod conpty;
 
 // EmEditor SDK Constants
 pub const EVENT_CREATE: u32 = 0x00000400;

@@ -1,5 +1,5 @@
 use windows::core::{w, PCWSTR};
-use windows::Win32::Foundation::{HWND, LPARAM, LRESULT, WPARAM};
+use windows::Win32::Foundation::{HWND, LPARAM, LRESULT, WPARAM, CloseHandle, HANDLE};
 use windows::Win32::Graphics::Gdi::{BeginPaint, EndPaint, TextOutW, PAINTSTRUCT, HBRUSH, COLOR_WINDOW};
 use windows::Win32::UI::WindowsAndMessaging::{
     CreateWindowExW, DefWindowProcW, RegisterClassW, LoadCursorW,
@@ -7,8 +7,11 @@ use windows::Win32::UI::WindowsAndMessaging::{
     WS_CHILD, WS_VISIBLE, WS_CLIPCHILDREN, WS_CLIPSIBLINGS,
     SendMessageW,
 };
+use windows::Win32::Storage::FileSystem::ReadFile;
 use std::ffi::c_void;
 use std::mem::size_of;
+use std::thread;
+use crate::conpty::ConPTY;
 
 // Constants from EmEditor SDK
 const WM_USER: u32 = 0x0400;
@@ -85,6 +88,40 @@ pub fn open_custom_bar(hwnd_editor: HWND) {
                     WPARAM(0),
                     LPARAM(&mut info as *mut _ as isize),
                 );
+
+                // Start ConPTY
+                match ConPTY::new("cmd.exe", 80, 25) {
+                    Ok(conpty) => {
+                        log::info!("ConPTY started successfully");
+                        let output_handle_val = conpty.get_output_handle().0 as usize;
+                        
+                        thread::spawn(move || {
+                            let output_handle = HANDLE(output_handle_val as *mut c_void);
+                            let mut buffer = [0u8; 1024];
+                            let mut bytes_read = 0;
+                            loop {
+                                unsafe {
+                                    if ReadFile(
+                                        output_handle,
+                                        Some(&mut buffer),
+                                        Some(&mut bytes_read),
+                                        None
+                                    ).is_err() || bytes_read == 0 {
+                                        break;
+                                    }
+                                }
+                                let output = String::from_utf8_lossy(&buffer[..bytes_read as usize]);
+                                log::info!("ConPTY Output: {}", output);
+                            }
+                            log::info!("ConPTY output thread finished");
+                            // conpty is dropped here
+                            let _ = conpty; 
+                        });
+                    },
+                    Err(e) => {
+                        log::error!("Failed to start ConPTY: {}", e);
+                    }
+                }
             },
             Err(e) => {
                 log::error!("Failed to create custom bar window: {}", e);
