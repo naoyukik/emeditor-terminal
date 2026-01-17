@@ -32,9 +32,15 @@ impl ShellSession {
                 e.to_string()
             })?;
 
-        let stdin = child.stdin.take();
+        let mut stdin = child.stdin.take().ok_or("Failed to capture stdin")?;
         let stdout = child.stdout.take().ok_or("Failed to capture stdout")?;
         let stderr = child.stderr.take().ok_or("Failed to capture stderr")?;
+
+        // Switch cmd.exe to UTF-8 mode (CP65001)
+        log::info!("Setting code page to 65001 (UTF-8)");
+        if let Err(e) = writeln!(stdin, "chcp 65001") {
+            log::error!("Failed to set code page: {}", e);
+        }
 
         let callback = Arc::new(callback);
 
@@ -52,7 +58,7 @@ impl ShellSession {
                     }, 
                     Ok(n) => {
                         log::debug!("Stdout read {} bytes", n);
-                        // Ideally convert from Shift-JIS (CP932) to UTF-8 here
+                        // Now we can expect UTF-8
                         let s = String::from_utf8_lossy(&buffer[..n]).to_string();
                         cb_out(s);
                     }
@@ -91,7 +97,7 @@ impl ShellSession {
 
         Ok(ShellSession {
             process: Some(child),
-            stdin,
+            stdin: Some(stdin),
         })
     }
 
