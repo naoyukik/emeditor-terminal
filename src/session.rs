@@ -23,7 +23,7 @@ impl ShellSession {
         
         // Start cmd with UTF-8 codepage immediately
         let mut child = Command::new("cmd")
-            .args(["/K", "chcp 65001"]) 
+            .args(["/K", "chcp 65001"])
             .creation_flags(CREATE_NO_WINDOW)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
@@ -38,8 +38,6 @@ impl ShellSession {
         let stdout = child.stdout.take().ok_or("Failed to capture stdout")?;
         let stderr = child.stderr.take().ok_or("Failed to capture stderr")?;
 
-        // Manual chcp removed, rely on /K argument
-
         let callback = Arc::new(callback);
 
         // Stdout monitoring thread
@@ -53,7 +51,7 @@ impl ShellSession {
                     Ok(0) => {
                         log::info!("Stdout EOF");
                         break;
-                    }, 
+                    },
                     Ok(n) => {
                         log::debug!("Stdout read {} bytes", n);
                         // Expect UTF-8
@@ -102,7 +100,8 @@ impl ShellSession {
     pub fn send(&mut self, command: &str) -> Result<(), String> {
         log::info!("Sending command: {}", command);
         if let Some(stdin) = &mut self.stdin {
-            writeln!(stdin, "{}", command).map_err(|e| e.to_string())?;
+            // Use explicit CRLF for Windows cmd
+            write!(stdin, "{}\r\n", command).map_err(|e| e.to_string())?;
             stdin.flush().map_err(|e| e.to_string())?;
             Ok(())
         } else {
