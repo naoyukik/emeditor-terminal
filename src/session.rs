@@ -20,9 +20,11 @@ impl ShellSession {
         F: Fn(String) + Send + Sync + 'static,
     {
         log::info!("ShellSession::new called");
+        
+        // Start cmd with UTF-8 codepage immediately
         let mut child = Command::new("cmd")
-            .args(["/K"]) // Keep session open
-            .creation_flags(CREATE_NO_WINDOW) // Prevent window from appearing
+            .args(["/K", "chcp 65001"]) 
+            .creation_flags(CREATE_NO_WINDOW)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
@@ -32,15 +34,11 @@ impl ShellSession {
                 e.to_string()
             })?;
 
-        let mut stdin = child.stdin.take().ok_or("Failed to capture stdin")?;
+        let stdin = child.stdin.take().ok_or("Failed to capture stdin")?;
         let stdout = child.stdout.take().ok_or("Failed to capture stdout")?;
         let stderr = child.stderr.take().ok_or("Failed to capture stderr")?;
 
-        // Switch cmd.exe to UTF-8 mode (CP65001)
-        log::info!("Setting code page to 65001 (UTF-8)");
-        if let Err(e) = writeln!(stdin, "chcp 65001") {
-            log::error!("Failed to set code page: {}", e);
-        }
+        // Manual chcp removed, rely on /K argument
 
         let callback = Arc::new(callback);
 
@@ -58,7 +56,7 @@ impl ShellSession {
                     }, 
                     Ok(n) => {
                         log::debug!("Stdout read {} bytes", n);
-                        // Now we can expect UTF-8
+                        // Expect UTF-8
                         let s = String::from_utf8_lossy(&buffer[..n]).to_string();
                         cb_out(s);
                     }
