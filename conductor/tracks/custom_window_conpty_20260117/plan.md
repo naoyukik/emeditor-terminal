@@ -37,7 +37,8 @@ ConPTY からの出力をカスタムバー上のウィンドウに描画する�
     - [x] `WM_PAINT` でバッファの内容を GDI で描画する。
 - [x] Task: 入力連携 (部分的完了 - バックスペースに既知の問題あり)
     - [x] カスタムバー上の `WM_CHAR` / `WM_KEYDOWN` をフックし、ConPTY の入力パイプに書き込む。
-    - [ ] (既知の問題) バックスペースキーの動作が不安定。後日修正予定。
+    - [x] (既知の問題) バックスペースキーの動作が不安定
+      - Backspaceの修正 - \x08→\x7fに変更して対応済み
 - [x] Task: Conductor - User Manual Verification 'Phase 3' (Protocol in workflow.md)
 
 ## Phase 4: リファクタリングとクリーンアップ
