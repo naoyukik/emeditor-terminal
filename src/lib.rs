@@ -103,7 +103,7 @@ pub extern "system" fn OnCommand(hwnd: HWND) {
         }
     } else {
         log::info!("Session running. Showing input dialog.");
-        editor::show_output_bar(hwnd);
+        // editor::show_output_bar(hwnd); // Removed to avoid toggling off
         
         if let Some(cmd) = dialog::show_input_dialog(hwnd) {
             log::info!("Input received: {}", cmd);
