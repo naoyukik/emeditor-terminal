@@ -8,6 +8,7 @@ use windows::Win32::Foundation::{BOOL, HINSTANCE, HWND, LPARAM, LRESULT, WPARAM}
 use windows::Win32::System::SystemServices::{DLL_PROCESS_ATTACH, DLL_PROCESS_DETACH};
 use windows::Win32::UI::WindowsAndMessaging::{MessageBoxW, MB_OK};
 
+mod dialog;
 mod editor;
 mod session;
 
@@ -65,7 +66,6 @@ pub extern "system" fn OnCommand(hwnd: HWND) {
     if session_guard.is_none() {
         log::info!("Starting new shell session");
         
-        // Pass HWND safely to background thread
         let hwnd_ptr = hwnd.0 as usize;
         
         let result = session::ShellSession::new(move |s| {
@@ -102,11 +102,16 @@ pub extern "system" fn OnCommand(hwnd: HWND) {
             }
         }
     } else {
-        log::info!("Session already running. Sending 'dir' command.");
-        // Also show output bar when interacting with existing session
+        log::info!("Session running. Showing input dialog.");
         editor::show_output_bar(hwnd);
-        if let Some(session) = session_guard.as_mut() {
-             let _ = session.send("dir");
+        
+        if let Some(cmd) = dialog::show_input_dialog(hwnd) {
+            log::info!("Input received: {}", cmd);
+            if let Some(session) = session_guard.as_mut() {
+                 let _ = session.send(&cmd);
+            }
+        } else {
+             log::info!("Input cancelled");
         }
     }
 }
