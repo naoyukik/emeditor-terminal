@@ -1,7 +1,10 @@
 use std::io::{Read, Write};
+use std::os::windows::process::CommandExt;
 use std::process::{Child, Command, Stdio};
 use std::sync::{Arc, Mutex};
 use std::thread;
+
+const CREATE_NO_WINDOW: u32 = 0x08000000;
 
 // Callback type for handling output
 type OutputCallback = Box<dyn Fn(String) + Send + Sync>;
@@ -18,9 +21,10 @@ impl ShellSession {
     {
         let mut child = Command::new("cmd")
             .args(["/K"]) // Keep session open
+            .creation_flags(CREATE_NO_WINDOW) // Prevent window from appearing
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
-            .stderr(Stdio::piped()) // Merge stderr? Or separate? Let's use separate threads or merge.
+            .stderr(Stdio::piped())
             .spawn()
             .map_err(|e| e.to_string())?;
 
@@ -40,7 +44,6 @@ impl ShellSession {
                     Ok(0) => break, // EOF
                     Ok(n) => {
                         // Ideally convert from Shift-JIS (CP932) to UTF-8 here
-                        // For now, use lossy utf8
                         let s = String::from_utf8_lossy(&buffer[..n]).to_string();
                         cb_out(s);
                     }
@@ -106,13 +109,9 @@ mod tests {
             let _ = tx.lock().unwrap().send(s);
         }).expect("Failed to create session");
 
-        // Wait for initial prompt
         thread::sleep(Duration::from_millis(500));
-        
-        // Send echo command
         session.send("echo HelloRust").expect("Failed to send command");
 
-        // Collect output for a short duration
         let start = std::time::Instant::now();
         let mut found = false;
         
