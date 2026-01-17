@@ -2,18 +2,25 @@ use log::LevelFilter;
 use simplelog::{Config, WriteLogger};
 use std::ffi::c_void;
 use std::fs::File;
-use std::path::PathBuf;
+use std::sync::{Arc, Mutex, OnceLock};
 use windows::core::w;
 use windows::Win32::Foundation::{BOOL, HINSTANCE, HWND, LPARAM, LRESULT, WPARAM};
 use windows::Win32::System::SystemServices::{DLL_PROCESS_ATTACH, DLL_PROCESS_DETACH};
 use windows::Win32::UI::WindowsAndMessaging::{MessageBoxW, MB_OK};
 
+mod editor;
 mod session;
 
 // EmEditor SDK Constants
 pub const EVENT_CREATE: u32 = 0x00000400;
 #[allow(dead_code)]
 pub const EVENT_CLOSE: u32 = 0x00000800;
+
+static SESSION: OnceLock<Arc<Mutex<Option<session::ShellSession>>>> = OnceLock::new();
+
+fn get_session() -> Arc<Mutex<Option<session::ShellSession>>> {
+    SESSION.get_or_init(|| Arc::new(Mutex::new(None))).clone()
+}
 
 fn init_logger() {
     let mut path = std::env::temp_dir();
@@ -51,13 +58,51 @@ pub extern "system" fn DllMain(
 #[allow(non_snake_case, unused_variables)]
 pub extern "system" fn OnCommand(hwnd: HWND) {
     log::info!("OnCommand called");
-    unsafe {
-        MessageBoxW(
-            hwnd,
-            w!("Hello from Rust! (OnCommand)"),
-            w!("EmEditor Plugin"),
-            MB_OK,
-        );
+    
+    let session_arc = get_session();
+    let mut session_guard = session_arc.lock().unwrap();
+
+    if session_guard.is_none() {
+        log::info!("Starting new shell session");
+        
+        // Pass HWND safely to background thread
+        let hwnd_ptr = hwnd.0 as usize;
+        
+        let result = session::ShellSession::new(move |s| {
+            let hwnd = HWND(hwnd_ptr as *mut c_void);
+            editor::output_string(hwnd, &s);
+        });
+
+        match result {
+            Ok(s) => {
+                *session_guard = Some(s);
+                log::info!("Session started successfully");
+                
+                // Initial command to verify output
+                if let Some(session) = session_guard.as_mut() {
+                    let _ = session.send("echo Session Started");
+                    let _ = session.send("ver");
+                }
+            },
+            Err(e) => {
+                log::error!("Failed to start session: {}", e);
+                let error_msg = format!("Failed to start session: {}\0", e);
+                let wide_msg: Vec<u16> = error_msg.encode_utf16().collect();
+                unsafe {
+                    MessageBoxW(
+                        hwnd,
+                        windows::core::PCWSTR(wide_msg.as_ptr()),
+                        w!("EmEditor Terminal Error"),
+                        MB_OK,
+                    );
+                }
+            }
+        }
+    } else {
+        log::info!("Session already running. Sending 'dir' command.");
+        if let Some(session) = session_guard.as_mut() {
+             let _ = session.send("dir");
+        }
     }
 }
 
@@ -66,7 +111,9 @@ pub extern "system" fn OnCommand(hwnd: HWND) {
 pub extern "system" fn QueryStatus(hwnd: HWND, pbChecked: *mut BOOL) -> BOOL {
     if !pbChecked.is_null() {
         unsafe {
-            *pbChecked = BOOL(0);
+            let session_arc = get_session();
+            let is_running = session_arc.lock().unwrap().is_some();
+            *pbChecked = BOOL(if is_running { 1 } else { 0 });
         }
     }
     BOOL(1)
