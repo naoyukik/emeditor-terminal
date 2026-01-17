@@ -19,6 +19,7 @@ impl ShellSession {
     where
         F: Fn(String) + Send + Sync + 'static,
     {
+        log::info!("ShellSession::new called");
         let mut child = Command::new("cmd")
             .args(["/K"]) // Keep session open
             .creation_flags(CREATE_NO_WINDOW) // Prevent window from appearing
@@ -26,7 +27,10 @@ impl ShellSession {
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .spawn()
-            .map_err(|e| e.to_string())?;
+            .map_err(|e| {
+                log::error!("Failed to spawn process: {}", e);
+                e.to_string()
+            })?;
 
         let stdin = child.stdin.take();
         let stdout = child.stdout.take().ok_or("Failed to capture stdout")?;
@@ -37,17 +41,25 @@ impl ShellSession {
         // Stdout monitoring thread
         let cb_out = Arc::clone(&callback);
         thread::spawn(move || {
+            log::info!("Stdout thread started");
             let mut reader = std::io::BufReader::new(stdout);
             let mut buffer = [0; 1024];
             loop {
                 match reader.read(&mut buffer) {
-                    Ok(0) => break, // EOF
+                    Ok(0) => {
+                        log::info!("Stdout EOF");
+                        break;
+                    }, 
                     Ok(n) => {
+                        log::debug!("Stdout read {} bytes", n);
                         // Ideally convert from Shift-JIS (CP932) to UTF-8 here
                         let s = String::from_utf8_lossy(&buffer[..n]).to_string();
                         cb_out(s);
                     }
-                    Err(_) => break,
+                    Err(e) => {
+                        log::error!("Stdout read error: {}", e);
+                        break;
+                    },
                 }
             }
         });
@@ -55,16 +67,24 @@ impl ShellSession {
         // Stderr monitoring thread
         let cb_err = Arc::clone(&callback);
         thread::spawn(move || {
+            log::info!("Stderr thread started");
             let mut reader = std::io::BufReader::new(stderr);
             let mut buffer = [0; 1024];
             loop {
                 match reader.read(&mut buffer) {
-                    Ok(0) => break,
+                    Ok(0) => {
+                        log::info!("Stderr EOF");
+                        break;
+                    },
                     Ok(n) => {
+                        log::debug!("Stderr read {} bytes", n);
                         let s = String::from_utf8_lossy(&buffer[..n]).to_string();
                         cb_err(s);
                     }
-                    Err(_) => break,
+                    Err(e) => {
+                        log::error!("Stderr read error: {}", e);
+                        break;
+                    },
                 }
             }
         });
@@ -76,6 +96,7 @@ impl ShellSession {
     }
 
     pub fn send(&mut self, command: &str) -> Result<(), String> {
+        log::info!("Sending command: {}", command);
         if let Some(stdin) = &mut self.stdin {
             writeln!(stdin, "{}", command).map_err(|e| e.to_string())?;
             stdin.flush().map_err(|e| e.to_string())?;
@@ -88,6 +109,7 @@ impl ShellSession {
 
 impl Drop for ShellSession {
     fn drop(&mut self) {
+        log::info!("ShellSession dropped, killing process");
         if let Some(mut child) = self.process.take() {
             let _ = child.kill();
         }
