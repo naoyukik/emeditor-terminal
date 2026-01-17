@@ -1,35 +1,41 @@
 use log::LevelFilter;
-use simplelog::{Config, WriteLogger};
+use simplelog::{ConfigBuilder, WriteLogger};
 use std::ffi::c_void;
 use std::fs::File;
-use std::sync::{Arc, Mutex, OnceLock};
-use windows::core::w;
+use std::sync::OnceLock;
 use windows::Win32::Foundation::{BOOL, HINSTANCE, HWND, LPARAM, LRESULT, WPARAM};
 use windows::Win32::System::SystemServices::{DLL_PROCESS_ATTACH, DLL_PROCESS_DETACH};
-use windows::Win32::UI::WindowsAndMessaging::{MessageBoxW, MB_OK};
 
 mod dialog;
 mod editor;
-mod session;
+mod custom_bar;
+mod conpty;
+mod terminal;
 
 // EmEditor SDK Constants
 pub const EVENT_CREATE: u32 = 0x00000400;
 #[allow(dead_code)]
 pub const EVENT_CLOSE: u32 = 0x00000800;
 
-static SESSION: OnceLock<Arc<Mutex<Option<session::ShellSession>>>> = OnceLock::new();
+static INSTANCE_HANDLE: OnceLock<usize> = OnceLock::new();
 
-fn get_session() -> Arc<Mutex<Option<session::ShellSession>>> {
-    SESSION.get_or_init(|| Arc::new(Mutex::new(None))).clone()
+pub fn get_instance_handle() -> HINSTANCE {
+    let ptr = *INSTANCE_HANDLE.get().unwrap_or(&0) as *mut c_void;
+    HINSTANCE(ptr)
 }
 
 fn init_logger() {
     let mut path = std::env::temp_dir();
     path.push("emeditor_terminal.log");
     
+    // Set offset to +09:00:00 for JST
+    let config = ConfigBuilder::new()
+        .set_time_offset(time::UtcOffset::from_hms(9, 0, 0).unwrap())
+        .build();
+
     let _ = WriteLogger::init(
         LevelFilter::Debug,
-        Config::default(),
+        config,
         File::create(path).unwrap(),
     );
     log::info!("Logger initialized");
@@ -44,6 +50,7 @@ pub extern "system" fn DllMain(
 ) -> BOOL {
     match call_reason {
         DLL_PROCESS_ATTACH => {
+            let _ = INSTANCE_HANDLE.set(dll_module.0 as usize);
             init_logger();
             log::info!("DllMain: Process Attach");
         }
@@ -60,59 +67,15 @@ pub extern "system" fn DllMain(
 pub extern "system" fn OnCommand(hwnd: HWND) {
     log::info!("OnCommand called");
     
-    let session_arc = get_session();
-    let mut session_guard = session_arc.lock().unwrap();
+    // Show custom bar
+    custom_bar::open_custom_bar(hwnd);
 
-    if session_guard.is_none() {
-        log::info!("Starting new shell session");
-        
-        let hwnd_ptr = hwnd.0 as usize;
-        
-        let result = session::ShellSession::new(move |s| {
-            let hwnd = HWND(hwnd_ptr as *mut c_void);
-            editor::output_string(hwnd, &s);
-        });
-
-        match result {
-            Ok(s) => {
-                *session_guard = Some(s);
-                log::info!("Session started successfully");
-                
-                // Show output bar automatically
-                editor::show_output_bar(hwnd);
-
-                // Initial command to verify output
-                if let Some(session) = session_guard.as_mut() {
-                    let _ = session.send("echo Session Started");
-                    let _ = session.send("ver");
-                }
-            },
-            Err(e) => {
-                log::error!("Failed to start session: {}", e);
-                let error_msg = format!("Failed to start session: {}\0", e);
-                let wide_msg: Vec<u16> = error_msg.encode_utf16().collect();
-                unsafe {
-                    MessageBoxW(
-                        hwnd,
-                        windows::core::PCWSTR(wide_msg.as_ptr()),
-                        w!("EmEditor Terminal Error"),
-                        MB_OK,
-                    );
-                }
-            }
-        }
+    log::info!("Showing input dialog.");
+    if let Some(cmd) = dialog::show_input_dialog(hwnd) {
+        log::info!("Input received: {}", cmd);
+        custom_bar::send_input(&cmd);
     } else {
-        log::info!("Session running. Showing input dialog.");
-        // editor::show_output_bar(hwnd); // Removed to avoid toggling off
-        
-        if let Some(cmd) = dialog::show_input_dialog(hwnd) {
-            log::info!("Input received: {}", cmd);
-            if let Some(session) = session_guard.as_mut() {
-                 let _ = session.send(&cmd);
-            }
-        } else {
-             log::info!("Input cancelled");
-        }
+        log::info!("Input cancelled");
     }
 }
 
@@ -120,10 +83,10 @@ pub extern "system" fn OnCommand(hwnd: HWND) {
 #[allow(non_snake_case, unused_variables, clippy::not_unsafe_ptr_arg_deref)]
 pub extern "system" fn QueryStatus(hwnd: HWND, pbChecked: *mut BOOL) -> BOOL {
     if !pbChecked.is_null() {
+        // Always return checked for now if it exists, or based on custom bar state
+        // For now, let's keep it simple.
         unsafe {
-            let session_arc = get_session();
-            let is_running = session_arc.lock().unwrap().is_some();
-            *pbChecked = BOOL(if is_running { 1 } else { 0 });
+            *pbChecked = BOOL(0);
         }
     }
     BOOL(1)
@@ -134,6 +97,9 @@ pub extern "system" fn QueryStatus(hwnd: HWND, pbChecked: *mut BOOL) -> BOOL {
 pub extern "system" fn OnEvents(hwnd: HWND, nEvent: u32, wParam: WPARAM, lParam: LPARAM) {
     if nEvent == EVENT_CREATE {
         log::info!("OnEvents: EVENT_CREATE");
+    } else if nEvent == EVENT_CLOSE {
+        log::info!("OnEvents: EVENT_CLOSE - cleaning up plugin resources");
+        custom_bar::cleanup_terminal();
     }
 }
 

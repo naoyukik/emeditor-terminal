@@ -1,16 +1,14 @@
-use std::ffi::c_void;
-use windows::core::{PCWSTR, PWSTR};
-use windows::Win32::Foundation::{BOOL, HINSTANCE, HWND, LPARAM, LRESULT, WPARAM};
+use windows::Win32::Foundation::{HWND, LPARAM, WPARAM};
 use windows::Win32::System::LibraryLoader::GetModuleHandleW;
 use windows::Win32::UI::WindowsAndMessaging::{
     DialogBoxIndirectParamW, EndDialog, GetDlgItem, GetWindowTextW,
-    WM_INITDIALOG, WM_COMMAND, WM_CLOSE, BN_CLICKED, IDOK, IDCANCEL,
-    DLGTEMPLATE, DLGITEMTEMPLATE, 
+    WM_INITDIALOG, WM_COMMAND, WM_CLOSE, IDOK, IDCANCEL,
+    DLGTEMPLATE,
     DS_CENTER, DS_MODALFRAME, DS_SETFONT, 
     WS_CAPTION, WS_POPUP, WS_SYSMENU, WS_CHILD, WS_VISIBLE, WS_TABSTOP, WS_BORDER, 
     ES_AUTOHSCROLL, BS_DEFPUSHBUTTON,
     WS_EX_DLGMODALFRAME,
-    GWLP_USERDATA, WINDOW_LONG_PTR_INDEX, SetWindowLongPtrW, GetWindowLongPtrW,
+    GWLP_USERDATA, SetWindowLongPtrW, GetWindowLongPtrW,
 };
 use windows::Win32::UI::Input::KeyboardAndMouse::SetFocus;
 

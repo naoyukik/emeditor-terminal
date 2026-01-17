@@ -1,0 +1,8 @@
+{
+  "track_id": "custom_window_conpty_20260117",
+  "type": "feature",
+  "status": "new",
+  "created_at": "2026-01-17T13:39:00Z",
+  "updated_at": "2026-01-17T13:39:00Z",
+  "description": "EmEditorのカスタムバー機能を活用し、Windows Pseudo Console (ConPTY) をバックエンドとしたターミナル画面を表示する"
+}

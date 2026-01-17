@@ -1,0 +1,8 @@
+{
+  "track_id": "simple_terminal_io_20260116",
+  "type": "feature",
+  "status": "new",
+  "created_at": "2026-01-16T23:12:00Z",
+  "updated_at": "2026-01-16T23:12:00Z",
+  "description": "簡易的な対話型シェル（cmd.exe）の入出力を実現し、EmEditorのアウトプットバーと連携する"
+}
