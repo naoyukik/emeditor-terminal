@@ -41,7 +41,7 @@ ConPTY からの出力をカスタムバー上のウィンドウに描画する�
 - [x] Task: Conductor - User Manual Verification 'Phase 3' (Protocol in workflow.md)
 
 ## Phase 4: リファクタリングとクリーンアップ
-- [ ] Task: 安定性向上
-    - [ ] リサイズ (`WM_SIZE`) 時の ConPTY リサイズ (`ResizePseudoConsole`) 連動。
-    - [ ] プラグイン終了時 (`EVENT_CLOSE`) のプロセス終了処理。
-- [ ] Task: Conductor - User Manual Verification 'Phase 4' (Protocol in workflow.md)
+- [x] Task: 安定性向上
+    - [x] リサイズ (`WM_SIZE`) 時の ConPTY リサイズ (`ResizePseudoConsole`) 連動。
+    - [x] プラグイン終了時 (`EVENT_CLOSE`) のプロセス終了処理。
+- [x] Task: Conductor - User Manual Verification 'Phase 4' (Protocol in workflow.md)
