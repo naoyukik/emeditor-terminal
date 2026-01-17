@@ -8,7 +8,14 @@ use windows::Win32::UI::WindowsAndMessaging::{
     SendMessageW, PostMessageW, WM_CHAR, WM_LBUTTONDOWN, WM_SETFOCUS, WM_KILLFOCUS, WM_KEYDOWN, WM_GETDLGCODE, DLGC_WANTALLKEYS,
     SetWindowsHookExW, UnhookWindowsHookEx, CallNextHookEx, WH_KEYBOARD, HHOOK, WM_SIZE, WM_DESTROY,
 };
-use windows::Win32::UI::Input::KeyboardAndMouse::{SetFocus, VK_BACK, GetKeyState};
+use windows::Win32::UI::Input::KeyboardAndMouse::{
+    SetFocus, GetKeyState,
+    VK_BACK, VK_RETURN, VK_LEFT, VK_RIGHT, VK_UP, VK_DOWN,
+    VK_HOME, VK_END, VK_DELETE, VK_INSERT, VK_PRIOR, VK_NEXT,
+    VK_TAB, VK_ESCAPE, VK_F1, VK_F2, VK_F3, VK_F4, VK_F5, VK_F6,
+    VK_F7, VK_F8, VK_F9, VK_F10, VK_F11, VK_F12,
+    VK_CONTROL, VK_SHIFT, VK_MENU,
+};
 use windows::Win32::Storage::FileSystem::{ReadFile, WriteFile};
 use std::ffi::c_void;
 use std::mem::size_of;
@@ -182,6 +189,123 @@ pub fn open_custom_bar(hwnd_editor: HWND) {
     }
 }
 
+// Convert virtual key code to VT sequence
+fn vk_to_vt_sequence(vk_code: u16, ctrl_pressed: bool, shift_pressed: bool, alt_pressed: bool) -> Option<&'static [u8]> {
+    // Handle Ctrl+ combinations first
+    if ctrl_pressed && !alt_pressed {
+        match vk_code {
+            0x41..=0x5A => { // Ctrl+A through Ctrl+Z
+                // Return control character (A=1, B=2, ..., Z=26)
+                let ctrl_char = (vk_code - 0x40) as u8;
+                return match ctrl_char {
+                    1 => Some(b"\x01"),   // Ctrl+A
+                    2 => Some(b"\x02"),   // Ctrl+B
+                    3 => Some(b"\x03"),   // Ctrl+C
+                    4 => Some(b"\x04"),   // Ctrl+D
+                    5 => Some(b"\x05"),   // Ctrl+E
+                    6 => Some(b"\x06"),   // Ctrl+F
+                    7 => Some(b"\x07"),   // Ctrl+G
+                    8 => Some(b"\x08"),   // Ctrl+H (same as Backspace)
+                    9 => Some(b"\x09"),   // Ctrl+I (same as Tab)
+                    10 => Some(b"\x0a"),  // Ctrl+J
+                    11 => Some(b"\x0b"),  // Ctrl+K
+                    12 => Some(b"\x0c"),  // Ctrl+L
+                    13 => Some(b"\x0d"),  // Ctrl+M (same as Enter)
+                    14 => Some(b"\x0e"),  // Ctrl+N
+                    15 => Some(b"\x0f"),  // Ctrl+O
+                    16 => Some(b"\x10"),  // Ctrl+P
+                    17 => Some(b"\x11"),  // Ctrl+Q
+                    18 => Some(b"\x12"),  // Ctrl+R
+                    19 => Some(b"\x13"),  // Ctrl+S
+                    20 => Some(b"\x14"),  // Ctrl+T
+                    21 => Some(b"\x15"),  // Ctrl+U
+                    22 => Some(b"\x16"),  // Ctrl+V
+                    23 => Some(b"\x17"),  // Ctrl+W
+                    24 => Some(b"\x18"),  // Ctrl+X
+                    25 => Some(b"\x19"),  // Ctrl+Y
+                    26 => Some(b"\x1a"),  // Ctrl+Z
+                    _ => None,
+                };
+            }
+            _ => {}
+        }
+    }
+
+    // Special keys with modifiers
+    match vk_code {
+        k if k == VK_UP.0 => {
+            if ctrl_pressed { Some(b"\x1b[1;5A") }
+            else if shift_pressed { Some(b"\x1b[1;2A") }
+            else if alt_pressed { Some(b"\x1b[1;3A") }
+            else { Some(b"\x1b[A") }
+        }
+        k if k == VK_DOWN.0 => {
+            if ctrl_pressed { Some(b"\x1b[1;5B") }
+            else if shift_pressed { Some(b"\x1b[1;2B") }
+            else if alt_pressed { Some(b"\x1b[1;3B") }
+            else { Some(b"\x1b[B") }
+        }
+        k if k == VK_RIGHT.0 => {
+            if ctrl_pressed { Some(b"\x1b[1;5C") }
+            else if shift_pressed { Some(b"\x1b[1;2C") }
+            else if alt_pressed { Some(b"\x1b[1;3C") }
+            else { Some(b"\x1b[C") }
+        }
+        k if k == VK_LEFT.0 => {
+            if ctrl_pressed { Some(b"\x1b[1;5D") }
+            else if shift_pressed { Some(b"\x1b[1;2D") }
+            else if alt_pressed { Some(b"\x1b[1;3D") }
+            else { Some(b"\x1b[D") }
+        }
+        k if k == VK_HOME.0 => {
+            if ctrl_pressed { Some(b"\x1b[1;5H") }
+            else if shift_pressed { Some(b"\x1b[1;2H") }
+            else { Some(b"\x1b[H") }
+        }
+        k if k == VK_END.0 => {
+            if ctrl_pressed { Some(b"\x1b[1;5F") }
+            else if shift_pressed { Some(b"\x1b[1;2F") }
+            else { Some(b"\x1b[F") }
+        }
+        k if k == VK_DELETE.0 => Some(b"\x1b[3~"),
+        k if k == VK_INSERT.0 => Some(b"\x1b[2~"),
+        k if k == VK_PRIOR.0 => Some(b"\x1b[5~"),  // Page Up
+        k if k == VK_NEXT.0 => Some(b"\x1b[6~"),   // Page Down
+        k if k == VK_BACK.0 => Some(b"\x7f"),      // Backspace (DEL)
+        k if k == VK_RETURN.0 => Some(b"\r"),      // Enter
+        k if k == VK_TAB.0 => Some(b"\t"),         // Tab
+        k if k == VK_ESCAPE.0 => Some(b"\x1b"),    // Escape
+        k if k == VK_F1.0 => Some(b"\x1bOP"),
+        k if k == VK_F2.0 => Some(b"\x1bOQ"),
+        k if k == VK_F3.0 => Some(b"\x1bOR"),
+        k if k == VK_F4.0 => Some(b"\x1bOS"),
+        k if k == VK_F5.0 => Some(b"\x1b[15~"),
+        k if k == VK_F6.0 => Some(b"\x1b[17~"),
+        k if k == VK_F7.0 => Some(b"\x1b[18~"),
+        k if k == VK_F8.0 => Some(b"\x1b[19~"),
+        k if k == VK_F9.0 => Some(b"\x1b[20~"),
+        k if k == VK_F10.0 => Some(b"\x1b[21~"),
+        k if k == VK_F11.0 => Some(b"\x1b[23~"),
+        k if k == VK_F12.0 => Some(b"\x1b[24~"),
+        _ => None,
+    }
+}
+
+// Helper function to write data to ConPTY input pipe
+fn write_to_conpty(handle: HANDLE, data: &[u8]) -> Result<(), windows::core::Error> {
+    let mut bytes_written = 0;
+    unsafe {
+        WriteFile(
+            handle,
+            Some(data),
+            Some(&mut bytes_written),
+            None
+        )?;
+    }
+    log::debug!("Wrote {} bytes to ConPTY: {:?}", bytes_written, data);
+    Ok(())
+}
+
 pub fn send_input(text: &str) {
     let data_arc = get_terminal_data();
     let data = data_arc.lock().unwrap();
@@ -218,44 +342,26 @@ pub fn cleanup_terminal() {
     }
 }
 
-fn send_backspace_to_conpty() -> Option<HWND> {
-    // Get the handle while holding the lock, then release the lock before WriteFile
-    // to avoid deadlock with the output thread
-    let handle = {
-        let data_arc = get_terminal_data();
-        let data = data_arc.lock().unwrap();
-        if let Some(conpty) = &data.conpty {
-            Some(conpty.get_input_handle().0)
-        } else {
-            None
-        }
-    }; // Lock is released here
-    
-    if let Some(handle) = handle {
-        let mut bytes_written = 0;
-        log::debug!("Attempting to write backspace (0x08) to handle: {:?}", handle);
-        unsafe {
-            let result = WriteFile(
-                handle,
-                Some(b"\x08"),
-                Some(&mut bytes_written),
-                None
-            );
-            match result {
-                Ok(_) => {
-                    log::info!("Backspace (0x08) sent to ConPTY: {} bytes written", bytes_written);
-                    // ConPTY will echo back the backspace sequence, so no local processing needed
-                }
-                Err(e) => {
-                    log::error!("WriteFile failed for backspace: {}", e);
-                }
+fn send_key_to_conpty(vk_code: u16) {
+    let ctrl_pressed = unsafe { GetKeyState(VK_CONTROL.0 as i32) } < 0;
+    let shift_pressed = unsafe { GetKeyState(VK_SHIFT.0 as i32) } < 0;
+    let alt_pressed = unsafe { GetKeyState(VK_MENU.0 as i32) } < 0;
+
+    if let Some(vt_sequence) = vk_to_vt_sequence(vk_code, ctrl_pressed, shift_pressed, alt_pressed) {
+        let handle = {
+            let data_arc = get_terminal_data();
+            let data = data_arc.lock().unwrap();
+            data.conpty.as_ref().map(|c| c.get_input_handle().0)
+        };
+
+        if let Some(handle) = handle {
+            log::debug!("Keyboard hook: Sending VT sequence for vk_code 0x{:04X}", vk_code);
+            if let Err(e) = write_to_conpty(handle, vt_sequence) {
+                log::error!("Keyboard hook: Failed to write VT sequence: {}", e);
             }
+        } else {
+            log::warn!("Keyboard hook: No ConPTY available");
         }
-        // Return None - ConPTY response will trigger repaint via output thread
-        None
-    } else {
-        log::warn!("send_backspace_to_conpty: No ConPTY available");
-        None
     }
 }
 
@@ -263,14 +369,13 @@ extern "system" fn keyboard_hook_proc(code: i32, wparam: WPARAM, lparam: LPARAM)
     if code >= 0 {
         let vk_code = wparam.0 as u16;
         let key_up = (lparam.0 >> 31) & 1; // bit 31 = transition state (1 = key up)
+        let prev_key_state = (lparam.0 >> 30) & 1; // bit 30 = previous key state (1 = key was down)
 
-        // Handle Backspace - WM_KEYDOWN doesn't receive it due to EmEditor consuming it
-        if vk_code == VK_BACK.0 && key_up == 0 {
-            log::debug!("Keyboard hook: Backspace detected (key down)");
-            if let Some(hwnd) = send_backspace_to_conpty() {
-                // Trigger repaint after local backspace processing
-                let _ = unsafe { InvalidateRect(hwnd, None, BOOL(0)) };
-            }
+        // Handle Backspace on key down - WM_KEYDOWN doesn't receive it due to EmEditor consuming it
+        // Only process on initial key down (prev_key_state == 0) to prevent key repeat
+        if vk_code == VK_BACK.0 && key_up == 0 && prev_key_state == 0 {
+            log::debug!("Keyboard hook: Backspace detected (initial key down)");
+            send_key_to_conpty(vk_code);
             // Return 1 to prevent further processing (avoid double handling)
             return LRESULT(1);
         }
@@ -366,33 +471,37 @@ extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM
         WM_KEYDOWN => {
             let vk_code = wparam.0 as u16;
             log::debug!("WM_KEYDOWN received: 0x{:04X}", vk_code);
-            
-            if vk_code == VK_BACK.0 {
-                log::info!("Handling Backspace via WM_KEYDOWN");
-                let data_arc = get_terminal_data();
-                let data = data_arc.lock().unwrap();
-                
-                if let Some(conpty) = &data.conpty {
-                    let utf8_bytes = b"\x08";
-                    let mut bytes_written = 0;
-                    let handle = conpty.get_input_handle().0;
-                    log::debug!("Writing backspace to ConPTY handle: {:?}", handle);
-                    unsafe {
-                        let result = WriteFile(
-                            handle,
-                            Some(utf8_bytes),
-                            Some(&mut bytes_written),
-                            None
-                        );
-                        match result {
-                            Ok(_) => log::info!("WM_KEYDOWN: Backspace sent, {} bytes written", bytes_written),
-                            Err(e) => log::error!("WM_KEYDOWN: WriteFile failed: {}", e),
-                        }
+
+            // Check modifier key states
+            let ctrl_pressed = unsafe { GetKeyState(VK_CONTROL.0 as i32) } < 0;
+            let shift_pressed = unsafe { GetKeyState(VK_SHIFT.0 as i32) } < 0;
+            let alt_pressed = unsafe { GetKeyState(VK_MENU.0 as i32) } < 0;
+
+            log::debug!("Modifiers - Ctrl: {}, Shift: {}, Alt: {}", ctrl_pressed, shift_pressed, alt_pressed);
+
+            // Try to convert to VT sequence
+            if let Some(vt_sequence) = vk_to_vt_sequence(vk_code, ctrl_pressed, shift_pressed, alt_pressed) {
+                log::info!("WM_KEYDOWN: Sending VT sequence for vk_code 0x{:04X}: {:?}", vk_code, vt_sequence);
+
+                let handle = {
+                    let data_arc = get_terminal_data();
+                    let data = data_arc.lock().unwrap();
+                    data.conpty.as_ref().map(|c| c.get_input_handle().0)
+                };
+
+                if let Some(handle) = handle {
+                    if let Err(e) = write_to_conpty(handle, vt_sequence) {
+                        log::error!("Failed to write VT sequence: {}", e);
                     }
+                } else {
+                    log::warn!("No ConPTY available");
                 }
+
                 LRESULT(0)
             } else {
-                 unsafe { DefWindowProcW(hwnd, msg, wparam, lparam) }
+                // Not a special key, let WM_CHAR handle it
+                log::debug!("WM_KEYDOWN: No VT sequence for vk_code 0x{:04X}, passing to DefWindowProc", vk_code);
+                unsafe { DefWindowProcW(hwnd, msg, wparam, lparam) }
             }
         }
         WM_GETDLGCODE => {
@@ -402,9 +511,17 @@ extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM
         WM_CHAR => {
             let char_code = wparam.0 as u16;
             log::debug!("WM_CHAR received: 0x{:04X} ({})", char_code, String::from_utf16_lossy(&[char_code]));
+
+            // Skip characters that were already handled by WM_KEYDOWN as special keys
+            // This includes Enter (0x0D), Tab (0x09), Escape (0x1B), Backspace (0x08)
+            if char_code == 0x0D || char_code == 0x09 || char_code == 0x1B || char_code == 0x08 {
+                log::debug!("WM_CHAR: Skipping char 0x{:04X} (already handled by WM_KEYDOWN)", char_code);
+                return LRESULT(0);
+            }
+
             let data_arc = get_terminal_data();
             let data = data_arc.lock().unwrap();
-            
+
             if let Some(conpty) = &data.conpty {
                 let s = String::from_utf16_lossy(&[char_code]);
                 let utf8_bytes = s.as_bytes();
