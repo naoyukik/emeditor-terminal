@@ -19,4 +19,5 @@ windows = { version = "0.58", features = [
     "Win32_Security",
     "Win32_Graphics_Gdi",
     "Win32_UI_Input_KeyboardAndMouse",
+    "Win32_Globalization",
 ] }
