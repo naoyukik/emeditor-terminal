@@ -1,6 +1,6 @@
 use windows::core::{w, PCWSTR};
 use windows::Win32::Foundation::{HWND, LPARAM, LRESULT, WPARAM, HANDLE, BOOL};
-use windows::Win32::Graphics::Gdi::{BeginPaint, EndPaint, TextOutW, PAINTSTRUCT, HBRUSH, COLOR_WINDOW, InvalidateRect};
+use windows::Win32::Graphics::Gdi::{BeginPaint, EndPaint, TextOutW, PAINTSTRUCT, HBRUSH, COLOR_WINDOW, InvalidateRect, InvertRect};
 use windows::Win32::UI::WindowsAndMessaging::{
     CreateWindowExW, DefWindowProcW, RegisterClassW, LoadCursorW,
     CS_HREDRAW, CS_VREDRAW, IDC_ARROW, WM_PAINT, WNDCLASSW,
@@ -440,10 +440,23 @@ extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM
                 
                 let mut y = 0;
                 let char_height = 16; // 簡易的な固定フォント高さ
+                let char_width = 8;  // 簡易的な固定フォント幅
                 for line in data.buffer.get_lines() {
                     let wide_line: Vec<u16> = line.encode_utf16().collect();
                     let _ = TextOutW(hdc, 0, y, &wide_line);
                     y += char_height;
+                }
+
+                // Render cursor as an overlay
+                if data.buffer.is_cursor_visible() {
+                    let (cx, cy) = data.buffer.get_cursor_pixel_pos(char_width, char_height);
+                    let rect = windows::Win32::Foundation::RECT {
+                        left: cx,
+                        top: cy,
+                        right: cx + 2, // 2px width bar
+                        bottom: cy + char_height,
+                    };
+                    let _ = InvertRect(hdc, &rect);
                 }
                 
                 let _ = EndPaint(hwnd, &ps);

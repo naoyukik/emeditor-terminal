@@ -345,6 +345,16 @@ impl TerminalBuffer {
         (self.cursor.x, self.cursor.y)
     }
 
+    /// カーソルのピクセル座標を計算する（簡易版：等幅フォント前提）
+    pub fn get_cursor_pixel_pos(&self, char_width: i32, char_height: i32) -> (i32, i32) {
+        // 現在の描画ロジックに合わせて、単純なグリッド座標から計算
+        // 全角文字を考慮する場合、self.cursor.x までの文字の表示幅を合計する必要があるが、
+        // 現状の TextOutW の描画と合わせるため、一旦単純な index * width とする。
+        let x = self.cursor.x as i32 * char_width;
+        let y = self.cursor.y as i32 * char_height;
+        (x, y)
+    }
+
     /// バックスペース処理：カーソル位置の前の文字を削除し、カーソルを左に移動
     pub fn backspace(&mut self) {
         if self.cursor.x > 0 {

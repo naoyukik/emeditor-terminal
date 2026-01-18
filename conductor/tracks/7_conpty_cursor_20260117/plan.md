@@ -11,16 +11,16 @@
 - [x] Task: Cursor Visibility (DECTCEM) シーケンスのパース実装
     - [x] `ESC [ ? 25 h` / `l` を解析し、表示フラグを更新するロジックを実装
     - [x] ユニットテストの作成
-- [ ] Task: Conductor - User Manual Verification 'Phase 1' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Phase 1' (Protocol in workflow.md)
 
 ## Phase 2: 座標変換とレンダリング基盤の整備
-- [ ] Task: 論理座標からピクセル座標への変換ロジックの実装
-    - [ ] フォントサイズ・パディング・スクロールオフセットを考慮した計算式を実装
-    - [ ] `Terminal` に座標取得用ヘルパーメソッドを追加
-    - [ ] ユニットテストの作成
-- [ ] Task: 描画コンポーネントへのカーソル描画処理の追加
-    - [ ] "Bar" スタイルの矩形描画ロジックを実装（オーバーレイ方式）
-    - [ ] カーソルの表示フラグ (`cursor_visible`) に応じた条件分岐を追加
+- [x] Task: 論理座標からピクセル座標への変換ロジックの実装
+    - [x] フォントサイズ・パディング・スクロールオフセットを考慮した計算式を実装
+    - [x] `Terminal` に座標取得用ヘルパーメソッドを追加
+    - [x] ユニットテストの作成
+- [x] Task: 描画コンポーネントへのカーソル描画処理の追加
+    - [x] "Bar" スタイルの矩形描画ロジックを実装（オーバーレイ方式）
+    - [x] カーソルの表示フラグ (`cursor_visible`) に応じた条件分岐を追加
 - [ ] Task: Conductor - User Manual Verification 'Phase 2' (Protocol in workflow.md)
 
 ## Phase 3: 結合テストと動作確認
