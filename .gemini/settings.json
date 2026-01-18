@@ -14,6 +14,8 @@
       "ShellTool(grep)",
       "ShellTool(glob)",
       "ShellTool(cargo build)",
+      "ShellTool(git add)",
+      "ShellTool(git commit)",
       "ShellTool(git status)",
       "ShellTool(git rev-parse)",
       "ShellTool(git log)",
@@ -26,6 +28,10 @@
       "ShellTool(cargo clippy)",
       "ShellTool(cargo fmt)",
       "ShellTool(Test-Path)",
+      "ShellTool(Get-Content sdk/)",
+      "ShellTool(Get-Content conductor/)",
+      "ShellTool(New-Item -ItemType Directory -Path conductor/)",
+      "ShellTool(Add-Content conductor/)",
       "ShellTool(.\\gradlew buildPlugin)",
       "ShellTool(.\\gradlew compileKotlin)",
       "ShellTool(.\\gradlew clean compileKotlin)",
@@ -50,6 +56,9 @@
       "headers": {
         "IJ_MCP_SERVER_PROJECT_PATH": "$IJ_MCP_SERVER_PROJECT_PATH"
       }
+    },
+    "learn-microsoft": {
+      "url": "https://learn.microsoft.com/api/mcp"
     }
   },
   "model": {

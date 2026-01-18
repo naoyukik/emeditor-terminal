@@ -1,12 +1,27 @@
 use std::collections::VecDeque;
 
+pub struct Cursor {
+    pub x: usize,
+    pub y: usize,
+    pub visible: bool,
+}
+
+impl Default for Cursor {
+    fn default() -> Self {
+        Self {
+            x: 0,
+            y: 0,
+            visible: true,
+        }
+    }
+}
+
 pub struct TerminalBuffer {
     lines: VecDeque<String>,
     max_lines: usize,
     width: usize,
     height: usize,
-    cursor_x: usize,
-    cursor_y: usize,
+    cursor: Cursor,
 }
 
 impl TerminalBuffer {
@@ -20,8 +35,7 @@ impl TerminalBuffer {
             max_lines: 1000, // スクロールバック用
             width,
             height,
-            cursor_x: 0,
-            cursor_y: 0,
+            cursor: Cursor::default(),
         }
     }
 
@@ -56,19 +70,19 @@ impl TerminalBuffer {
         match command {
             'D' => { // Cursor Back
                 let n = params.parse::<usize>().unwrap_or(1);
-                if self.cursor_x >= n {
-                    self.cursor_x -= n;
+                if self.cursor.x >= n {
+                    self.cursor.x -= n;
                 } else {
-                    self.cursor_x = 0;
+                    self.cursor.x = 0;
                 }
             },
             'C' => { // Cursor Forward
                 let n = params.parse::<usize>().unwrap_or(1);
-                self.cursor_x = std::cmp::min(self.width - 1, self.cursor_x + n);
+                self.cursor.x = std::cmp::min(self.width - 1, self.cursor.x + n);
             },
             'K' => { // Erase in Line
                  let mode = params.parse::<usize>().unwrap_or(0);
-                 if let Some(line) = self.lines.get_mut(self.cursor_y) {
+                 if let Some(line) = self.lines.get_mut(self.cursor.y) {
                     let mut chars: Vec<char> = line.chars().collect();
                     // Pad if necessary
                     while chars.len() < self.width {
@@ -77,14 +91,14 @@ impl TerminalBuffer {
 
                     match mode {
                         0 => { // Cursor to end
-                            if self.cursor_x < chars.len() {
-                                for i in self.cursor_x..chars.len() {
+                            if self.cursor.x < chars.len() {
+                                for i in self.cursor.x..chars.len() {
                                     chars[i] = ' ';
                                 }
                             }
                         },
                         1 => { // Start to cursor
-                            let end = std::cmp::min(self.cursor_x + 1, chars.len());
+                            let end = std::cmp::min(self.cursor.x + 1, chars.len());
                             for i in 0..end {
                                 chars[i] = ' ';
                             }
@@ -101,13 +115,13 @@ impl TerminalBuffer {
             },
             'P' => { // Delete Character (Shift Left)
                 let n = params.parse::<usize>().unwrap_or(1);
-                if let Some(line) = self.lines.get_mut(self.cursor_y) {
+                if let Some(line) = self.lines.get_mut(self.cursor.y) {
                      let mut chars: Vec<char> = line.chars().collect();
-                     if self.cursor_x < chars.len() {
-                         let end_idx = std::cmp::min(self.cursor_x + n, chars.len());
-                         chars.drain(self.cursor_x..end_idx);
+                     if self.cursor.x < chars.len() {
+                         let end_idx = std::cmp::min(self.cursor.x + n, chars.len());
+                         chars.drain(self.cursor.x..end_idx);
                          // Pad with spaces at the end
-                         for _ in 0..(end_idx - self.cursor_x) {
+                         for _ in 0..(end_idx - self.cursor.x) {
                              chars.push(' ');
                          }
                          *line = chars.into_iter().collect();
@@ -116,15 +130,15 @@ impl TerminalBuffer {
             },
             'X' => { // Erase Character (Replace with Space)
                 let n = params.parse::<usize>().unwrap_or(1);
-                if let Some(line) = self.lines.get_mut(self.cursor_y) {
+                if let Some(line) = self.lines.get_mut(self.cursor.y) {
                      let mut chars: Vec<char> = line.chars().collect();
                      // Pad if necessary
                      while chars.len() < self.width {
                          chars.push(' ');
                      }
-                     if self.cursor_x < chars.len() {
-                         let end_idx = std::cmp::min(self.cursor_x + n, chars.len());
-                         for i in self.cursor_x..end_idx {
+                     if self.cursor.x < chars.len() {
+                         let end_idx = std::cmp::min(self.cursor.x + n, chars.len());
+                         for i in self.cursor.x..end_idx {
                              chars[i] = ' ';
                          }
                          *line = chars.into_iter().collect();
@@ -145,34 +159,34 @@ impl TerminalBuffer {
                     parts[1].parse::<usize>().unwrap_or(1)
                 };
                 // Convert from 1-based to 0-based indexing
-                self.cursor_y = if row > 0 { row - 1 } else { 0 };
+                self.cursor.y = if row > 0 { row - 1 } else { 0 };
                 // Clamp row to valid range
-                if self.cursor_y >= self.height {
-                    self.cursor_y = self.height - 1;
+                if self.cursor.y >= self.height {
+                    self.cursor.y = self.height - 1;
                 }
                 // Convert display column to character index (accounting for wide characters)
                 let target_display_col = if col > 0 { col - 1 } else { 0 };
-                self.cursor_x = self.display_col_to_char_index(self.cursor_y, target_display_col);
+                self.cursor.x = self.display_col_to_char_index(self.cursor.y, target_display_col);
                 log::debug!("CSI H: params={}, row={}, col={}, target_display_col={}, cursor now at ({}, {})", 
-                    params, row, col, target_display_col, self.cursor_x, self.cursor_y);
+                    params, row, col, target_display_col, self.cursor.x, self.cursor.y);
             },
             'J' => { // Erase in Display
                 let mode = params.parse::<usize>().unwrap_or(0);
                 match mode {
                     0 => { // Cursor to end of screen
                         // Clear from cursor to end of current line
-                        if let Some(line) = self.lines.get_mut(self.cursor_y) {
+                        if let Some(line) = self.lines.get_mut(self.cursor.y) {
                             let mut chars: Vec<char> = line.chars().collect();
                             while chars.len() < self.width {
                                 chars.push(' ');
                             }
-                            for i in self.cursor_x..chars.len() {
+                            for i in self.cursor.x..chars.len() {
                                 chars[i] = ' ';
                             }
                             *line = chars.into_iter().collect();
                         }
                         // Clear all lines below cursor
-                        for y in (self.cursor_y + 1)..self.lines.len() {
+                        for y in (self.cursor.y + 1)..self.lines.len() {
                             if let Some(line) = self.lines.get_mut(y) {
                                 *line = " ".repeat(self.width);
                             }
@@ -180,18 +194,18 @@ impl TerminalBuffer {
                     },
                     1 => { // Start of screen to cursor
                         // Clear all lines above cursor
-                        for y in 0..self.cursor_y {
+                        for y in 0..self.cursor.y {
                             if let Some(line) = self.lines.get_mut(y) {
                                 *line = " ".repeat(self.width);
                             }
                         }
                         // Clear from start of current line to cursor
-                        if let Some(line) = self.lines.get_mut(self.cursor_y) {
+                        if let Some(line) = self.lines.get_mut(self.cursor.y) {
                             let mut chars: Vec<char> = line.chars().collect();
                             while chars.len() < self.width {
                                 chars.push(' ');
                             }
-                            for i in 0..=self.cursor_x {
+                            for i in 0..=self.cursor.x {
                                 if i < chars.len() {
                                     chars[i] = ' ';
                                 }
@@ -207,6 +221,18 @@ impl TerminalBuffer {
                     _ => {}
                 }
             },
+            'h' => { // Set Mode
+                if params == "?25" {
+                    self.cursor.visible = true;
+                    log::debug!("CSI h: Cursor Visible");
+                }
+            },
+            'l' => { // Reset Mode
+                if params == "?25" {
+                    self.cursor.visible = false;
+                    log::debug!("CSI l: Cursor Hidden");
+                }
+            },
             _ => {
                 log::warn!("Unhandled CSI command: {} (params: {})", command, params);
             }
@@ -215,46 +241,46 @@ impl TerminalBuffer {
 
     fn process_normal_char(&mut self, c: char) {
         match c {
-            '\r' => self.cursor_x = 0,
+            '\r' => self.cursor.x = 0,
             '\n' => {
-                self.cursor_x = 0;
-                self.cursor_y += 1;
-                if self.cursor_y >= self.height {
+                self.cursor.x = 0;
+                self.cursor.y += 1;
+                if self.cursor.y >= self.height {
                     self.scroll_up();
-                    self.cursor_y = self.height - 1;
+                    self.cursor.y = self.height - 1;
                 }
             }
             '\x08' => {
-                if self.cursor_x > 0 {
-                    self.cursor_x -= 1;
+                if self.cursor.x > 0 {
+                    self.cursor.x -= 1;
                 }
             }
             _ => {
-                if self.cursor_x >= self.width {
-                    self.cursor_x = 0;
-                    self.cursor_y += 1;
-                    if self.cursor_y >= self.height {
+                if self.cursor.x >= self.width {
+                    self.cursor.x = 0;
+                    self.cursor.y += 1;
+                    if self.cursor.y >= self.height {
                         self.scroll_up();
-                        self.cursor_y = self.height - 1;
+                        self.cursor.y = self.height - 1;
                     }
                 }
                 
                 self.put_char(c);
-                self.cursor_x += 1;
+                self.cursor.x += 1;
             }
         }
     }
 
     fn put_char(&mut self, c: char) {
-        if let Some(line) = self.lines.get_mut(self.cursor_y) {
+        if let Some(line) = self.lines.get_mut(self.cursor.y) {
             let mut chars: Vec<char> = line.chars().collect();
             // Pad if necessary
             while chars.len() < self.width {
                 chars.push(' ');
             }
 
-            if self.cursor_x < chars.len() {
-                chars[self.cursor_x] = c;
+            if self.cursor.x < chars.len() {
+                chars[self.cursor.x] = c;
             } else {
                 chars.push(c);
             }
@@ -311,22 +337,71 @@ impl TerminalBuffer {
         &self.lines
     }
 
+    pub fn is_cursor_visible(&self) -> bool {
+        self.cursor.visible
+    }
+
+    pub fn get_cursor_pos(&self) -> (usize, usize) {
+        (self.cursor.x, self.cursor.y)
+    }
+
     /// バックスペース処理：カーソル位置の前の文字を削除し、カーソルを左に移動
     pub fn backspace(&mut self) {
-        if self.cursor_x > 0 {
-            self.cursor_x -= 1;
+        if self.cursor.x > 0 {
+            self.cursor.x -= 1;
             // カーソル位置の文字をスペースで上書き
-            if let Some(line) = self.lines.get_mut(self.cursor_y) {
+            if let Some(line) = self.lines.get_mut(self.cursor.y) {
                 let mut chars: Vec<char> = line.chars().collect();
                 while chars.len() < self.width {
                     chars.push(' ');
                 }
-                if self.cursor_x < chars.len() {
-                    chars[self.cursor_x] = ' ';
+                if self.cursor.x < chars.len() {
+                    chars[self.cursor.x] = ' ';
                 }
                 *line = chars.into_iter().collect();
             }
-            log::debug!("TerminalBuffer::backspace: cursor now at ({}, {})", self.cursor_x, self.cursor_y);
+            log::debug!("TerminalBuffer::backspace: cursor now at ({}, {})", self.cursor.x, self.cursor.y);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_cursor_initialization() {
+        let buffer = TerminalBuffer::new(80, 25);
+        assert_eq!(buffer.cursor.x, 0);
+        assert_eq!(buffer.cursor.y, 0);
+        assert!(buffer.cursor.visible);
+    }
+
+    #[test]
+    fn test_cursor_visibility() {
+        let mut buffer = TerminalBuffer::new(80, 25);
+
+        // Hide cursor
+        buffer.write_string("\x1b[?25l");
+        assert!(!buffer.is_cursor_visible());
+
+        // Show cursor
+        buffer.write_string("\x1b[?25h");
+        assert!(buffer.is_cursor_visible());
+    }
+
+    #[test]
+    fn test_cursor_positioning() {
+        let mut buffer = TerminalBuffer::new(80, 25);
+
+        // Move to 10, 20 (1-based)
+        buffer.write_string("\x1b[10;20H");
+        assert_eq!(buffer.cursor.y, 9);
+        assert_eq!(buffer.cursor.x, 19);
+
+        // Move to default (1, 1)
+        buffer.write_string("\x1b[H");
+        assert_eq!(buffer.cursor.y, 0);
+        assert_eq!(buffer.cursor.x, 0);
     }
 }
