@@ -68,17 +68,33 @@ impl TerminalBuffer {
 
     fn handle_csi(&mut self, command: char, params: &str) {
         match command {
-            'D' => { // Cursor Back
+            'A' => { // Cursor Up
                 let n = params.parse::<usize>().unwrap_or(1);
-                if self.cursor.x >= n {
-                    self.cursor.x -= n;
+                let current_col = self.get_display_width_up_to(self.cursor.y, self.cursor.x);
+                if self.cursor.y >= n {
+                    self.cursor.y -= n;
                 } else {
-                    self.cursor.x = 0;
+                    self.cursor.y = 0;
                 }
+                self.cursor.x = self.display_col_to_char_index(self.cursor.y, current_col);
+            },
+            'B' => { // Cursor Down
+                let n = params.parse::<usize>().unwrap_or(1);
+                let current_col = self.get_display_width_up_to(self.cursor.y, self.cursor.x);
+                self.cursor.y = std::cmp::min(self.height - 1, self.cursor.y + n);
+                self.cursor.x = self.display_col_to_char_index(self.cursor.y, current_col);
             },
             'C' => { // Cursor Forward
                 let n = params.parse::<usize>().unwrap_or(1);
-                self.cursor.x = std::cmp::min(self.width - 1, self.cursor.x + n);
+                let current_col = self.get_display_width_up_to(self.cursor.y, self.cursor.x);
+                let target_col = std::cmp::min(self.width - 1, current_col + n);
+                self.cursor.x = self.display_col_to_char_index(self.cursor.y, target_col);
+            },
+            'D' => { // Cursor Back
+                let n = params.parse::<usize>().unwrap_or(1);
+                let current_col = self.get_display_width_up_to(self.cursor.y, self.cursor.x);
+                let target_col = if current_col >= n { current_col - n } else { 0 };
+                self.cursor.x = self.display_col_to_char_index(self.cursor.y, target_col);
             },
             'K' => { // Erase in Line
                  let mode = params.parse::<usize>().unwrap_or(0);
@@ -294,7 +310,7 @@ impl TerminalBuffer {
     }
 
     /// Calculate the display width of a character (1 for half-width, 2 for full-width)
-    fn char_display_width(c: char) -> usize {
+    pub fn char_display_width(c: char) -> usize {
         // Full-width characters: CJK, full-width ASCII, etc.
         // This is a simplified check - a full implementation would use Unicode East Asian Width
         let code = c as u32;
@@ -312,6 +328,21 @@ impl TerminalBuffer {
             2
         } else {
             1
+        }
+    }
+
+    pub fn get_display_width_up_to(&self, row: usize, char_index: usize) -> usize {
+        if let Some(line) = self.lines.get(row) {
+            let mut width = 0;
+            for (i, c) in line.chars().enumerate() {
+                if i >= char_index {
+                    break;
+                }
+                width += Self::char_display_width(c);
+            }
+            width
+        } else {
+            0
         }
     }
 
@@ -345,14 +376,13 @@ impl TerminalBuffer {
         (self.cursor.x, self.cursor.y)
     }
 
-    /// カーソルのピクセル座標を計算する（簡易版：等幅フォント前提）
-    pub fn get_cursor_pixel_pos(&self, char_width: i32, char_height: i32) -> (i32, i32) {
-        // 現在の描画ロジックに合わせて、単純なグリッド座標から計算
-        // 全角文字を考慮する場合、self.cursor.x までの文字の表示幅を合計する必要があるが、
-        // 現状の TextOutW の描画と合わせるため、一旦単純な index * width とする。
-        let x = self.cursor.x as i32 * char_width;
-        let y = self.cursor.y as i32 * char_height;
-        (x, y)
+    /// カーソル位置より前のテキストを取得する（描画幅計算用）
+    pub fn get_text_before_cursor(&self) -> String {
+        if let Some(line) = self.lines.get(self.cursor.y) {
+            line.chars().take(self.cursor.x).collect()
+        } else {
+            String::new()
+        }
     }
 
     /// バックスペース処理：カーソル位置の前の文字を削除し、カーソルを左に移動
@@ -413,5 +443,31 @@ mod tests {
         buffer.write_string("\x1b[H");
         assert_eq!(buffer.cursor.y, 0);
         assert_eq!(buffer.cursor.x, 0);
+    }
+
+    #[test]
+    fn test_cursor_movement_relative() {
+        let mut buffer = TerminalBuffer::new(80, 25);
+        
+        // Move to 5, 5 (1-based -> 4, 4 0-based)
+        buffer.write_string("\x1b[5;5H");
+        assert_eq!(buffer.cursor.y, 4);
+        assert_eq!(buffer.cursor.x, 4);
+
+        // Up 2
+        buffer.write_string("\x1b[2A");
+        assert_eq!(buffer.cursor.y, 2);
+
+        // Down 1
+        buffer.write_string("\x1b[1B");
+        assert_eq!(buffer.cursor.y, 3);
+        
+        // Right 2
+        buffer.write_string("\x1b[2C");
+        assert_eq!(buffer.cursor.x, 6);
+
+        // Left 1
+        buffer.write_string("\x1b[1D");
+        assert_eq!(buffer.cursor.x, 5);
     }
 }

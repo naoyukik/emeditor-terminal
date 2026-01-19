@@ -1,6 +1,11 @@
 use windows::core::{w, PCWSTR};
-use windows::Win32::Foundation::{HWND, LPARAM, LRESULT, WPARAM, HANDLE, BOOL};
-use windows::Win32::Graphics::Gdi::{BeginPaint, EndPaint, TextOutW, PAINTSTRUCT, HBRUSH, COLOR_WINDOW, InvalidateRect, InvertRect};
+use windows::Win32::Foundation::{HWND, LPARAM, LRESULT, WPARAM, HANDLE, BOOL, SIZE};
+use windows::Win32::Graphics::Gdi::{
+    BeginPaint, EndPaint, TextOutW, PAINTSTRUCT, HBRUSH, COLOR_WINDOW, InvalidateRect, InvertRect,
+    GetTextExtentPoint32W, GetTextMetricsW, TEXTMETRICW, SelectObject, HGDIOBJ, CreateFontW, DeleteObject,
+    FW_NORMAL, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY, FIXED_PITCH, FF_MODERN,
+    ExtTextOutW, ETO_OPAQUE, ETO_OPTIONS
+};
 use windows::Win32::UI::WindowsAndMessaging::{
     CreateWindowExW, DefWindowProcW, RegisterClassW, LoadCursorW,
     CS_HREDRAW, CS_VREDRAW, IDC_ARROW, WM_PAINT, WNDCLASSW,
@@ -16,6 +21,7 @@ use windows::Win32::UI::Input::KeyboardAndMouse::{
     VK_F7, VK_F8, VK_F9, VK_F10, VK_F11, VK_F12,
     VK_CONTROL, VK_SHIFT, VK_MENU,
 };
+use windows::Win32::UI::Input::Ime::{ImmGetContext, ImmGetCompositionStringW, ImmReleaseContext, GCS_COMPSTR};
 use windows::Win32::Storage::FileSystem::{ReadFile, WriteFile};
 use std::ffi::c_void;
 use std::mem::size_of;
@@ -73,6 +79,19 @@ fn get_terminal_data() -> Arc<Mutex<TerminalData>> {
             conpty: None,
         }))
     }).clone()
+}
+
+// Helper to check if IME is composing
+fn is_ime_composing(hwnd: HWND) -> bool {
+    unsafe {
+        let himc = ImmGetContext(hwnd);
+        if himc.0 == std::ptr::null_mut() {
+            return false;
+        }
+        let len = ImmGetCompositionStringW(himc, GCS_COMPSTR, None, 0);
+        let _ = ImmReleaseContext(hwnd, himc);
+        len > 0
+    }
 }
 
 pub fn open_custom_bar(hwnd_editor: HWND) {
@@ -342,7 +361,7 @@ pub fn cleanup_terminal() {
     }
 }
 
-fn send_key_to_conpty(vk_code: u16) {
+fn send_key_to_conpty(vk_code: u16) -> bool {
     let ctrl_pressed = unsafe { GetKeyState(VK_CONTROL.0 as i32) } < 0;
     let shift_pressed = unsafe { GetKeyState(VK_SHIFT.0 as i32) } < 0;
     let alt_pressed = unsafe { GetKeyState(VK_MENU.0 as i32) } < 0;
@@ -359,25 +378,42 @@ fn send_key_to_conpty(vk_code: u16) {
             if let Err(e) = write_to_conpty(handle, vt_sequence) {
                 log::error!("Keyboard hook: Failed to write VT sequence: {}", e);
             }
+            return true;
         } else {
             log::warn!("Keyboard hook: No ConPTY available");
         }
     }
+    false
 }
 
 extern "system" fn keyboard_hook_proc(code: i32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
     if code >= 0 {
         let vk_code = wparam.0 as u16;
         let key_up = (lparam.0 >> 31) & 1; // bit 31 = transition state (1 = key up)
-        let prev_key_state = (lparam.0 >> 30) & 1; // bit 30 = previous key state (1 = key was down)
+        
+        // Only process key down events
+        if key_up == 0 {
+            // Check for IME composition first
+            let is_composing = TERMINAL_HWND.with(|h| {
+                if let Some(hwnd) = *h.borrow() {
+                    is_ime_composing(hwnd)
+                } else {
+                    false
+                }
+            });
 
-        // Handle Backspace on key down - WM_KEYDOWN doesn't receive it due to EmEditor consuming it
-        // Only process on initial key down (prev_key_state == 0) to prevent key repeat
-        if vk_code == VK_BACK.0 && key_up == 0 && prev_key_state == 0 {
-            log::debug!("Keyboard hook: Backspace detected (initial key down)");
-            send_key_to_conpty(vk_code);
-            // Return 1 to prevent further processing (avoid double handling)
-            return LRESULT(1);
+            if !is_composing {
+                // Check if this is a key we want to handle (Arrow keys, Ctrl+Keys, etc.)
+                // We use the same logic as vk_to_vt_sequence.
+                // If it returns true, we consumed the key and sent it to ConPty.
+                // We return 1 to block EmEditor/Windows from processing it further.
+                if send_key_to_conpty(vk_code) {
+                     log::debug!("Keyboard hook: Consumed vk_code 0x{:04X}", vk_code);
+                     return LRESULT(1);
+                }
+            } else {
+                log::debug!("Keyboard hook: IME composing, skipping hook for vk_code 0x{:04X}", vk_code);
+            }
         }
     }
 
@@ -435,30 +471,78 @@ extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM
                 let mut ps = PAINTSTRUCT::default();
                 let hdc = BeginPaint(hwnd, &mut ps);
                 
+                // Create and select fixed width font (Consolas)
+                let h_font = CreateFontW(
+                    16, 0, 0, 0, FW_NORMAL.0 as i32, 0, 0, 0,
+                    DEFAULT_CHARSET.0 as u32,
+                    OUT_DEFAULT_PRECIS.0 as u32, CLIP_DEFAULT_PRECIS.0 as u32,
+                    DEFAULT_QUALITY.0 as u32,
+                    (FIXED_PITCH.0 | FF_MODERN.0) as u32,
+                    w!("Consolas"),
+                );
+                let old_font = SelectObject(hdc, HGDIOBJ(h_font.0));
+
                 let data_arc = get_terminal_data();
                 let data = data_arc.lock().unwrap();
                 
-                let mut y = 0;
-                let char_height = 16; // 簡易的な固定フォント高さ
-                let char_width = 8;  // 簡易的な固定フォント幅
-                for line in data.buffer.get_lines() {
-                    let wide_line: Vec<u16> = line.encode_utf16().collect();
-                    let _ = TextOutW(hdc, 0, y, &wide_line);
-                    y += char_height;
-                }
+                let mut tm = TEXTMETRICW::default();
+                let _ = GetTextMetricsW(hdc, &mut tm);
+                let char_height = tm.tmHeight;
+                
+                // Calculate base width using "0"
+                let zero_utf16: &[u16] = &[0x0030]; // "0"
+                let mut size = SIZE::default();
+                let _ = GetTextExtentPoint32W(hdc, zero_utf16, &mut size);
+                let base_width = size.cx;
+                
+                // Log font metrics
+                log::debug!("Font Metrics: Ave={}, Max={}, Base(0)={}", tm.tmAveCharWidth, tm.tmMaxCharWidth, base_width);
 
-                // Render cursor as an overlay
-                if data.buffer.is_cursor_visible() {
-                    let (cx, cy) = data.buffer.get_cursor_pixel_pos(char_width, char_height);
-                    let rect = windows::Win32::Foundation::RECT {
-                        left: cx,
-                        top: cy,
-                        right: cx + 2, // 2px width bar
-                        bottom: cy + char_height,
-                    };
-                    let _ = InvertRect(hdc, &rect);
+                let mut current_y = 0;
+                let (_cursor_x, cursor_y) = data.buffer.get_cursor_pos();
+
+                for (idx, line) in data.buffer.get_lines().iter().enumerate() {
+                    let wide_line: Vec<u16> = line.encode_utf16().collect();
+                    
+                    // Generate dx array based on character width
+                    let mut dx: Vec<i32> = Vec::with_capacity(wide_line.len());
+                    for c in line.chars() {
+                        let width = TerminalBuffer::char_display_width(c) as i32 * base_width;
+                        dx.push(width);
+                        // Handle surrogate pairs (add 0 width for the second unit)
+                        for _ in 1..c.len_utf16() {
+                            dx.push(0);
+                        }
+                    }
+
+                    // Use ExtTextOutW with dx array for precise positioning
+                    let _ = ExtTextOutW(
+                        hdc, 0, current_y, ETO_OPTIONS(0), None, 
+                        PCWSTR(wide_line.as_ptr()),
+                        wide_line.len() as u32,
+                        Some(dx.as_ptr())
+                    );
+
+                    // Render cursor as an overlay when on the correct line
+                    if idx == cursor_y && data.buffer.is_cursor_visible() {
+                        let display_cols = data.buffer.get_display_width_up_to(cursor_y, _cursor_x);
+                        let cursor_pixel_x = display_cols as i32 * base_width;
+
+                        let rect = windows::Win32::Foundation::RECT {
+                            left: cursor_pixel_x,
+                            top: current_y,
+                            right: cursor_pixel_x + 2, // 2px width bar
+                            bottom: current_y + char_height,
+                        };
+                        let _ = InvertRect(hdc, &rect);
+                    }
+                    current_y += char_height;
                 }
                 
+                // Restore original font and delete created font
+                let _ = SelectObject(hdc, old_font);
+                let _ = DeleteObject(HGDIOBJ(h_font.0));
+
                 let _ = EndPaint(hwnd, &ps);
             }
             LRESULT(0)

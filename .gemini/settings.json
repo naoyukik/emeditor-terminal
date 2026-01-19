@@ -30,6 +30,7 @@
       "ShellTool(Test-Path)",
       "ShellTool(Get-Content sdk/)",
       "ShellTool(Get-Content conductor/)",
+      "ShellTool(Get-Content \"$env:TEMP\\emeditor_terminal.log\")",
       "ShellTool(New-Item -ItemType Directory -Path conductor/)",
       "ShellTool(Add-Content conductor/)",
       "ShellTool(.\\gradlew buildPlugin)",
@@ -47,7 +48,8 @@
       "jetbrains__get_run_configurations",
       "jetbrains__get_symbol_info",
       "jetbrains__list_directory_tree",
-      "jetbrains__open_file_in_editor"
+      "jetbrains__open_file_in_editor",
+      "activate_skill(think)"
     ]
   },
   "mcpServers": {
