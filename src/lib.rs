@@ -30,7 +30,7 @@ fn init_logger() {
     
     // Set offset to +09:00:00 for JST
     let config = ConfigBuilder::new()
-        .set_time_offset(time::UtcOffset::from_hms(9, 0, 0).unwrap())
+        .set_time_offset(time::UtcOffset::from_hms(9, 0, 0).expect("Valid JST offset"))
         .build();
 
     if let Ok(file) = File::create(path) {
