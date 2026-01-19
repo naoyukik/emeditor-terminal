@@ -4,7 +4,7 @@ use windows::Win32::Graphics::Gdi::{
     BeginPaint, EndPaint, TextOutW, PAINTSTRUCT, HBRUSH, COLOR_WINDOW, InvalidateRect, InvertRect,
     GetTextExtentPoint32W, GetTextMetricsW, TEXTMETRICW, SelectObject, HGDIOBJ, CreateFontW, DeleteObject,
     FW_NORMAL, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY, FIXED_PITCH, FF_MODERN,
-    ExtTextOutW, ETO_OPAQUE, ETO_OPTIONS
+    ExtTextOutW, ETO_OPAQUE, ETO_OPTIONS, HFONT
 };
 use windows::Win32::UI::WindowsAndMessaging::{
     CreateWindowExW, DefWindowProcW, RegisterClassW, LoadCursorW,
@@ -67,9 +67,20 @@ thread_local! {
     static TERMINAL_HWND: RefCell<Option<HWND>> = const { RefCell::new(None) };
 }
 
+struct TerminalMetrics {
+    char_height: i32,
+    base_width: i32,
+}
+
+struct SendHFONT(HFONT);
+unsafe impl Send for SendHFONT {}
+unsafe impl Sync for SendHFONT {}
+
 struct TerminalData {
     buffer: TerminalBuffer,
     conpty: Option<ConPTY>,
+    font: Option<SendHFONT>,
+    metrics: Option<TerminalMetrics>,
 }
 
 fn get_terminal_data() -> Arc<Mutex<TerminalData>> {
@@ -77,6 +88,8 @@ fn get_terminal_data() -> Arc<Mutex<TerminalData>> {
         Arc::new(Mutex::new(TerminalData {
             buffer: TerminalBuffer::new(80, 25),
             conpty: None,
+            font: None,
+            metrics: None,
         }))
     }).clone()
 }
@@ -471,78 +484,89 @@ extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM
                 let mut ps = PAINTSTRUCT::default();
                 let hdc = BeginPaint(hwnd, &mut ps);
                 
-                // Create and select fixed width font (Consolas)
-                let h_font = CreateFontW(
-                    16, 0, 0, 0, FW_NORMAL.0 as i32, 0, 0, 0,
-                    DEFAULT_CHARSET.0 as u32,
-                    OUT_DEFAULT_PRECIS.0 as u32, CLIP_DEFAULT_PRECIS.0 as u32,
-                    DEFAULT_QUALITY.0 as u32,
-                    (FIXED_PITCH.0 | FF_MODERN.0) as u32,
-                    w!("Consolas"),
-                );
-                let old_font = SelectObject(hdc, HGDIOBJ(h_font.0));
-
                 let data_arc = get_terminal_data();
-                let data = data_arc.lock().unwrap();
-                
-                let mut tm = TEXTMETRICW::default();
-                let _ = GetTextMetricsW(hdc, &mut tm);
-                let char_height = tm.tmHeight;
-                
-                // Calculate base width using "0"
-                let zero_utf16: &[u16] = &[0x0030]; // "0"
-                let mut size = SIZE::default();
-                let _ = GetTextExtentPoint32W(hdc, zero_utf16, &mut size);
-                let base_width = size.cx;
-                
-                // Log font metrics
-                log::debug!("Font Metrics: Ave={}, Max={}, Base(0)={}", tm.tmAveCharWidth, tm.tmMaxCharWidth, base_width);
+                let mut data = data_arc.lock().unwrap();
 
-                let mut current_y = 0;
-                let (_cursor_x, cursor_y) = data.buffer.get_cursor_pos();
-
-                for (idx, line) in data.buffer.get_lines().iter().enumerate() {
-                    let wide_line: Vec<u16> = line.encode_utf16().collect();
-                    
-                    // Generate dx array based on character width
-                    let mut dx: Vec<i32> = Vec::with_capacity(wide_line.len());
-                    for c in line.chars() {
-                        let width = TerminalBuffer::char_display_width(c) as i32 * base_width;
-                        dx.push(width);
-                        // Handle surrogate pairs (add 0 width for the second unit)
-                        for _ in 1..c.len_utf16() {
-                            dx.push(0);
-                        }
-                    }
-
-                    // Use ExtTextOutW with dx array for precise positioning
-                    let _ = ExtTextOutW(
-                        hdc, 0, current_y, ETO_OPTIONS(0), None, 
-                        PCWSTR(wide_line.as_ptr()),
-                        wide_line.len() as u32,
-                        Some(dx.as_ptr())
+                // Ensure font and metrics are initialized
+                if data.font.is_none() {
+                    let h_font = CreateFontW(
+                        16, 0, 0, 0, FW_NORMAL.0 as i32, 0, 0, 0,
+                        DEFAULT_CHARSET.0 as u32,
+                        OUT_DEFAULT_PRECIS.0 as u32, CLIP_DEFAULT_PRECIS.0 as u32,
+                        DEFAULT_QUALITY.0 as u32,
+                        (FIXED_PITCH.0 | FF_MODERN.0) as u32,
+                        w!("Consolas"),
                     );
+                    data.font = Some(SendHFONT(h_font));
 
-                    // Render cursor as an overlay when on the correct line
-                    if idx == cursor_y && data.buffer.is_cursor_visible() {
-                        let display_cols = data.buffer.get_display_width_up_to(cursor_y, _cursor_x);
-                        let cursor_pixel_x = display_cols as i32 * base_width;
+                    let old_font = SelectObject(hdc, HGDIOBJ(h_font.0));
+                    let mut tm = TEXTMETRICW::default();
+                    let _ = GetTextMetricsW(hdc, &mut tm);
+                    
+                    let zero_utf16: &[u16] = &[0x0030]; // "0"
+                    let mut size = SIZE::default();
+                    let _ = GetTextExtentPoint32W(hdc, zero_utf16, &mut size);
+                    
+                    data.metrics = Some(TerminalMetrics {
+                        char_height: tm.tmHeight,
+                        base_width: size.cx,
+                    });
+                    
+                    log::info!("Font initialized: Consolas, Height={}, BaseWidth={}", tm.tmHeight, size.cx);
+                    let _ = SelectObject(hdc, old_font);
+                }
 
-                        let rect = windows::Win32::Foundation::RECT {
-                            left: cursor_pixel_x,
-                            top: current_y,
-                            right: cursor_pixel_x + 2, // 2px width bar
-                            bottom: current_y + char_height,
-                        };
-                        let _ = InvertRect(hdc, &rect);
+                if let (Some(ref send_h_font), Some(metrics)) = (&data.font, &data.metrics) {
+                    let h_font = send_h_font.0;
+                    let old_font = SelectObject(hdc, HGDIOBJ(h_font.0));
+                    let char_height = metrics.char_height;
+                    let base_width = metrics.base_width;
+
+                    let mut current_y = 0;
+                    let (_cursor_x, cursor_y) = data.buffer.get_cursor_pos();
+
+                    for (idx, line) in data.buffer.get_lines().iter().enumerate() {
+                        let wide_line: Vec<u16> = line.encode_utf16().collect();
+                        
+                        // Generate dx array based on character width
+                        let mut dx: Vec<i32> = Vec::with_capacity(wide_line.len());
+                        for c in line.chars() {
+                            let width = TerminalBuffer::char_display_width(c) as i32 * base_width;
+                            dx.push(width);
+                            // Handle surrogate pairs (add 0 width for the second unit)
+                            for _ in 1..c.len_utf16() {
+                                dx.push(0);
+                            }
+                        }
+
+                        // Use ExtTextOutW with dx array for precise positioning
+                        let _ = ExtTextOutW(
+                            hdc, 0, current_y, ETO_OPTIONS(0), None, 
+                            PCWSTR(wide_line.as_ptr()),
+                            wide_line.len() as u32,
+                            Some(dx.as_ptr())
+                        );
+
+                        // Render cursor as an overlay when on the correct line
+                        if idx == cursor_y && data.buffer.is_cursor_visible() {
+                            let display_cols = data.buffer.get_display_width_up_to(cursor_y, _cursor_x);
+                            let cursor_pixel_x = display_cols as i32 * base_width;
+
+                            let rect = windows::Win32::Foundation::RECT {
+                                left: cursor_pixel_x,
+                                top: current_y,
+                                right: cursor_pixel_x + 2, // 2px width bar
+                                bottom: current_y + char_height,
+                            };
+                            let _ = InvertRect(hdc, &rect);
+                        }
+                        current_y += char_height;
                     }
-                    current_y += char_height;
+                    
+                    // Restore original font
+                    let _ = SelectObject(hdc, old_font);
                 }
                 
-                // Restore original font and delete created font
-                let _ = SelectObject(hdc, old_font);
-                let _ = DeleteObject(HGDIOBJ(h_font.0));
-
                 let _ = EndPaint(hwnd, &ps);
             }
             LRESULT(0)
@@ -674,9 +698,15 @@ extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM
             log::info!("WM_DESTROY: Cleaning up terminal resources");
             uninstall_keyboard_hook();
 
-            // Clean up ConPTY
+            // Clean up ConPTY and cached font
             let data_arc = get_terminal_data();
             let mut data = data_arc.lock().unwrap();
+            
+            if let Some(send_h_font) = data.font.take() {
+                unsafe { let _ = DeleteObject(HGDIOBJ(send_h_font.0 .0)); }
+                log::info!("Cached font handle deleted");
+            }
+
             if let Some(_conpty) = data.conpty.take() {
                 log::info!("ConPTY will be dropped and cleaned up");
                 // Drop happens automatically when _conpty goes out of scope
