@@ -18,7 +18,6 @@ impl Default for Cursor {
 
 pub struct TerminalBuffer {
     lines: VecDeque<String>,
-    max_lines: usize,
     width: usize,
     height: usize,
     cursor: Cursor,
@@ -32,7 +31,6 @@ impl TerminalBuffer {
         }
         Self {
             lines,
-            max_lines: 1000, // スクロールバック用
             width,
             height,
             cursor: Cursor::default(),
@@ -267,12 +265,17 @@ impl TerminalBuffer {
                 }
             }
             '\x08' => {
-                if self.cursor.x > 0 {
-                    self.cursor.x -= 1;
-                }
-            }
+                // Backspace: Move cursor back by 1 column
+                let current_col = self.get_display_width_up_to(self.cursor.y, self.cursor.x);
+                let target_col = if current_col > 0 { current_col - 1 } else { 0 };
+                self.cursor.x = self.display_col_to_char_index(self.cursor.y, target_col);
+            },
             _ => {
-                if self.cursor.x >= self.width {
+                // Check if adding this character would exceed the width
+                let current_col = self.get_display_width_up_to(self.cursor.y, self.cursor.x);
+                let char_width = Self::char_display_width(c);
+                
+                if current_col + char_width > self.width {
                     self.cursor.x = 0;
                     self.cursor.y += 1;
                     if self.cursor.y >= self.height {
@@ -382,25 +385,6 @@ impl TerminalBuffer {
             line.chars().take(self.cursor.x).collect()
         } else {
             String::new()
-        }
-    }
-
-    /// バックスペース処理：カーソル位置の前の文字を削除し、カーソルを左に移動
-    pub fn backspace(&mut self) {
-        if self.cursor.x > 0 {
-            self.cursor.x -= 1;
-            // カーソル位置の文字をスペースで上書き
-            if let Some(line) = self.lines.get_mut(self.cursor.y) {
-                let mut chars: Vec<char> = line.chars().collect();
-                while chars.len() < self.width {
-                    chars.push(' ');
-                }
-                if self.cursor.x < chars.len() {
-                    chars[self.cursor.x] = ' ';
-                }
-                *line = chars.into_iter().collect();
-            }
-            log::debug!("TerminalBuffer::backspace: cursor now at ({}, {})", self.cursor.x, self.cursor.y);
         }
     }
 }

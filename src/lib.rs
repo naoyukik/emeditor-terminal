@@ -33,12 +33,14 @@ fn init_logger() {
         .set_time_offset(time::UtcOffset::from_hms(9, 0, 0).unwrap())
         .build();
 
-    let _ = WriteLogger::init(
-        LevelFilter::Debug,
-        config,
-        File::create(path).unwrap(),
-    );
-    log::info!("Logger initialized");
+    if let Ok(file) = File::create(path) {
+        let _ = WriteLogger::init(
+            LevelFilter::Debug,
+            config,
+            file,
+        );
+        log::info!("Logger initialized");
+    }
 }
 
 #[no_mangle]

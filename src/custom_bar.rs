@@ -27,6 +27,7 @@ use std::ffi::c_void;
 use std::mem::size_of;
 use std::thread;
 use std::sync::{Arc, Mutex, OnceLock};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::cell::RefCell;
 use crate::conpty::ConPTY;
 use crate::terminal::TerminalBuffer;
@@ -56,7 +57,7 @@ struct CUSTOM_BAR_INFO {
     iPos: i32,
 }
 
-static mut CLASS_REGISTERED: bool = false;
+static CLASS_REGISTERED: AtomicBool = AtomicBool::new(false);
 const CLASS_NAME: PCWSTR = w!("EmEditorTerminalClass");
 
 static TERMINAL_DATA: OnceLock<Arc<Mutex<TerminalData>>> = OnceLock::new();
@@ -76,11 +77,17 @@ struct SendHFONT(HFONT);
 unsafe impl Send for SendHFONT {}
 unsafe impl Sync for SendHFONT {}
 
+#[derive(Clone, Copy)]
+struct SendHWND(HWND);
+unsafe impl Send for SendHWND {}
+unsafe impl Sync for SendHWND {}
+
 struct TerminalData {
     buffer: TerminalBuffer,
     conpty: Option<ConPTY>,
     font: Option<SendHFONT>,
     metrics: Option<TerminalMetrics>,
+    window_handle: Option<SendHWND>,
 }
 
 fn get_terminal_data() -> Arc<Mutex<TerminalData>> {
@@ -90,6 +97,7 @@ fn get_terminal_data() -> Arc<Mutex<TerminalData>> {
             conpty: None,
             font: None,
             metrics: None,
+            window_handle: None,
         }))
     }).clone()
 }
@@ -111,7 +119,17 @@ pub fn open_custom_bar(hwnd_editor: HWND) {
     unsafe {
         let h_instance = crate::get_instance_handle();
 
-        if !CLASS_REGISTERED {
+        // Check if already open
+        let data_arc = get_terminal_data();
+        {
+            let data = data_arc.lock().unwrap();
+            if let Some(h) = data.window_handle {
+                let _ = SetFocus(h.0);
+                return;
+            }
+        }
+
+        if !CLASS_REGISTERED.load(Ordering::Relaxed) {
             let wc = WNDCLASSW {
                 style: CS_HREDRAW | CS_VREDRAW,
                 lpfnWndProc: Some(wnd_proc),
@@ -122,7 +140,7 @@ pub fn open_custom_bar(hwnd_editor: HWND) {
                 ..Default::default()
             };
             RegisterClassW(&wc);
-            CLASS_REGISTERED = true;
+            CLASS_REGISTERED.store(true, Ordering::Relaxed);
         }
 
         let hwnd_client_result = CreateWindowExW(
@@ -142,6 +160,12 @@ pub fn open_custom_bar(hwnd_editor: HWND) {
                 if hwnd_client.0 == std::ptr::null_mut() {
                     log::error!("Failed to create custom bar window: Handle is NULL");
                     return;
+                }
+
+                // Store window handle
+                {
+                    let mut data = data_arc.lock().unwrap();
+                    data.window_handle = Some(SendHWND(hwnd_client));
                 }
 
                 let mut info = CUSTOM_BAR_INFO {
@@ -540,6 +564,7 @@ extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM
                         }
 
                         // Use ExtTextOutW with dx array for precise positioning
+                        // ETO_OPTIONS(0) means no special background filling (transparent/opaque depends on SetBkMode)
                         let _ = ExtTextOutW(
                             hdc, 0, current_y, ETO_OPTIONS(0), None, 
                             PCWSTR(wide_line.as_ptr()),
@@ -670,16 +695,22 @@ extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM
             let height = ((lparam.0 >> 16) & 0xFFFF) as i32;
             log::info!("WM_SIZE: width={}, height={}", width, height);
 
+            let data_arc = get_terminal_data();
+            let mut data = data_arc.lock().unwrap();
+
+            // Use cached metrics if available, otherwise approximation
+            let (char_width, char_height) = if let Some(metrics) = &data.metrics {
+                (metrics.base_width, metrics.char_height)
+            } else {
+                (8, 16) // Fallback approximation
+            };
+
             // Convert pixel dimensions to console character dimensions
-            let char_width = 8; // Approximate fixed-width character width
-            let char_height = 16; // Fixed font height from WM_PAINT
             let cols = (width / char_width).max(1) as i16;
             let rows = (height / char_height).max(1) as i16;
 
             log::info!("Resizing ConPTY to cols={}, rows={}", cols, rows);
 
-            let data_arc = get_terminal_data();
-            let mut data = data_arc.lock().unwrap();
             if let Some(conpty) = &data.conpty {
                 match conpty.resize(cols, rows) {
                     Ok(_) => {
@@ -702,6 +733,8 @@ extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM
             let data_arc = get_terminal_data();
             let mut data = data_arc.lock().unwrap();
             
+            data.window_handle = None;
+
             if let Some(send_h_font) = data.font.take() {
                 unsafe { let _ = DeleteObject(HGDIOBJ(send_h_font.0 .0)); }
                 log::info!("Cached font handle deleted");
