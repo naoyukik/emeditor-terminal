@@ -75,8 +75,7 @@ pub extern "system" fn OnCommand(hwnd: HWND) {
     
     // Show custom bar
     if custom_bar::open_custom_bar(hwnd) {
-        log::info!("Directly launching pwsh.exe");
-        custom_bar::send_input("pwsh.exe");
+        log::info!("Terminal bar opened and pwsh.exe started");
     } else {
         log::info!("Custom bar already open, focusing only");
     }

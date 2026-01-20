@@ -245,7 +245,7 @@ pub fn open_custom_bar(hwnd_editor: HWND) -> bool {
                 );
 
                 // Start ConPTY
-                match ConPTY::new("cmd.exe", 80, 25) {
+                match ConPTY::new("pwsh.exe", 80, 25) {
                     Ok(conpty) => {
                         log::info!("ConPTY started successfully");
                         
