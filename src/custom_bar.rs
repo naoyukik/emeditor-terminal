@@ -263,12 +263,12 @@ pub fn open_custom_bar(hwnd_editor: HWND) {
                             let mut buffer = [0u8; 1024];
                             let mut bytes_read = 0;
                             loop {
-                                if let Err(e) = ReadFile(
+                                if let Err(e) = unsafe { ReadFile(
                                     HANDLE(output_handle_raw as *mut _),
                                     Some(&mut buffer),
                                     Some(&mut bytes_read),
                                     None
-                                ) {
+                                ) } {
                                     log::error!("ReadFile failed: {}", e);
                                     break;
                                 }
@@ -503,14 +503,13 @@ extern "system" fn keyboard_hook_proc(code: i32, wparam: WPARAM, lparam: LPARAM)
             if !is_composing {
                 // Check if this is a key we want to handle (Arrow keys, Ctrl+Keys, etc.)
                 // We use the same logic as vk_to_vt_sequence.
-                // If it returns true, we consumed the key and sent it to ConPty.
-                // We return 1 to block EmEditor/Windows from processing it further.
+                // If it returns true, we consumed the key logically and sent it to ConPty.
+                // Note: For WH_KEYBOARD hooks, the return value is effectively ignored by the system,
+                // and we still call CallNextHookEx below to continue the hook chain.
+                // Returning 1 here only indicates internally that we consumed the key; it does NOT
+                // block EmEditor/Windows from processing the event when using WH_KEYBOARD.
                 if send_key_to_conpty(vk_code) {
                      log::debug!("Keyboard hook: Consumed vk_code 0x{:04X}", vk_code);
-                     // Note: For WH_KEYBOARD hooks, the return value is effectively ignored by the system,
-                     // so we still call CallNextHookEx below (via chain) in typical usage,
-                     // but returning 1 signals intent to block.
-                     // To strictly block, WH_KEYBOARD_LL would be needed.
                      return LRESULT(1);
                 }
             } else {
@@ -612,7 +611,7 @@ extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM
                     let base_width = metrics.base_width;
 
                     let mut current_y = 0;
-                    let (_cursor_x, cursor_y) = data.buffer.get_cursor_pos();
+                    let (cursor_x, cursor_y) = data.buffer.get_cursor_pos();
 
                     let mut client_rect = windows::Win32::Foundation::RECT::default();
                     let _ = windows::Win32::UI::WindowsAndMessaging::GetClientRect(hwnd, &mut client_rect);
@@ -656,7 +655,7 @@ extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM
 
                         // Render cursor as an overlay when on the correct line
                         if idx == cursor_y && data.buffer.is_cursor_visible() {
-                            let display_cols = data.buffer.get_display_width_up_to(cursor_y, _cursor_x);
+                            let display_cols = data.buffer.get_display_width_up_to(cursor_y, cursor_x);
                             let cursor_pixel_x = display_cols as i32 * base_width;
 
                             let rect = windows::Win32::Foundation::RECT {
