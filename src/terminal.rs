@@ -380,12 +380,62 @@ impl TerminalBuffer {
     }
 
     /// カーソル位置より前のテキストを取得する（描画幅計算用）
+    #[allow(dead_code)]
     pub fn get_text_before_cursor(&self) -> String {
         if let Some(line) = self.lines.get(self.cursor.y) {
             line.chars().take(self.cursor.x).collect()
         } else {
             String::new()
         }
+    }
+
+    pub fn resize(&mut self, new_width: usize, new_height: usize) {
+        // 幅の変更: 各行を調整
+        for line in &mut self.lines {
+            let mut current_width = 0;
+            let mut new_chars = Vec::new();
+            for c in line.chars() {
+                let w = Self::char_display_width(c);
+                if current_width + w > new_width {
+                    break;
+                }
+                current_width += w;
+                new_chars.push(c);
+            }
+            
+            // パディング
+            while current_width < new_width {
+                new_chars.push(' ');
+                current_width += 1;
+            }
+            
+            *line = new_chars.into_iter().collect();
+        }
+        
+        self.width = new_width;
+        
+        // 高さの変更
+        if new_height > self.height {
+            // 行を追加
+            for _ in 0..(new_height - self.height) {
+                self.lines.push_back(" ".repeat(new_width));
+            }
+        } else if new_height < self.height {
+            // 行を削除（末尾を削除して上部を残す）
+            self.lines.truncate(new_height);
+        }
+        self.height = new_height;
+        
+        // カーソル位置の調整
+        // カーソルX位置は文字数ベースなので、新しい幅（表示桁数）ではなく、
+        // 実際の各行の文字数に基づいてクランプすべきだが、
+        // ここでは簡易的に表示桁数でキャップし、実際の描画時に安全策をとる。
+        // ただし cursor.x はあくまで文字インデックスなので、
+        // 行ごとの文字数を超えないようにするのが正しい。
+        if let Some(line) = self.lines.get(self.cursor.y) {
+             self.cursor.x = std::cmp::min(self.cursor.x, line.chars().count());
+        }
+        self.cursor.y = std::cmp::min(self.cursor.y, self.height - 1);
     }
 }
 
@@ -453,5 +503,25 @@ mod tests {
         // Left 1
         buffer.write_string("\x1b[1D");
         assert_eq!(buffer.cursor.x, 5);
+    }
+
+    #[test]
+    fn test_cursor_movement_cjk() {
+        let mut buffer = TerminalBuffer::new(80, 25);
+        
+        // "あいう" (3 full-width chars)
+        buffer.write_string("あいう");
+        assert_eq!(buffer.cursor.x, 3); // 3 characters
+        
+        // Move back 2 columns (should move back 1 full-width char)
+        // Current display pos: 6. Move back 2 -> 4.
+        // Chars: 'あ'(2), 'い'(2), 'う'(2). Pos 4 corresponds to start of 'う'.
+        // So char index should be 2.
+        buffer.write_string("\x1b[2D");
+        assert_eq!(buffer.cursor.x, 2);
+        
+        // Move forward 2 columns
+        buffer.write_string("\x1b[2C");
+        assert_eq!(buffer.cursor.x, 3);
     }
 }

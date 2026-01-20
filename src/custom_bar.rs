@@ -1,7 +1,7 @@
 use windows::core::{w, PCWSTR};
 use windows::Win32::Foundation::{HWND, LPARAM, LRESULT, WPARAM, HANDLE, BOOL, SIZE};
 use windows::Win32::Graphics::Gdi::{
-    BeginPaint, EndPaint, TextOutW, PAINTSTRUCT, HBRUSH, COLOR_WINDOW, InvalidateRect, InvertRect,
+    BeginPaint, EndPaint, PAINTSTRUCT, HBRUSH, COLOR_WINDOW, InvalidateRect, InvertRect,
     GetTextExtentPoint32W, GetTextMetricsW, TEXTMETRICW, SelectObject, HGDIOBJ, CreateFontW, DeleteObject,
     FW_NORMAL, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY, FIXED_PITCH, FF_MODERN,
     ExtTextOutW, ETO_OPAQUE, ETO_OPTIONS, HFONT
@@ -73,13 +73,49 @@ struct TerminalMetrics {
     base_width: i32,
 }
 
+/// Wrapper around a Windows `HFONT` handle that is treated as `Send` and `Sync`.
+///
+/// This type does not manage the lifetime of the underlying `HFONT`; it is only a
+/// marker that the handle may be shared across threads under certain conditions.
+///
+/// The underlying Windows API allows a font handle to be used on multiple threads,
+/// but it must not be deleted while any thread may still use it.
 struct SendHFONT(HFONT);
+
+/// SAFETY:
+/// - `HFONT` values can be passed between threads on Windows as long as all
+///   threads follow the usual GDI rules.
+/// - The code that creates and owns the `HFONT` is responsible for ensuring that
+///   the font is not deleted (e.g., via `DeleteObject`) while any other thread
+///   might still use it.
 unsafe impl Send for SendHFONT {}
+
+/// SAFETY:
+/// - `HFONT` operations themselves do not become data-racy by sharing the handle
+///   between threads, provided that the underlying GDI usage rules are followed.
+/// - All threads using a given `HFONT` must ensure that the handle remains valid
+///   for the duration of their use and that deletion is externally synchronized.
 unsafe impl Sync for SendHFONT {}
 
 #[derive(Clone, Copy)]
+/// Wrapper around a Windows `HWND` handle that is treated as `Send` and `Sync`.
+///
+/// On Windows, many operations on `HWND` (such as `PostMessageW`) are documented
+/// as cross-thread safe, but some operations must only be performed on the thread
+/// that created/owns the window (for example, most UI updates and message loops).
 struct SendHWND(HWND);
+
+/// SAFETY:
+/// - The `HWND` handle value itself may be moved across threads.
+/// - Callers must only perform operations from other threads that the Windows
+///   API documents as thread-safe for `HWND` (e.g., `PostMessageW`).
+/// - Thread-affine operations must still be invoked on the thread that owns the window.
 unsafe impl Send for SendHWND {}
+
+/// SAFETY:
+/// - Sharing an `HWND` between threads does not in itself cause data races, as
+///   long as all threads confine thread-affine operations to the owning thread
+///   and only perform cross-thread-safe operations from other threads.
 unsafe impl Sync for SendHWND {}
 
 struct TerminalData {
@@ -162,9 +198,16 @@ pub fn open_custom_bar(hwnd_editor: HWND) {
                     return;
                 }
 
-                // Store window handle
+                // Store window handle immediately
                 {
                     let mut data = data_arc.lock().unwrap();
+                    // Double check if another window was created concurrently (unlikely in UI thread but safe)
+                    if let Some(h) = data.window_handle {
+                        // Another window exists, destroy this one and focus the existing one
+                        let _ = windows::Win32::UI::WindowsAndMessaging::DestroyWindow(hwnd_client);
+                        let _ = SetFocus(h.0);
+                        return;
+                    }
                     data.window_handle = Some(SendHWND(hwnd_client));
                 }
 
@@ -202,12 +245,12 @@ pub fn open_custom_bar(hwnd_editor: HWND) {
                             let mut buffer = [0u8; 1024];
                             let mut bytes_read = 0;
                             loop {
-                                if let Err(e) = unsafe { ReadFile(
+                                if let Err(e) = ReadFile(
                                     HANDLE(output_handle_raw as *mut _),
                                     Some(&mut buffer),
                                     Some(&mut bytes_read),
                                     None
-                                ) } {
+                                ) {
                                     log::error!("ReadFile failed: {}", e);
                                     break;
                                 }
@@ -446,6 +489,10 @@ extern "system" fn keyboard_hook_proc(code: i32, wparam: WPARAM, lparam: LPARAM)
                 // We return 1 to block EmEditor/Windows from processing it further.
                 if send_key_to_conpty(vk_code) {
                      log::debug!("Keyboard hook: Consumed vk_code 0x{:04X}", vk_code);
+                     // Note: For WH_KEYBOARD hooks, the return value is effectively ignored by the system,
+                     // so we still call CallNextHookEx below (via chain) in typical usage,
+                     // but returning 1 signals intent to block.
+                     // To strictly block, WH_KEYBOARD_LL would be needed.
                      return LRESULT(1);
                 }
             } else {
@@ -553,6 +600,9 @@ extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM
                         let wide_line: Vec<u16> = line.encode_utf16().collect();
                         
                         // Generate dx array based on character width
+                        // Note: Rust `char` is a Unicode scalar value; `c.len_utf16()` is guaranteed
+                        // to be 1 or 2. For characters that require two UTF-16 code units (surrogate pairs),
+                        // we push the full display width for the first unit and a 0-width entry for the second.
                         let mut dx: Vec<i32> = Vec::with_capacity(wide_line.len());
                         for c in line.chars() {
                             let width = TerminalBuffer::char_display_width(c) as i32 * base_width;
@@ -563,10 +613,21 @@ extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM
                             }
                         }
 
-                        // Use ExtTextOutW with dx array for precise positioning
-                        // ETO_OPTIONS(0) means no special background filling (transparent/opaque depends on SetBkMode)
+                        // Verify dx aligns with wide_line
+                        debug_assert_eq!(dx.len(), wide_line.len(), "dx length mismatch");
+
+                        // Compute the total pixel width for background filling
+                        let line_pixel_width: i32 = dx.iter().sum();
+                        let bg_rect = windows::Win32::Foundation::RECT {
+                            left: 0,
+                            top: current_y,
+                            right: line_pixel_width.max(10000), // Fill width heavily to cover trailing spaces
+                            bottom: current_y + char_height,
+                        };
+
+                        // Use ExtTextOutW with dx array for precise positioning and opaque background
                         let _ = ExtTextOutW(
-                            hdc, 0, current_y, ETO_OPTIONS(0), None, 
+                            hdc, 0, current_y, ETO_OPTIONS(ETO_OPAQUE.0), Some(&bg_rect), 
                             PCWSTR(wide_line.as_ptr()),
                             wide_line.len() as u32,
                             Some(dx.as_ptr())
@@ -715,8 +776,8 @@ extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM
                 match conpty.resize(cols, rows) {
                     Ok(_) => {
                         log::info!("ConPTY resized successfully to {}x{}", cols, rows);
-                        // Update the buffer size as well
-                        data.buffer = TerminalBuffer::new(cols as usize, rows as usize);
+                        // Update the buffer size while preserving content
+                        data.buffer.resize(cols as usize, rows as usize);
                     }
                     Err(e) => {
                         log::error!("Failed to resize ConPTY: {}", e);

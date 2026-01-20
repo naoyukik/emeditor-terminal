@@ -33,13 +33,18 @@ fn init_logger() {
         .set_time_offset(time::UtcOffset::from_hms(9, 0, 0).expect("Valid JST offset"))
         .build();
 
-    if let Ok(file) = File::create(path) {
-        let _ = WriteLogger::init(
-            LevelFilter::Debug,
-            config,
-            file,
-        );
-        log::info!("Logger initialized");
+    match File::create(&path) {
+        Ok(file) => {
+            match WriteLogger::init(
+                LevelFilter::Debug,
+                config,
+                file,
+            ) {
+                Ok(_) => log::info!("Logger initialized"),
+                Err(e) => eprintln!("Failed to initialize logger: {}", e),
+            }
+        }
+        Err(e) => eprintln!("Failed to create log file '{}': {}", path.display(), e),
     }
 }
 
