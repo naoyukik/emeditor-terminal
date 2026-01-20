@@ -1,6 +1,11 @@
 use windows::core::{w, PCWSTR};
-use windows::Win32::Foundation::{HWND, LPARAM, LRESULT, WPARAM, HANDLE, BOOL};
-use windows::Win32::Graphics::Gdi::{BeginPaint, EndPaint, TextOutW, PAINTSTRUCT, HBRUSH, COLOR_WINDOW, InvalidateRect};
+use windows::Win32::Foundation::{HWND, LPARAM, LRESULT, WPARAM, HANDLE, BOOL, SIZE};
+use windows::Win32::Graphics::Gdi::{
+    BeginPaint, EndPaint, PAINTSTRUCT, HBRUSH, COLOR_WINDOW, InvalidateRect, InvertRect,
+    GetTextExtentPoint32W, GetTextMetricsW, TEXTMETRICW, SelectObject, HGDIOBJ, CreateFontW, DeleteObject,
+    FW_NORMAL, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY, FIXED_PITCH, FF_MODERN,
+    ExtTextOutW, ETO_OPAQUE, ETO_OPTIONS, HFONT
+};
 use windows::Win32::UI::WindowsAndMessaging::{
     CreateWindowExW, DefWindowProcW, RegisterClassW, LoadCursorW,
     CS_HREDRAW, CS_VREDRAW, IDC_ARROW, WM_PAINT, WNDCLASSW,
@@ -16,11 +21,13 @@ use windows::Win32::UI::Input::KeyboardAndMouse::{
     VK_F7, VK_F8, VK_F9, VK_F10, VK_F11, VK_F12,
     VK_CONTROL, VK_SHIFT, VK_MENU,
 };
+use windows::Win32::UI::Input::Ime::{ImmGetContext, ImmGetCompositionStringW, ImmReleaseContext, GCS_COMPSTR};
 use windows::Win32::Storage::FileSystem::{ReadFile, WriteFile};
 use std::ffi::c_void;
 use std::mem::size_of;
 use std::thread;
 use std::sync::{Arc, Mutex, OnceLock};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::cell::RefCell;
 use crate::conpty::ConPTY;
 use crate::terminal::TerminalBuffer;
@@ -50,7 +57,7 @@ struct CUSTOM_BAR_INFO {
     iPos: i32,
 }
 
-static mut CLASS_REGISTERED: bool = false;
+static CLASS_REGISTERED: AtomicBool = AtomicBool::new(false);
 const CLASS_NAME: PCWSTR = w!("EmEditorTerminalClass");
 
 static TERMINAL_DATA: OnceLock<Arc<Mutex<TerminalData>>> = OnceLock::new();
@@ -61,9 +68,76 @@ thread_local! {
     static TERMINAL_HWND: RefCell<Option<HWND>> = const { RefCell::new(None) };
 }
 
+struct TerminalMetrics {
+    char_height: i32,
+    base_width: i32,
+}
+
+/// Wrapper around a Windows `HFONT` handle that is treated as `Send` and `Sync`.
+///
+/// This is specifically intended for the pattern used in this module: the font
+/// is created and *used* (e.g., via `SelectObject` into an `HDC`) only on the
+/// UI thread, but the raw handle value is stored inside data structures that
+/// are themselves `Send + Sync` (for example, behind an `Arc<Mutex<...>>`).
+///
+/// The underlying Windows API allows a font handle to be passed between threads,
+/// but all GDI operations that depend on thread affinity (such as selecting the
+/// font into a device context) must still be performed on the thread that owns
+/// the window/HDC. Other threads may keep or forward the handle, but must not
+/// call such GDI functions on it directly.
+struct SendHFONT(HFONT);
+
+/// SAFETY:
+/// - The `HFONT` handle value itself may be moved between threads on Windows.
+/// - This wrapper does **not** make GDI operations thread-safe. All operations
+///   that use the font with a device context (e.g., `SelectObject(hdc, hfont)`,
+///   text drawing, measuring, etc.) must be performed only on the UI thread that
+///   owns the relevant window/HDC. Non-UI threads may only store, copy, or send
+///   the handle back to the UI thread.
+/// - The code that creates and owns the `HFONT` is responsible for ensuring that
+///   the font is not deleted (e.g., via `DeleteObject`) while any thread might
+///   still hold or hand the handle back to the UI thread for use.
+unsafe impl Send for SendHFONT {}
+
+/// SAFETY:
+/// - Sharing the `HFONT` handle across threads does not by itself create data
+///   races, provided that all actual GDI calls using the font are confined to
+///   the owning/UI thread.
+/// - All threads must treat the handle as an opaque identifier: they may store
+///   or forward it, but must not call GDI functions that operate on the font or
+///   its associated device context from non-UI threads.
+/// - Deletion of the font (via `DeleteObject`) must be externally synchronized
+///   so that no thread may attempt to use or forward the handle after it is
+///   destroyed.
+unsafe impl Sync for SendHFONT {}
+
+#[derive(Clone, Copy)]
+/// Wrapper around a Windows `HWND` handle that is treated as `Send` and `Sync`.
+///
+/// On Windows, many operations on `HWND` (such as `PostMessageW`) are documented
+/// as cross-thread safe, but some operations must only be performed on the thread
+/// that created/owns the window (for example, most UI updates and message loops).
+struct SendHWND(HWND);
+
+/// SAFETY:
+/// - The `HWND` handle value itself may be moved across threads.
+/// - Callers must only perform operations from other threads that the Windows
+///   API documents as thread-safe for `HWND` (e.g., `PostMessageW`).
+/// - Thread-affine operations must still be invoked on the thread that owns the window.
+unsafe impl Send for SendHWND {}
+
+/// SAFETY:
+/// - Sharing an `HWND` between threads does not in itself cause data races, as
+///   long as all threads confine thread-affine operations to the owning thread
+///   and only perform cross-thread-safe operations from other threads.
+unsafe impl Sync for SendHWND {}
+
 struct TerminalData {
     buffer: TerminalBuffer,
     conpty: Option<ConPTY>,
+    font: Option<SendHFONT>,
+    metrics: Option<TerminalMetrics>,
+    window_handle: Option<SendHWND>,
 }
 
 fn get_terminal_data() -> Arc<Mutex<TerminalData>> {
@@ -71,15 +145,45 @@ fn get_terminal_data() -> Arc<Mutex<TerminalData>> {
         Arc::new(Mutex::new(TerminalData {
             buffer: TerminalBuffer::new(80, 25),
             conpty: None,
+            font: None,
+            metrics: None,
+            window_handle: None,
         }))
     }).clone()
+}
+
+// Helper to check if IME is composing
+fn is_ime_composing(hwnd: HWND) -> bool {
+    unsafe {
+        let himc = ImmGetContext(hwnd);
+        if himc.0 == std::ptr::null_mut() {
+            return false;
+        }
+        let len = ImmGetCompositionStringW(himc, GCS_COMPSTR, None, 0);
+        let _ = ImmReleaseContext(hwnd, himc);
+        if len < 0 {
+            // ImmGetCompositionStringW failed; treat as not composing
+            return false;
+        }
+        len > 0
+    }
 }
 
 pub fn open_custom_bar(hwnd_editor: HWND) {
     unsafe {
         let h_instance = crate::get_instance_handle();
 
-        if !CLASS_REGISTERED {
+        // Check if already open
+        let data_arc = get_terminal_data();
+        {
+            let data = data_arc.lock().unwrap();
+            if let Some(h) = data.window_handle {
+                let _ = SetFocus(h.0);
+                return;
+            }
+        }
+
+        if !CLASS_REGISTERED.load(Ordering::Relaxed) {
             let wc = WNDCLASSW {
                 style: CS_HREDRAW | CS_VREDRAW,
                 lpfnWndProc: Some(wnd_proc),
@@ -90,7 +194,7 @@ pub fn open_custom_bar(hwnd_editor: HWND) {
                 ..Default::default()
             };
             RegisterClassW(&wc);
-            CLASS_REGISTERED = true;
+            CLASS_REGISTERED.store(true, Ordering::Relaxed);
         }
 
         let hwnd_client_result = CreateWindowExW(
@@ -110,6 +214,19 @@ pub fn open_custom_bar(hwnd_editor: HWND) {
                 if hwnd_client.0 == std::ptr::null_mut() {
                     log::error!("Failed to create custom bar window: Handle is NULL");
                     return;
+                }
+
+                // Store window handle immediately
+                {
+                    let mut data = data_arc.lock().unwrap();
+                    // Double check if another window was created concurrently (unlikely in UI thread but safe)
+                    if let Some(h) = data.window_handle {
+                        // Another window exists, destroy this one and focus the existing one
+                        let _ = windows::Win32::UI::WindowsAndMessaging::DestroyWindow(hwnd_client);
+                        let _ = SetFocus(h.0);
+                        return;
+                    }
+                    data.window_handle = Some(SendHWND(hwnd_client));
                 }
 
                 let mut info = CUSTOM_BAR_INFO {
@@ -342,7 +459,7 @@ pub fn cleanup_terminal() {
     }
 }
 
-fn send_key_to_conpty(vk_code: u16) {
+fn send_key_to_conpty(vk_code: u16) -> bool {
     let ctrl_pressed = unsafe { GetKeyState(VK_CONTROL.0 as i32) } < 0;
     let shift_pressed = unsafe { GetKeyState(VK_SHIFT.0 as i32) } < 0;
     let alt_pressed = unsafe { GetKeyState(VK_MENU.0 as i32) } < 0;
@@ -359,25 +476,45 @@ fn send_key_to_conpty(vk_code: u16) {
             if let Err(e) = write_to_conpty(handle, vt_sequence) {
                 log::error!("Keyboard hook: Failed to write VT sequence: {}", e);
             }
+            return true;
         } else {
             log::warn!("Keyboard hook: No ConPTY available");
         }
     }
+    false
 }
 
 extern "system" fn keyboard_hook_proc(code: i32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
     if code >= 0 {
         let vk_code = wparam.0 as u16;
         let key_up = (lparam.0 >> 31) & 1; // bit 31 = transition state (1 = key up)
-        let prev_key_state = (lparam.0 >> 30) & 1; // bit 30 = previous key state (1 = key was down)
+        
+        // Only process key down events
+        if key_up == 0 {
+            // Check for IME composition first
+            let is_composing = TERMINAL_HWND.with(|h| {
+                if let Some(hwnd) = *h.borrow() {
+                    is_ime_composing(hwnd)
+                } else {
+                    false
+                }
+            });
 
-        // Handle Backspace on key down - WM_KEYDOWN doesn't receive it due to EmEditor consuming it
-        // Only process on initial key down (prev_key_state == 0) to prevent key repeat
-        if vk_code == VK_BACK.0 && key_up == 0 && prev_key_state == 0 {
-            log::debug!("Keyboard hook: Backspace detected (initial key down)");
-            send_key_to_conpty(vk_code);
-            // Return 1 to prevent further processing (avoid double handling)
-            return LRESULT(1);
+            if !is_composing {
+                // Check if this is a key we want to handle (Arrow keys, Ctrl+Keys, etc.)
+                // We use the same logic as vk_to_vt_sequence.
+                // If it returns true, we consumed the key logically and sent it to ConPty.
+                // Note: For WH_KEYBOARD hooks, the return value is effectively ignored by the system,
+                // and we still call CallNextHookEx below to continue the hook chain.
+                // Returning 1 here only indicates internally that we consumed the key; it does NOT
+                // block EmEditor/Windows from processing the event when using WH_KEYBOARD.
+                if send_key_to_conpty(vk_code) {
+                     log::debug!("Keyboard hook: Consumed vk_code 0x{:04X}", vk_code);
+                     return LRESULT(1);
+                }
+            } else {
+                log::debug!("Keyboard hook: IME composing, skipping hook for vk_code 0x{:04X}", vk_code);
+            }
         }
     }
 
@@ -436,14 +573,104 @@ extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM
                 let hdc = BeginPaint(hwnd, &mut ps);
                 
                 let data_arc = get_terminal_data();
-                let data = data_arc.lock().unwrap();
-                
-                let mut y = 0;
-                let char_height = 16; // 簡易的な固定フォント高さ
-                for line in data.buffer.get_lines() {
-                    let wide_line: Vec<u16> = line.encode_utf16().collect();
-                    let _ = TextOutW(hdc, 0, y, &wide_line);
-                    y += char_height;
+                let mut data = data_arc.lock().unwrap();
+
+                // Ensure font and metrics are initialized
+                if data.font.is_none() {
+                    let h_font = CreateFontW(
+                        16, 0, 0, 0, FW_NORMAL.0 as i32, 0, 0, 0,
+                        DEFAULT_CHARSET.0 as u32,
+                        OUT_DEFAULT_PRECIS.0 as u32, CLIP_DEFAULT_PRECIS.0 as u32,
+                        DEFAULT_QUALITY.0 as u32,
+                        (FIXED_PITCH.0 | FF_MODERN.0) as u32,
+                        w!("Consolas"),
+                    );
+                    data.font = Some(SendHFONT(h_font));
+
+                    let old_font = SelectObject(hdc, HGDIOBJ(h_font.0));
+                    let mut tm = TEXTMETRICW::default();
+                    let _ = GetTextMetricsW(hdc, &mut tm);
+                    
+                    let zero_utf16: &[u16] = &[0x0030]; // "0"
+                    let mut size = SIZE::default();
+                    let _ = GetTextExtentPoint32W(hdc, zero_utf16, &mut size);
+                    
+                    data.metrics = Some(TerminalMetrics {
+                        char_height: tm.tmHeight,
+                        base_width: size.cx,
+                    });
+                    
+                    log::info!("Font initialized: Consolas, Height={}, BaseWidth={}", tm.tmHeight, size.cx);
+                    let _ = SelectObject(hdc, old_font);
+                }
+
+                if let (Some(ref send_h_font), Some(metrics)) = (&data.font, &data.metrics) {
+                    let h_font = send_h_font.0;
+                    let old_font = SelectObject(hdc, HGDIOBJ(h_font.0));
+                    let char_height = metrics.char_height;
+                    let base_width = metrics.base_width;
+
+                    let mut current_y = 0;
+                    let (cursor_x, cursor_y) = data.buffer.get_cursor_pos();
+
+                    let mut client_rect = windows::Win32::Foundation::RECT::default();
+                    let _ = windows::Win32::UI::WindowsAndMessaging::GetClientRect(hwnd, &mut client_rect);
+
+                    for (idx, line) in data.buffer.get_lines().iter().enumerate() {
+                        let wide_line: Vec<u16> = line.encode_utf16().collect();
+                        
+                        // Generate dx array based on character width
+                        // Note: Rust `char` is a Unicode scalar value; `c.len_utf16()` is guaranteed
+                        // to be 1 or 2. For characters that require two UTF-16 code units (surrogate pairs),
+                        // we push the full display width for the first unit and a 0-width entry for the second.
+                        let mut dx: Vec<i32> = Vec::with_capacity(wide_line.len());
+                        for c in line.chars() {
+                            let width = TerminalBuffer::char_display_width(c) as i32 * base_width;
+                            dx.push(width);
+                            // Handle surrogate pairs (add 0 width for the second unit)
+                            for _ in 1..c.len_utf16() {
+                                dx.push(0);
+                            }
+                        }
+
+                        // Verify dx aligns with wide_line
+                        debug_assert_eq!(dx.len(), wide_line.len(), "dx length mismatch");
+
+                        // Compute the total pixel width for background filling
+                        let line_pixel_width: i32 = dx.iter().sum();
+                        let bg_rect = windows::Win32::Foundation::RECT {
+                            left: 0,
+                            top: current_y,
+                            right: std::cmp::max(line_pixel_width, client_rect.right),
+                            bottom: current_y + char_height,
+                        };
+
+                        // Use ExtTextOutW with dx array for precise positioning and opaque background
+                        let _ = ExtTextOutW(
+                            hdc, 0, current_y, ETO_OPTIONS(ETO_OPAQUE.0), Some(&bg_rect), 
+                            PCWSTR(wide_line.as_ptr()),
+                            wide_line.len() as u32,
+                            Some(dx.as_ptr())
+                        );
+
+                        // Render cursor as an overlay when on the correct line
+                        if idx == cursor_y && data.buffer.is_cursor_visible() {
+                            let display_cols = data.buffer.get_display_width_up_to(cursor_y, cursor_x);
+                            let cursor_pixel_x = display_cols as i32 * base_width;
+
+                            let rect = windows::Win32::Foundation::RECT {
+                                left: cursor_pixel_x,
+                                top: current_y,
+                                right: cursor_pixel_x + 2, // 2px width bar
+                                bottom: current_y + char_height,
+                            };
+                            let _ = InvertRect(hdc, &rect);
+                        }
+                        current_y += char_height;
+                    }
+                    
+                    // Restore original font
+                    let _ = SelectObject(hdc, old_font);
                 }
                 
                 let _ = EndPaint(hwnd, &ps);
@@ -549,22 +776,28 @@ extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM
             let height = ((lparam.0 >> 16) & 0xFFFF) as i32;
             log::info!("WM_SIZE: width={}, height={}", width, height);
 
+            let data_arc = get_terminal_data();
+            let mut data = data_arc.lock().unwrap();
+
+            // Use cached metrics if available, otherwise approximation
+            let (char_width, char_height) = if let Some(metrics) = &data.metrics {
+                (metrics.base_width, metrics.char_height)
+            } else {
+                (8, 16) // Fallback approximation
+            };
+
             // Convert pixel dimensions to console character dimensions
-            let char_width = 8; // Approximate fixed-width character width
-            let char_height = 16; // Fixed font height from WM_PAINT
             let cols = (width / char_width).max(1) as i16;
             let rows = (height / char_height).max(1) as i16;
 
             log::info!("Resizing ConPTY to cols={}, rows={}", cols, rows);
 
-            let data_arc = get_terminal_data();
-            let mut data = data_arc.lock().unwrap();
             if let Some(conpty) = &data.conpty {
                 match conpty.resize(cols, rows) {
                     Ok(_) => {
                         log::info!("ConPTY resized successfully to {}x{}", cols, rows);
-                        // Update the buffer size as well
-                        data.buffer = TerminalBuffer::new(cols as usize, rows as usize);
+                        // Update the buffer size while preserving content
+                        data.buffer.resize(cols as usize, rows as usize);
                     }
                     Err(e) => {
                         log::error!("Failed to resize ConPTY: {}", e);
@@ -577,9 +810,17 @@ extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM
             log::info!("WM_DESTROY: Cleaning up terminal resources");
             uninstall_keyboard_hook();
 
-            // Clean up ConPTY
+            // Clean up ConPTY and cached font
             let data_arc = get_terminal_data();
             let mut data = data_arc.lock().unwrap();
+            
+            data.window_handle = None;
+
+            if let Some(send_h_font) = data.font.take() {
+                unsafe { let _ = DeleteObject(HGDIOBJ(send_h_font.0 .0)); }
+                log::info!("Cached font handle deleted");
+            }
+
             if let Some(_conpty) = data.conpty.take() {
                 log::info!("ConPTY will be dropped and cleaned up");
                 // Drop happens automatically when _conpty goes out of scope

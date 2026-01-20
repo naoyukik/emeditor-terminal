@@ -30,15 +30,22 @@ fn init_logger() {
     
     // Set offset to +09:00:00 for JST
     let config = ConfigBuilder::new()
-        .set_time_offset(time::UtcOffset::from_hms(9, 0, 0).unwrap())
+        .set_time_offset(time::UtcOffset::from_hms(9, 0, 0).expect("Valid JST offset"))
         .build();
 
-    let _ = WriteLogger::init(
-        LevelFilter::Debug,
-        config,
-        File::create(path).unwrap(),
-    );
-    log::info!("Logger initialized");
+    match File::create(&path) {
+        Ok(file) => {
+            match WriteLogger::init(
+                LevelFilter::Debug,
+                config,
+                file,
+            ) {
+                Ok(_) => log::info!("Logger initialized"),
+                Err(e) => eprintln!("Failed to initialize logger: {}", e),
+            }
+        }
+        Err(e) => eprintln!("Failed to create log file '{}': {}", path.display(), e),
+    }
 }
 
 #[no_mangle]

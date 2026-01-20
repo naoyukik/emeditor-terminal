@@ -14,6 +14,8 @@
       "ShellTool(grep)",
       "ShellTool(glob)",
       "ShellTool(cargo build)",
+      "ShellTool(git add)",
+      "ShellTool(git commit)",
       "ShellTool(git status)",
       "ShellTool(git rev-parse)",
       "ShellTool(git log)",
@@ -26,6 +28,11 @@
       "ShellTool(cargo clippy)",
       "ShellTool(cargo fmt)",
       "ShellTool(Test-Path)",
+      "ShellTool(Get-Content sdk/)",
+      "ShellTool(Get-Content conductor/)",
+      "ShellTool(Get-Content \"$env:TEMP\\emeditor_terminal.log\")",
+      "ShellTool(New-Item -ItemType Directory -Path conductor/)",
+      "ShellTool(Add-Content conductor/)",
       "ShellTool(.\\gradlew buildPlugin)",
       "ShellTool(.\\gradlew compileKotlin)",
       "ShellTool(.\\gradlew clean compileKotlin)",
@@ -41,7 +48,8 @@
       "jetbrains__get_run_configurations",
       "jetbrains__get_symbol_info",
       "jetbrains__list_directory_tree",
-      "jetbrains__open_file_in_editor"
+      "jetbrains__open_file_in_editor",
+      "activate_skill(think)"
     ]
   },
   "mcpServers": {
@@ -50,6 +58,9 @@
       "headers": {
         "IJ_MCP_SERVER_PROJECT_PATH": "$IJ_MCP_SERVER_PROJECT_PATH"
       }
+    },
+    "learn-microsoft": {
+      "url": "https://learn.microsoft.com/api/mcp"
     }
   },
   "model": {
