@@ -11,3 +11,8 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 - [x] **Track: Implement ConPty cursor rendering (Bar style)**
 *Link: [./archive/7_conpty_cursor_20260117/](./archive/7_conpty_cursor_20260117/)*
+
+---
+
+- [~] **Track: 起動時の入力ダイアログを廃止し直接pwsh.exeを起動する**
+*Link: [./tracks/remove_dialog_20260120/](./tracks/remove_dialog_20260120/)*

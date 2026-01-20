@@ -6,7 +6,6 @@ use std::sync::OnceLock;
 use windows::Win32::Foundation::{BOOL, HINSTANCE, HWND, LPARAM, LRESULT, WPARAM};
 use windows::Win32::System::SystemServices::{DLL_PROCESS_ATTACH, DLL_PROCESS_DETACH};
 
-mod dialog;
 mod editor;
 mod custom_bar;
 mod conpty;
@@ -77,13 +76,8 @@ pub extern "system" fn OnCommand(hwnd: HWND) {
     // Show custom bar
     custom_bar::open_custom_bar(hwnd);
 
-    log::info!("Showing input dialog.");
-    if let Some(cmd) = dialog::show_input_dialog(hwnd) {
-        log::info!("Input received: {}", cmd);
-        custom_bar::send_input(&cmd);
-    } else {
-        log::info!("Input cancelled");
-    }
+    log::info!("Directly launching pwsh.exe");
+    custom_bar::send_input("pwsh.exe");
 }
 
 #[no_mangle]
