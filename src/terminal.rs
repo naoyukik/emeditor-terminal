@@ -406,7 +406,7 @@ impl TerminalBuffer {
             // パディング
             while current_width < new_width {
                 new_chars.push(' ');
-                current_width += 1;
+                current_width += Self::char_display_width(' ');
             }
             
             *line = new_chars.into_iter().collect();
@@ -427,15 +427,17 @@ impl TerminalBuffer {
         self.height = new_height;
         
         // カーソル位置の調整
-        // カーソルX位置は文字数ベースなので、新しい幅（表示桁数）ではなく、
-        // 実際の各行の文字数に基づいてクランプすべきだが、
-        // ここでは簡易的に表示桁数でキャップし、実際の描画時に安全策をとる。
-        // ただし cursor.x はあくまで文字インデックスなので、
-        // 行ごとの文字数を超えないようにするのが正しい。
-        if let Some(line) = self.lines.get(self.cursor.y) {
-             self.cursor.x = std::cmp::min(self.cursor.x, line.chars().count());
+        if self.height > 0 {
+            // 先にカーソルYを現在の高さにクランプしてから、その行に基づいてXを調整
+            self.cursor.y = std::cmp::min(self.cursor.y, self.height.saturating_sub(1));
+            if let Some(line) = self.lines.get(self.cursor.y) {
+                self.cursor.x = std::cmp::min(self.cursor.x, line.chars().count());
+            }
+        } else {
+            // 高さ0の場合は安全なデフォルト位置にリセット
+            self.cursor.x = 0;
+            self.cursor.y = 0;
         }
-        self.cursor.y = std::cmp::min(self.cursor.y, self.height - 1);
     }
 }
 
@@ -503,6 +505,57 @@ mod tests {
         // Left 1
         buffer.write_string("\x1b[1D");
         assert_eq!(buffer.cursor.x, 5);
+    }
+
+    #[test]
+    fn test_terminal_resize() {
+        let mut buffer = TerminalBuffer::new(10, 5);
+        buffer.write_string("Hello CJKあいう"); // Width: 10. "Hello CJK" is 9. "あ" wraps.
+        // Line 0: "Hello CJK "
+        // Line 1: "あいう"
+        // Cursor at index 3 on Line 1.
+        
+        assert_eq!(buffer.cursor.y, 1);
+        assert_eq!(buffer.cursor.x, 3);
+        assert_eq!(buffer.lines[0], "Hello CJK ");
+        assert_eq!(buffer.lines[1], "あいう       ");
+
+        // Resize larger
+        buffer.resize(20, 10);
+        assert_eq!(buffer.width, 20);
+        assert_eq!(buffer.height, 10);
+        assert_eq!(buffer.lines[0], "Hello CJK           "); // Padded
+        assert_eq!(buffer.lines[1], "あいう              ");
+        assert_eq!(buffer.cursor.y, 1);
+        assert_eq!(buffer.cursor.x, 3);
+
+        // Resize smaller (truncate)
+        buffer.resize(5, 2);
+        assert_eq!(buffer.width, 5);
+        assert_eq!(buffer.height, 2);
+        assert_eq!(buffer.lines[0], "Hello"); // Truncated
+        // "あいう" is 6 columns, but resize(5) truncates at 5.
+        // 'あ'(2), 'い'(2) -> 4. 'う'(2) would make 6. So 'う' is truncated.
+        // Line 1 becomes "あい " (4 cols + 1 space)
+        assert_eq!(buffer.lines[1], "あい ");
+        
+        // Cursor on line 1 was at x=3.
+        // "あい " has 3 characters. x=3 is valid (at end).
+        assert_eq!(buffer.cursor.y, 1);
+        assert_eq!(buffer.cursor.x, 3);
+
+        // Resize very small (cursor clamp)
+        buffer.resize(1, 1);
+        // Line 0 was "Hello". Truncated to 1 col -> "H"
+        assert_eq!(buffer.lines[0], "H");
+        assert_eq!(buffer.cursor.y, 0);
+        assert_eq!(buffer.cursor.x, 1); // "H" has 1 char, x can be 1 (at end)
+
+        // Height 0 case
+        buffer.resize(0, 0);
+        assert_eq!(buffer.height, 0);
+        assert_eq!(buffer.cursor.y, 0);
+        assert_eq!(buffer.cursor.x, 0);
     }
 
     #[test]

@@ -75,26 +75,40 @@ struct TerminalMetrics {
 
 /// Wrapper around a Windows `HFONT` handle that is treated as `Send` and `Sync`.
 ///
-/// This type does not manage the lifetime of the underlying `HFONT`; it is only a
-/// marker that the handle may be shared across threads under certain conditions.
+/// This is specifically intended for the pattern used in this module: the font
+/// is created and *used* (e.g., via `SelectObject` into an `HDC`) only on the
+/// UI thread, but the raw handle value is stored inside data structures that
+/// are themselves `Send + Sync` (for example, behind an `Arc<Mutex<...>>`).
 ///
-/// The underlying Windows API allows a font handle to be used on multiple threads,
-/// but it must not be deleted while any thread may still use it.
+/// The underlying Windows API allows a font handle to be passed between threads,
+/// but all GDI operations that depend on thread affinity (such as selecting the
+/// font into a device context) must still be performed on the thread that owns
+/// the window/HDC. Other threads may keep or forward the handle, but must not
+/// call such GDI functions on it directly.
 struct SendHFONT(HFONT);
 
 /// SAFETY:
-/// - `HFONT` values can be passed between threads on Windows as long as all
-///   threads follow the usual GDI rules.
+/// - The `HFONT` handle value itself may be moved between threads on Windows.
+/// - This wrapper does **not** make GDI operations thread-safe. All operations
+///   that use the font with a device context (e.g., `SelectObject(hdc, hfont)`,
+///   text drawing, measuring, etc.) must be performed only on the UI thread that
+///   owns the relevant window/HDC. Non-UI threads may only store, copy, or send
+///   the handle back to the UI thread.
 /// - The code that creates and owns the `HFONT` is responsible for ensuring that
-///   the font is not deleted (e.g., via `DeleteObject`) while any other thread
-///   might still use it.
+///   the font is not deleted (e.g., via `DeleteObject`) while any thread might
+///   still hold or hand the handle back to the UI thread for use.
 unsafe impl Send for SendHFONT {}
 
 /// SAFETY:
-/// - `HFONT` operations themselves do not become data-racy by sharing the handle
-///   between threads, provided that the underlying GDI usage rules are followed.
-/// - All threads using a given `HFONT` must ensure that the handle remains valid
-///   for the duration of their use and that deletion is externally synchronized.
+/// - Sharing the `HFONT` handle across threads does not by itself create data
+///   races, provided that all actual GDI calls using the font are confined to
+///   the owning/UI thread.
+/// - All threads must treat the handle as an opaque identifier: they may store
+///   or forward it, but must not call GDI functions that operate on the font or
+///   its associated device context from non-UI threads.
+/// - Deletion of the font (via `DeleteObject`) must be externally synchronized
+///   so that no thread may attempt to use or forward the handle after it is
+///   destroyed.
 unsafe impl Sync for SendHFONT {}
 
 #[derive(Clone, Copy)]
@@ -147,6 +161,10 @@ fn is_ime_composing(hwnd: HWND) -> bool {
         }
         let len = ImmGetCompositionStringW(himc, GCS_COMPSTR, None, 0);
         let _ = ImmReleaseContext(hwnd, himc);
+        if len < 0 {
+            // ImmGetCompositionStringW failed; treat as not composing
+            return false;
+        }
         len > 0
     }
 }
@@ -596,6 +614,9 @@ extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM
                     let mut current_y = 0;
                     let (_cursor_x, cursor_y) = data.buffer.get_cursor_pos();
 
+                    let mut client_rect = windows::Win32::Foundation::RECT::default();
+                    let _ = windows::Win32::UI::WindowsAndMessaging::GetClientRect(hwnd, &mut client_rect);
+
                     for (idx, line) in data.buffer.get_lines().iter().enumerate() {
                         let wide_line: Vec<u16> = line.encode_utf16().collect();
                         
@@ -621,7 +642,7 @@ extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM
                         let bg_rect = windows::Win32::Foundation::RECT {
                             left: 0,
                             top: current_y,
-                            right: line_pixel_width.max(10000), // Fill width heavily to cover trailing spaces
+                            right: std::cmp::max(line_pixel_width, client_rect.right),
                             bottom: current_y + char_height,
                         };
 
