@@ -169,7 +169,7 @@ fn is_ime_composing(hwnd: HWND) -> bool {
     }
 }
 
-pub fn open_custom_bar(hwnd_editor: HWND) {
+pub fn open_custom_bar(hwnd_editor: HWND) -> bool {
     unsafe {
         let h_instance = crate::get_instance_handle();
 
@@ -179,7 +179,7 @@ pub fn open_custom_bar(hwnd_editor: HWND) {
             let data = data_arc.lock().unwrap();
             if let Some(h) = data.window_handle {
                 let _ = SetFocus(h.0);
-                return;
+                return false;
             }
         }
 
@@ -213,7 +213,7 @@ pub fn open_custom_bar(hwnd_editor: HWND) {
             Ok(hwnd_client) => {
                 if hwnd_client.0 == std::ptr::null_mut() {
                     log::error!("Failed to create custom bar window: Handle is NULL");
-                    return;
+                    return false;
                 }
 
                 // Store window handle immediately
@@ -224,7 +224,7 @@ pub fn open_custom_bar(hwnd_editor: HWND) {
                         // Another window exists, destroy this one and focus the existing one
                         let _ = windows::Win32::UI::WindowsAndMessaging::DestroyWindow(hwnd_client);
                         let _ = SetFocus(h.0);
-                        return;
+                        return false;
                     }
                     data.window_handle = Some(SendHWND(hwnd_client));
                 }
@@ -293,14 +293,17 @@ pub fn open_custom_bar(hwnd_editor: HWND) {
                             }
                             log::info!("ConPTY output thread finished");
                         });
+                        return true;
                     },
                     Err(e) => {
                         log::error!("Failed to start ConPTY: {}", e);
+                        return false;
                     }
                 }
             },
             Err(e) => {
                 log::error!("Failed to create custom bar window: {}", e);
+                return false;
             }
         }
     }
