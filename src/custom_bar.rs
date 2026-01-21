@@ -12,7 +12,10 @@ use windows::Win32::UI::WindowsAndMessaging::{
     WS_CHILD, WS_VISIBLE, WS_CLIPCHILDREN, WS_CLIPSIBLINGS,
     SendMessageW, PostMessageW, WM_CHAR, WM_LBUTTONDOWN, WM_SETFOCUS, WM_KILLFOCUS, WM_KEYDOWN, WM_GETDLGCODE, DLGC_WANTALLKEYS,
     SetWindowsHookExW, UnhookWindowsHookEx, CallNextHookEx, WH_KEYBOARD, HHOOK, WM_SIZE, WM_DESTROY,
+    WM_IME_STARTCOMPOSITION, WM_IME_COMPOSITION, WM_IME_ENDCOMPOSITION, WM_IME_SETCONTEXT,
+    SetCaretPos, CreateCaret, DestroyCaret,
 };
+const ISC_SHOWUICOMPOSITIONWINDOW: u32 = 0x80000000;
 use windows::Win32::UI::Input::KeyboardAndMouse::{
     SetFocus, GetKeyState,
     VK_BACK, VK_RETURN, VK_LEFT, VK_RIGHT, VK_UP, VK_DOWN,
@@ -21,7 +24,7 @@ use windows::Win32::UI::Input::KeyboardAndMouse::{
     VK_F7, VK_F8, VK_F9, VK_F10, VK_F11, VK_F12,
     VK_CONTROL, VK_SHIFT, VK_MENU,
 };
-use windows::Win32::UI::Input::Ime::{ImmGetContext, ImmGetCompositionStringW, ImmReleaseContext, GCS_COMPSTR};
+use windows::Win32::UI::Input::Ime::{ImmGetContext, ImmGetCompositionStringW, ImmReleaseContext, GCS_COMPSTR, GCS_RESULTSTR, ImmSetCompositionWindow, COMPOSITIONFORM, CFS_POINT};
 use windows::Win32::Storage::FileSystem::{ReadFile, WriteFile};
 use std::ffi::c_void;
 use std::mem::size_of;
@@ -138,6 +141,12 @@ struct TerminalData {
     font: Option<SendHFONT>,
     metrics: Option<TerminalMetrics>,
     window_handle: Option<SendHWND>,
+    composition: Option<CompositionData>,
+}
+
+#[derive(Clone, Debug)]
+struct CompositionData {
+    text: String,
 }
 
 fn get_terminal_data() -> Arc<Mutex<TerminalData>> {
@@ -148,8 +157,42 @@ fn get_terminal_data() -> Arc<Mutex<TerminalData>> {
             font: None,
             metrics: None,
             window_handle: None,
+            composition: None,
         }))
     }).clone()
+}
+
+// Helper to update IME window position
+fn update_ime_window_position(hwnd: HWND) {
+    let data_arc = get_terminal_data();
+    let data = data_arc.lock().unwrap();
+
+    if let Some(metrics) = &data.metrics {
+        let (cursor_x, cursor_y) = data.buffer.get_cursor_pos();
+        let display_cols = data.buffer.get_display_width_up_to(cursor_y, cursor_x);
+
+        let pixel_x = display_cols as i32 * metrics.base_width;
+        let pixel_y = cursor_y as i32 * metrics.char_height;
+
+        log::debug!("Updating IME Window position: cursor=({}, {}), pixel=({}, {})", cursor_x, cursor_y, pixel_x, pixel_y);
+
+        unsafe {
+            // Update system caret position (IME uses this as reference)
+            let _ = SetCaretPos(pixel_x, pixel_y);
+
+            // Explicitly set composition window position
+            let himc = ImmGetContext(hwnd);
+            if himc.0 != std::ptr::null_mut() {
+                let form = COMPOSITIONFORM {
+                    dwStyle: CFS_POINT,
+                    ptCurrentPos: windows::Win32::Foundation::POINT { x: pixel_x, y: pixel_y },
+                    rcArea: windows::Win32::Foundation::RECT::default(),
+                };
+                let _ = ImmSetCompositionWindow(himc, &form);
+                let _ = ImmReleaseContext(hwnd, himc);
+            }
+        }
+    }
 }
 
 // Helper to check if IME is composing
@@ -263,12 +306,12 @@ pub fn open_custom_bar(hwnd_editor: HWND) -> bool {
                             let mut buffer = [0u8; 1024];
                             let mut bytes_read = 0;
                             loop {
-                                if let Err(e) = unsafe { ReadFile(
+                                if let Err(e) = ReadFile(
                                     HANDLE(output_handle_raw as *mut _),
                                     Some(&mut buffer),
                                     Some(&mut bytes_read),
                                     None
-                                ) } {
+                                ) {
                                     log::error!("ReadFile failed: {}", e);
                                     break;
                                 }
@@ -657,17 +700,72 @@ extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM
                         );
 
                         // Render cursor as an overlay when on the correct line
-                        if idx == cursor_y && data.buffer.is_cursor_visible() {
-                            let display_cols = data.buffer.get_display_width_up_to(cursor_y, cursor_x);
-                            let cursor_pixel_x = display_cols as i32 * base_width;
+                        if idx == cursor_y {
+                             let display_cols = data.buffer.get_display_width_up_to(cursor_y, cursor_x);
+                             let cursor_pixel_x = display_cols as i32 * base_width;
 
-                            let rect = windows::Win32::Foundation::RECT {
-                                left: cursor_pixel_x,
-                                top: current_y,
-                                right: cursor_pixel_x + 2, // 2px width bar
-                                bottom: current_y + char_height,
-                            };
-                            let _ = InvertRect(hdc, &rect);
+                             // Draw Composition String if available
+                             if let Some(ref comp) = data.composition {
+                                 let comp_wide: Vec<u16> = comp.text.encode_utf16().collect();
+                                 let comp_len = comp_wide.len();
+
+                                 // Simple width calculation for composition string (fixed pitch)
+                                 // TODO: Handle wide chars in composition properly if needed
+                                 let mut comp_dx = Vec::with_capacity(comp_len);
+                                 let mut pixel_width = 0;
+                                 for c in comp.text.chars() {
+                                     let w = TerminalBuffer::char_display_width(c) as i32 * base_width;
+                                     comp_dx.push(w);
+                                     for _ in 1..c.len_utf16() {
+                                         comp_dx.push(0);
+                                     }
+                                     pixel_width += w;
+                                 }
+
+                                 let comp_rect = windows::Win32::Foundation::RECT {
+                                     left: cursor_pixel_x,
+                                     top: current_y,
+                                     right: cursor_pixel_x + pixel_width,
+                                     bottom: current_y + char_height,
+                                 };
+
+                                 // Draw composition with underline/different style
+                                 // For now, simple text out
+                                 log::debug!("Drawing Composition at ({}, {}): '{}'", cursor_pixel_x, current_y, comp.text);
+
+                                 let _ = ExtTextOutW(
+                                     hdc,
+                                     cursor_pixel_x,
+                                     current_y,
+                                     ETO_OPTIONS(ETO_OPAQUE.0),
+                                     Some(&comp_rect),
+                                     PCWSTR(comp_wide.as_ptr()),
+                                     comp_wide.len() as u32,
+                                     Some(comp_dx.as_ptr())
+                                 );
+
+                                 // Underline for composition
+                                 let pen = windows::Win32::Graphics::Gdi::CreatePen(
+                                     windows::Win32::Graphics::Gdi::PS_SOLID,
+                                     1,
+                                     windows::Win32::Foundation::COLORREF(0x00FF0000) // Blue underline (BGR)
+                                 );
+                                 let old_pen = SelectObject(hdc, HGDIOBJ(pen.0));
+                                 let _ = windows::Win32::Graphics::Gdi::MoveToEx(hdc, comp_rect.left, comp_rect.bottom - 1, None);
+                                 let _ = windows::Win32::Graphics::Gdi::LineTo(hdc, comp_rect.right, comp_rect.bottom - 1);
+                                 let _ = SelectObject(hdc, old_pen);
+                                 let _ = DeleteObject(HGDIOBJ(pen.0));
+
+                             } else if data.buffer.is_cursor_visible() {
+                                 // Normal Cursor
+                                let rect = windows::Win32::Foundation::RECT {
+                                    left: cursor_pixel_x,
+                                    top: current_y,
+                                    right: cursor_pixel_x + 2, // 2px width bar
+                                    bottom: current_y + char_height,
+                                };
+                                let _ = InvertRect(hdc, &rect);
+                             }
                         }
                         current_y += char_height;
                     }
@@ -690,11 +788,25 @@ extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM
             TERMINAL_HWND.with(|h| {
                 *h.borrow_mut() = Some(hwnd);
             });
+
+            // Create a caret so SetCaretPos works
+            let data_arc = get_terminal_data();
+            let data = data_arc.lock().unwrap();
+            if let Some(metrics) = &data.metrics {
+                unsafe {
+                    let _ = CreateCaret(hwnd, windows::Win32::Graphics::Gdi::HBITMAP::default(), 2, metrics.char_height);
+                    // We don't call ShowCaret(hwnd) because we draw our own cursor overlay
+                }
+            }
+
             install_keyboard_hook();
             LRESULT(0)
         }
         WM_KILLFOCUS => {
             log::info!("WM_KILLFOCUS: Focus lost, uninstalling keyboard hook");
+            unsafe {
+                let _ = DestroyCaret();
+            }
             uninstall_keyboard_hook();
             LRESULT(0)
         }
@@ -828,6 +940,123 @@ extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM
                 log::info!("ConPTY will be dropped and cleaned up");
                 // Drop happens automatically when _conpty goes out of scope
             }
+            LRESULT(0)
+        }
+        WM_IME_SETCONTEXT => {
+            log::debug!("WM_IME_SETCONTEXT: wparam={:?}, lparam={:?}", wparam, lparam);
+            // We want to draw the composition string ourselves, so we clear the ISC_SHOWUICOMPOSITIONWINDOW flag
+            let mut lparam = lparam;
+            lparam.0 &= !(ISC_SHOWUICOMPOSITIONWINDOW as isize);
+            unsafe { DefWindowProcW(hwnd, msg, wparam, lparam) }
+        }
+        WM_IME_STARTCOMPOSITION => {
+            log::debug!("WM_IME_STARTCOMPOSITION");
+            LRESULT(0)
+        }
+        WM_IME_COMPOSITION => {
+            log::debug!("WM_IME_COMPOSITION: lparam={:?}", lparam);
+            let mut handled = false;
+
+            // Handle Result String (Committed)
+            if (lparam.0 as u32 & GCS_RESULTSTR.0) != 0 {
+                unsafe {
+                    let himc = ImmGetContext(hwnd);
+                    if himc.0 != std::ptr::null_mut() {
+                         let len_bytes = ImmGetCompositionStringW(himc, GCS_RESULTSTR, None, 0);
+                         if len_bytes >= 0 {
+                            let len_u16 = (len_bytes as usize) / size_of::<u16>();
+                            let mut buffer = vec![0u16; len_u16];
+                            let _ = ImmGetCompositionStringW(
+                                himc,
+                                GCS_RESULTSTR,
+                                Some(buffer.as_mut_ptr() as *mut c_void),
+                                len_bytes as u32
+                            );
+                            let result_str = String::from_utf16_lossy(&buffer);
+                            log::info!("IME Result: '{}'", result_str);
+
+                            // Send result string to ConPTY
+                            let data_arc = get_terminal_data();
+                            let mut data = data_arc.lock().unwrap();
+                            if let Some(conpty) = &data.conpty {
+                                let utf8_bytes = result_str.as_bytes();
+                                let mut bytes_written = 0;
+                                unsafe {
+                                    let _ = WriteFile(
+                                        conpty.get_input_handle().0,
+                                        Some(utf8_bytes),
+                                        Some(&mut bytes_written),
+                                        None
+                                    );
+                                }
+                            }
+
+                            // Clear composition data on commit
+                            data.composition = None;
+
+                            let _ = InvalidateRect(hwnd, None, BOOL(0));
+                            handled = true;
+                         }
+                         let _ = ImmReleaseContext(hwnd, himc);
+                    }
+                }
+            }
+
+            // Handle Composition String (In-progress)
+            if (lparam.0 as u32 & GCS_COMPSTR.0) != 0 {
+                update_ime_window_position(hwnd);
+                unsafe {
+                    let himc = ImmGetContext(hwnd);
+                    if himc.0 != std::ptr::null_mut() {
+                        // Get size first
+                        let len_bytes = ImmGetCompositionStringW(himc, GCS_COMPSTR, None, 0);
+                        if len_bytes >= 0 {
+                            let len_u16 = (len_bytes as usize) / size_of::<u16>();
+                            let mut buffer = vec![0u16; len_u16];
+
+                            // Get content
+                            let _ = ImmGetCompositionStringW(
+                                himc,
+                                GCS_COMPSTR,
+                                Some(buffer.as_mut_ptr() as *mut c_void),
+                                len_bytes as u32
+                            );
+
+                            let comp_str = String::from_utf16_lossy(&buffer);
+                            log::info!("IME Composition: '{}' (len={})", comp_str, len_u16);
+
+                            let data_arc = get_terminal_data();
+                            let mut data = data_arc.lock().unwrap();
+
+                            if comp_str.is_empty() {
+                                data.composition = None;
+                            } else {
+                                data.composition = Some(CompositionData {
+                                    text: comp_str,
+                                });
+                            }
+
+                            let _ = InvalidateRect(hwnd, None, BOOL(0));
+                            handled = true;
+                        }
+                        let _ = ImmReleaseContext(hwnd, himc);
+                    }
+                }
+            }
+
+            if !handled {
+                unsafe { DefWindowProcW(hwnd, msg, wparam, lparam) }
+            } else {
+                LRESULT(0)
+            }
+        }
+        WM_IME_ENDCOMPOSITION => {
+            log::debug!("WM_IME_ENDCOMPOSITION");
+            // Ensure composition is cleared when IME ends
+            let data_arc = get_terminal_data();
+            let mut data = data_arc.lock().unwrap();
+            data.composition = None;
+            unsafe { let _ = InvalidateRect(hwnd, None, BOOL(0)); }
             LRESULT(0)
         }
         _ => unsafe { DefWindowProcW(hwnd, msg, wparam, lparam) },
