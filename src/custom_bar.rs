@@ -23,7 +23,7 @@ use windows::Win32::UI::Input::KeyboardAndMouse::{
     VK_F7, VK_F8, VK_F9, VK_F10, VK_F11, VK_F12,
     VK_CONTROL, VK_SHIFT, VK_MENU,
 };
-use windows::Win32::UI::Input::Ime::{ImmGetContext, ImmGetCompositionStringW, ImmReleaseContext, GCS_COMPSTR};
+use windows::Win32::UI::Input::Ime::{ImmGetContext, ImmGetCompositionStringW, ImmReleaseContext, GCS_COMPSTR, GCS_RESULTSTR};
 use windows::Win32::Storage::FileSystem::{ReadFile, WriteFile};
 use std::ffi::c_void;
 use std::mem::size_of;
@@ -909,6 +909,38 @@ extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM
             log::debug!("WM_IME_COMPOSITION: lparam={:?}", lparam);
             let mut handled = false;
 
+            // Handle Result String (Committed)
+            if (lparam.0 as u32 & GCS_RESULTSTR.0) != 0 {
+                unsafe {
+                    let himc = ImmGetContext(hwnd);
+                    if himc.0 != std::ptr::null_mut() {
+                         let len_bytes = ImmGetCompositionStringW(himc, GCS_RESULTSTR, None, 0);
+                         if len_bytes >= 0 {
+                            let len_u16 = (len_bytes as usize) / size_of::<u16>();
+                            let mut buffer = vec![0u16; len_u16];
+                            let _ = ImmGetCompositionStringW(
+                                himc,
+                                GCS_RESULTSTR,
+                                Some(buffer.as_mut_ptr() as *mut c_void),
+                                len_bytes as u32
+                            );
+                            let result_str = String::from_utf16_lossy(&buffer);
+                            log::info!("IME Result: '{}'", result_str);
+
+                            // Clear composition data on commit
+                            let data_arc = get_terminal_data();
+                            let mut data = data_arc.lock().unwrap();
+                            data.composition = None;
+
+                            let _ = InvalidateRect(hwnd, None, BOOL(0));
+                            handled = true;
+                         }
+                         let _ = ImmReleaseContext(hwnd, himc);
+                    }
+                }
+            }
+
+            // Handle Composition String (In-progress)
             if (lparam.0 as u32 & GCS_COMPSTR.0) != 0 {
                 unsafe {
                     let himc = ImmGetContext(hwnd);
@@ -957,6 +989,11 @@ extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM
         }
         WM_IME_ENDCOMPOSITION => {
             log::debug!("WM_IME_ENDCOMPOSITION");
+            // Ensure composition is cleared when IME ends
+            let data_arc = get_terminal_data();
+            let mut data = data_arc.lock().unwrap();
+            data.composition = None;
+            unsafe { let _ = InvalidateRect(hwnd, None, BOOL(0)); }
             LRESULT(0)
         }
         _ => unsafe { DefWindowProcW(hwnd, msg, wparam, lparam) },
