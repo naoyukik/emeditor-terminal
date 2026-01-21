@@ -140,6 +140,12 @@ struct TerminalData {
     font: Option<SendHFONT>,
     metrics: Option<TerminalMetrics>,
     window_handle: Option<SendHWND>,
+    composition: Option<CompositionData>,
+}
+
+#[derive(Clone, Debug)]
+struct CompositionData {
+    text: String,
 }
 
 fn get_terminal_data() -> Arc<Mutex<TerminalData>> {
@@ -150,6 +156,7 @@ fn get_terminal_data() -> Arc<Mutex<TerminalData>> {
             font: None,
             metrics: None,
             window_handle: None,
+            composition: None,
         }))
     }).clone()
 }
@@ -659,17 +666,72 @@ extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM
                         );
 
                         // Render cursor as an overlay when on the correct line
-                        if idx == cursor_y && data.buffer.is_cursor_visible() {
-                            let display_cols = data.buffer.get_display_width_up_to(cursor_y, cursor_x);
-                            let cursor_pixel_x = display_cols as i32 * base_width;
+                        if idx == cursor_y {
+                             let display_cols = data.buffer.get_display_width_up_to(cursor_y, cursor_x);
+                             let cursor_pixel_x = display_cols as i32 * base_width;
 
-                            let rect = windows::Win32::Foundation::RECT {
-                                left: cursor_pixel_x,
-                                top: current_y,
-                                right: cursor_pixel_x + 2, // 2px width bar
-                                bottom: current_y + char_height,
-                            };
-                            let _ = InvertRect(hdc, &rect);
+                             // Draw Composition String if available
+                             if let Some(ref comp) = data.composition {
+                                 let comp_wide: Vec<u16> = comp.text.encode_utf16().collect();
+                                 let comp_len = comp_wide.len();
+
+                                 // Simple width calculation for composition string (fixed pitch)
+                                 // TODO: Handle wide chars in composition properly if needed
+                                 let mut comp_dx = Vec::with_capacity(comp_len);
+                                 let mut pixel_width = 0;
+                                 for c in comp.text.chars() {
+                                     let w = TerminalBuffer::char_display_width(c) as i32 * base_width;
+                                     comp_dx.push(w);
+                                     for _ in 1..c.len_utf16() {
+                                         comp_dx.push(0);
+                                     }
+                                     pixel_width += w;
+                                 }
+
+                                 let comp_rect = windows::Win32::Foundation::RECT {
+                                     left: cursor_pixel_x,
+                                     top: current_y,
+                                     right: cursor_pixel_x + pixel_width,
+                                     bottom: current_y + char_height,
+                                 };
+
+                                 // Draw composition with underline/different style
+                                 // For now, simple text out
+                                 log::debug!("Drawing Composition at ({}, {}): '{}'", cursor_pixel_x, current_y, comp.text);
+
+                                 let _ = ExtTextOutW(
+                                     hdc,
+                                     cursor_pixel_x,
+                                     current_y,
+                                     ETO_OPTIONS(ETO_OPAQUE.0),
+                                     Some(&comp_rect),
+                                     PCWSTR(comp_wide.as_ptr()),
+                                     comp_wide.len() as u32,
+                                     Some(comp_dx.as_ptr())
+                                 );
+
+                                 // Underline for composition
+                                 let pen = windows::Win32::Graphics::Gdi::CreatePen(
+                                     windows::Win32::Graphics::Gdi::PS_SOLID,
+                                     1,
+                                     windows::Win32::Foundation::COLORREF(0x00FF0000) // Blue underline (BGR)
+                                 );
+                                 let old_pen = SelectObject(hdc, HGDIOBJ(pen.0));
+                                 windows::Win32::Graphics::Gdi::MoveToEx(hdc, comp_rect.left, comp_rect.bottom - 1, None);
+                                 windows::Win32::Graphics::Gdi::LineTo(hdc, comp_rect.right, comp_rect.bottom - 1);
+                                 SelectObject(hdc, old_pen);
+                                 DeleteObject(HGDIOBJ(pen.0));
+
+                             } else if data.buffer.is_cursor_visible() {
+                                 // Normal Cursor
+                                let rect = windows::Win32::Foundation::RECT {
+                                    left: cursor_pixel_x,
+                                    top: current_y,
+                                    right: cursor_pixel_x + 2, // 2px width bar
+                                    bottom: current_y + char_height,
+                                };
+                                let _ = InvertRect(hdc, &rect);
+                             }
                         }
                         current_y += char_height;
                     }
@@ -845,7 +907,53 @@ extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM
         }
         WM_IME_COMPOSITION => {
             log::debug!("WM_IME_COMPOSITION: lparam={:?}", lparam);
-            unsafe { DefWindowProcW(hwnd, msg, wparam, lparam) }
+            let mut handled = false;
+
+            if (lparam.0 as u32 & GCS_COMPSTR.0) != 0 {
+                unsafe {
+                    let himc = ImmGetContext(hwnd);
+                    if himc.0 != std::ptr::null_mut() {
+                        // Get size first
+                        let len_bytes = ImmGetCompositionStringW(himc, GCS_COMPSTR, None, 0);
+                        if len_bytes >= 0 {
+                            let len_u16 = (len_bytes as usize) / size_of::<u16>();
+                            let mut buffer = vec![0u16; len_u16];
+
+                            // Get content
+                            let _ = ImmGetCompositionStringW(
+                                himc,
+                                GCS_COMPSTR,
+                                Some(buffer.as_mut_ptr() as *mut c_void),
+                                len_bytes as u32
+                            );
+
+                            let comp_str = String::from_utf16_lossy(&buffer);
+                            log::info!("IME Composition: '{}' (len={})", comp_str, len_u16);
+
+                            let data_arc = get_terminal_data();
+                            let mut data = data_arc.lock().unwrap();
+
+                            if comp_str.is_empty() {
+                                data.composition = None;
+                            } else {
+                                data.composition = Some(CompositionData {
+                                    text: comp_str,
+                                });
+                            }
+
+                            let _ = InvalidateRect(hwnd, None, BOOL(0));
+                            handled = true;
+                        }
+                        let _ = ImmReleaseContext(hwnd, himc);
+                    }
+                }
+            }
+
+            if !handled {
+                unsafe { DefWindowProcW(hwnd, msg, wparam, lparam) }
+            } else {
+                LRESULT(0)
+            }
         }
         WM_IME_ENDCOMPOSITION => {
             log::debug!("WM_IME_ENDCOMPOSITION");
