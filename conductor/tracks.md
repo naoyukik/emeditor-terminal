@@ -19,5 +19,5 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 ---
 
-- [~] **Track: IME候補ウィンドウ位置とカーソルの同期（インライン入力対応）**
+- [x] **Track: IME候補ウィンドウ位置とカーソルの同期（インライン入力対応）**
 *Link: [./tracks/8_fix_ime_candidate_window_20260121/](./tracks/8_fix_ime_candidate_window_20260121/)*
