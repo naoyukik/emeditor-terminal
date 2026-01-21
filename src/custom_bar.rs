@@ -306,12 +306,12 @@ pub fn open_custom_bar(hwnd_editor: HWND) -> bool {
                             let mut buffer = [0u8; 1024];
                             let mut bytes_read = 0;
                             loop {
-                                if let Err(e) = unsafe { ReadFile(
+                                if let Err(e) = ReadFile(
                                     HANDLE(output_handle_raw as *mut _),
                                     Some(&mut buffer),
                                     Some(&mut bytes_read),
                                     None
-                                ) } {
+                                ) {
                                     log::error!("ReadFile failed: {}", e);
                                     break;
                                 }
@@ -751,10 +751,10 @@ extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM
                                      windows::Win32::Foundation::COLORREF(0x00FF0000) // Blue underline (BGR)
                                  );
                                  let old_pen = SelectObject(hdc, HGDIOBJ(pen.0));
-                                 windows::Win32::Graphics::Gdi::MoveToEx(hdc, comp_rect.left, comp_rect.bottom - 1, None);
-                                 windows::Win32::Graphics::Gdi::LineTo(hdc, comp_rect.right, comp_rect.bottom - 1);
-                                 SelectObject(hdc, old_pen);
-                                 DeleteObject(HGDIOBJ(pen.0));
+                                 let _ = windows::Win32::Graphics::Gdi::MoveToEx(hdc, comp_rect.left, comp_rect.bottom - 1, None);
+                                 let _ = windows::Win32::Graphics::Gdi::LineTo(hdc, comp_rect.right, comp_rect.bottom - 1);
+                                 let _ = SelectObject(hdc, old_pen);
+                                 let _ = DeleteObject(HGDIOBJ(pen.0));
 
                              } else if data.buffer.is_cursor_visible() {
                                  // Normal Cursor
@@ -805,7 +805,7 @@ extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM
         WM_KILLFOCUS => {
             log::info!("WM_KILLFOCUS: Focus lost, uninstalling keyboard hook");
             unsafe {
-                let _ = windows::Win32::UI::WindowsAndMessaging::DestroyCaret();
+                let _ = DestroyCaret();
             }
             uninstall_keyboard_hook();
             LRESULT(0)

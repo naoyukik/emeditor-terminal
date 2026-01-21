@@ -17,12 +17,12 @@
 - [ ] Task: Conductor - ユーザー手動検証 'Phase 3: Inline Composition Implementation' (Protocol in workflow.md)
 
 ## Phase 4: Candidate Window Positioning
-- [ ] Task: 実装 - フォントメトリクスとカーソル位置から、画面上のピクセル座標を計算するヘルパー関数を実装。**計算されたピクセル座標をログ出力すること。**
-- [ ] Task: 実装 - `WM_IME_COMPOSITION` またはカーソル移動時に `SetCaretPos` を呼び出し、システムキャレットを更新。**更新前後のキャレット位置をログ出力すること。**
-- [ ] Task: 実装 - `ImmSetCompositionWindow` を使用して、候補ウィンドウの位置（`COMPOSITIONFORM`）を更新するロジックを追加。**設定しようとするCOMPOSITIONFORMの内容をログ出力すること。**
-- [ ] Task: Conductor - ユーザー手動検証 'Phase 4: Candidate Window Positioning' (Protocol in workflow.md)
+- [x] Task: 実装 - フォントメトリクスとカーソル位置から、画面上のピクセル座標を計算するヘルパー関数を実装。**計算されたピクセル座標をログ出力すること。**
+- [x] Task: 実装 - `WM_IME_COMPOSITION` またはカーソル移動時に `SetCaretPos` を呼び出し、システムキャレットを更新。**更新前後のキャレット位置をログ出力すること。**
+- [x] Task: 実装 - `ImmSetCompositionWindow` を使用して、候補ウィンドウの位置（`COMPOSITIONFORM`）を更新するロジックを追加。**設定しようとするCOMPOSITIONFORMの内容をログ出力すること。**
+- [x] Task: Conductor - ユーザー手動検証 'Phase 4: Candidate Window Positioning' (Protocol in workflow.md)
 
 ## Phase 5: Finalization & Cleanup
-- [ ] Task: 実装 - `WM_IME_ENDCOMPOSITION` 処理を追加し、インライン表示のクリアと確定文字列の ConPTY 送信を実装。**確定文字列と送信バイト数をログ出力すること。**
+- [x] Task: 実装 - `WM_IME_ENDCOMPOSITION` 処理を追加し、インライン表示のクリアと確定文字列の ConPTY 送信を実装。**確定文字列と送信バイト数をログ出力すること。**
 - [ ] Task: リファクタリング - コード整理。**検証に必要なログは残しつつ、過剰なデバッグログについてはログレベルを調整（debug/trace化）する。**
 - [ ] Task: Conductor - ユーザー手動検証 'Phase 5: Finalization & Cleanup' (Protocol in workflow.md)
