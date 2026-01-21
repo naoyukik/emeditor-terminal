@@ -14,5 +14,5 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 ---
 
-- [~] **Track: 起動時の入力ダイアログを廃止し直接pwsh.exeを起動する**
+- [x] **Track: 起動時の入力ダイアログを廃止し直接pwsh.exeを起動する**
 *Link: [./tracks/remove_dialog_20260120/](./tracks/remove_dialog_20260120/)*
