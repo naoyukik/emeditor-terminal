@@ -927,9 +927,23 @@ extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM
                             let result_str = String::from_utf16_lossy(&buffer);
                             log::info!("IME Result: '{}'", result_str);
 
-                            // Clear composition data on commit
+                            // Send result string to ConPTY
                             let data_arc = get_terminal_data();
                             let mut data = data_arc.lock().unwrap();
+                            if let Some(conpty) = &data.conpty {
+                                let utf8_bytes = result_str.as_bytes();
+                                let mut bytes_written = 0;
+                                unsafe {
+                                    let _ = WriteFile(
+                                        conpty.get_input_handle().0,
+                                        Some(utf8_bytes),
+                                        Some(&mut bytes_written),
+                                        None
+                                    );
+                                }
+                            }
+
+                            // Clear composition data on commit
                             data.composition = None;
 
                             let _ = InvalidateRect(hwnd, None, BOOL(0));
