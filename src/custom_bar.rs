@@ -13,6 +13,7 @@ use windows::Win32::UI::WindowsAndMessaging::{
     SendMessageW, PostMessageW, WM_CHAR, WM_LBUTTONDOWN, WM_SETFOCUS, WM_KILLFOCUS, WM_KEYDOWN, WM_GETDLGCODE, DLGC_WANTALLKEYS,
     SetWindowsHookExW, UnhookWindowsHookEx, CallNextHookEx, WH_KEYBOARD, HHOOK, WM_SIZE, WM_DESTROY,
     WM_IME_STARTCOMPOSITION, WM_IME_COMPOSITION, WM_IME_ENDCOMPOSITION, WM_IME_SETCONTEXT,
+    SetCaretPos, CreateCaret, DestroyCaret,
 };
 const ISC_SHOWUICOMPOSITIONWINDOW: u32 = 0x80000000;
 use windows::Win32::UI::Input::KeyboardAndMouse::{
@@ -23,7 +24,7 @@ use windows::Win32::UI::Input::KeyboardAndMouse::{
     VK_F7, VK_F8, VK_F9, VK_F10, VK_F11, VK_F12,
     VK_CONTROL, VK_SHIFT, VK_MENU,
 };
-use windows::Win32::UI::Input::Ime::{ImmGetContext, ImmGetCompositionStringW, ImmReleaseContext, GCS_COMPSTR, GCS_RESULTSTR};
+use windows::Win32::UI::Input::Ime::{ImmGetContext, ImmGetCompositionStringW, ImmReleaseContext, GCS_COMPSTR, GCS_RESULTSTR, ImmSetCompositionWindow, COMPOSITIONFORM, CFS_POINT};
 use windows::Win32::Storage::FileSystem::{ReadFile, WriteFile};
 use std::ffi::c_void;
 use std::mem::size_of;
@@ -159,6 +160,39 @@ fn get_terminal_data() -> Arc<Mutex<TerminalData>> {
             composition: None,
         }))
     }).clone()
+}
+
+// Helper to update IME window position
+fn update_ime_window_position(hwnd: HWND) {
+    let data_arc = get_terminal_data();
+    let data = data_arc.lock().unwrap();
+
+    if let Some(metrics) = &data.metrics {
+        let (cursor_x, cursor_y) = data.buffer.get_cursor_pos();
+        let display_cols = data.buffer.get_display_width_up_to(cursor_y, cursor_x);
+
+        let pixel_x = display_cols as i32 * metrics.base_width;
+        let pixel_y = cursor_y as i32 * metrics.char_height;
+
+        log::debug!("Updating IME Window position: cursor=({}, {}), pixel=({}, {})", cursor_x, cursor_y, pixel_x, pixel_y);
+
+        unsafe {
+            // Update system caret position (IME uses this as reference)
+            let _ = SetCaretPos(pixel_x, pixel_y);
+
+            // Explicitly set composition window position
+            let himc = ImmGetContext(hwnd);
+            if himc.0 != std::ptr::null_mut() {
+                let form = COMPOSITIONFORM {
+                    dwStyle: CFS_POINT,
+                    ptCurrentPos: windows::Win32::Foundation::POINT { x: pixel_x, y: pixel_y },
+                    rcArea: windows::Win32::Foundation::RECT::default(),
+                };
+                let _ = ImmSetCompositionWindow(himc, &form);
+                let _ = ImmReleaseContext(hwnd, himc);
+            }
+        }
+    }
 }
 
 // Helper to check if IME is composing
@@ -754,11 +788,25 @@ extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM
             TERMINAL_HWND.with(|h| {
                 *h.borrow_mut() = Some(hwnd);
             });
+
+            // Create a caret so SetCaretPos works
+            let data_arc = get_terminal_data();
+            let data = data_arc.lock().unwrap();
+            if let Some(metrics) = &data.metrics {
+                unsafe {
+                    let _ = CreateCaret(hwnd, windows::Win32::Graphics::Gdi::HBITMAP::default(), 2, metrics.char_height);
+                    // We don't call ShowCaret(hwnd) because we draw our own cursor overlay
+                }
+            }
+
             install_keyboard_hook();
             LRESULT(0)
         }
         WM_KILLFOCUS => {
             log::info!("WM_KILLFOCUS: Focus lost, uninstalling keyboard hook");
+            unsafe {
+                let _ = windows::Win32::UI::WindowsAndMessaging::DestroyCaret();
+            }
             uninstall_keyboard_hook();
             LRESULT(0)
         }
@@ -956,6 +1004,7 @@ extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM
 
             // Handle Composition String (In-progress)
             if (lparam.0 as u32 & GCS_COMPSTR.0) != 0 {
+                update_ime_window_position(hwnd);
                 unsafe {
                     let himc = ImmGetContext(hwnd);
                     if himc.0 != std::ptr::null_mut() {
