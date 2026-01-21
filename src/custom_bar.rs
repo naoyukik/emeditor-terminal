@@ -12,7 +12,9 @@ use windows::Win32::UI::WindowsAndMessaging::{
     WS_CHILD, WS_VISIBLE, WS_CLIPCHILDREN, WS_CLIPSIBLINGS,
     SendMessageW, PostMessageW, WM_CHAR, WM_LBUTTONDOWN, WM_SETFOCUS, WM_KILLFOCUS, WM_KEYDOWN, WM_GETDLGCODE, DLGC_WANTALLKEYS,
     SetWindowsHookExW, UnhookWindowsHookEx, CallNextHookEx, WH_KEYBOARD, HHOOK, WM_SIZE, WM_DESTROY,
+    WM_IME_STARTCOMPOSITION, WM_IME_COMPOSITION, WM_IME_ENDCOMPOSITION, WM_IME_SETCONTEXT,
 };
+const ISC_SHOWUICOMPOSITIONWINDOW: u32 = 0x80000000;
 use windows::Win32::UI::Input::KeyboardAndMouse::{
     SetFocus, GetKeyState,
     VK_BACK, VK_RETURN, VK_LEFT, VK_RIGHT, VK_UP, VK_DOWN,
@@ -828,6 +830,25 @@ extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM
                 log::info!("ConPTY will be dropped and cleaned up");
                 // Drop happens automatically when _conpty goes out of scope
             }
+            LRESULT(0)
+        }
+        WM_IME_SETCONTEXT => {
+            log::debug!("WM_IME_SETCONTEXT: wparam={:?}, lparam={:?}", wparam, lparam);
+            // We want to draw the composition string ourselves, so we clear the ISC_SHOWUICOMPOSITIONWINDOW flag
+            let mut lparam = lparam;
+            lparam.0 &= !(ISC_SHOWUICOMPOSITIONWINDOW as isize);
+            unsafe { DefWindowProcW(hwnd, msg, wparam, lparam) }
+        }
+        WM_IME_STARTCOMPOSITION => {
+            log::debug!("WM_IME_STARTCOMPOSITION");
+            LRESULT(0)
+        }
+        WM_IME_COMPOSITION => {
+            log::debug!("WM_IME_COMPOSITION: lparam={:?}", lparam);
+            unsafe { DefWindowProcW(hwnd, msg, wparam, lparam) }
+        }
+        WM_IME_ENDCOMPOSITION => {
+            log::debug!("WM_IME_ENDCOMPOSITION");
             LRESULT(0)
         }
         _ => unsafe { DefWindowProcW(hwnd, msg, wparam, lparam) },

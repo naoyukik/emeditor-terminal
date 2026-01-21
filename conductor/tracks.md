@@ -16,3 +16,8 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 - [x] **Track: 起動時の入力ダイアログを廃止し直接pwsh.exeを起動する**
 *Link: [./tracks/remove_dialog_20260120/](./tracks/remove_dialog_20260120/)*
+
+---
+
+- [~] **Track: IME候補ウィンドウ位置とカーソルの同期（インライン入力対応）**
+*Link: [./tracks/8_fix_ime_candidate_window_20260121/](./tracks/8_fix_ime_candidate_window_20260121/)*
