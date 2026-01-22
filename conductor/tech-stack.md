@@ -13,8 +13,9 @@
 
 ## Libraries & Frameworks (Rust Crates)
 - **windows-rs / winapi**: Windows API へのアクセス。
-  - `Win32_UI_WindowsAndMessaging`: メッセージ送信、ダイアログ表示。
+  - `Win32_UI_WindowsAndMessaging`: メッセージ送信、ダイアログ表示、キャレット制御。
   - `Win32_Globalization`: 文字コード変換 (CP932 <-> UTF-8)。
+  - `Win32_UI_Input_Ime`: IME制御 (Composition String, Candidate Window)。
 - **simplelog / log**: デバッグログ出力。
 
 ## Build Tools & Environment
