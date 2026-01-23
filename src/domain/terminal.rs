@@ -265,6 +265,13 @@ impl TerminalBuffer {
                     _ => {}
                 }
             }
+            'G' => {
+                // Cursor Horizontal Absolute (CHA)
+                let col = params.parse::<usize>().unwrap_or(1);
+                let target_display_col = if col > 0 { col - 1 } else { 0 };
+                let target_display_col = std::cmp::min(target_display_col, self.width.saturating_sub(1));
+                self.cursor.x = self.display_col_to_char_index(self.cursor.y, target_display_col);
+            }
             'h' => {
                 // Set Mode
                 if params == "?25" {
@@ -609,5 +616,32 @@ mod tests {
         // Move forward 2 columns
         buffer.write_string("\x1b[2C");
         assert_eq!(buffer.cursor.x, 3);
+    }
+
+    #[test]
+    fn test_cha() {
+        let mut buffer = TerminalBuffer::new(80, 25);
+        buffer.write_string("abcあいう"); // display width: 3 + 6 = 9
+
+        // Move to column 1 (display col 0)
+        buffer.write_string("\x1b[1G");
+        assert_eq!(buffer.cursor.x, 0);
+
+        // Move to column 4 (display col 3) - start of 'あ'
+        buffer.write_string("\x1b[4G");
+        assert_eq!(buffer.cursor.x, 3);
+
+        // Move to column 5 (display col 4) - middle of 'あ' (should snap to start of 'あ' or 'い')
+        // display_col_to_char_index current implementation returns index that covers the target_display_col.
+        // If we target col 4, it should return char_idx 3.
+        buffer.write_string("\x1b[5G");
+        assert_eq!(buffer.cursor.x, 4); // index of 'い'
+
+        // Out of bounds
+        buffer.write_string("\x1b[999G");
+        // Row 0 has "abcあいう" (9 display width) + 71 spaces. Total display width 80.
+        // target_display_col 998 is clamped to 79.
+        // Index 6 is the start of spaces. Index 6 + 70 spaces = 76.
+        assert_eq!(buffer.cursor.x, 76);
     }
 }
