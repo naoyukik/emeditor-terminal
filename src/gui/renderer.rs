@@ -171,9 +171,7 @@ impl TerminalRenderer {
                 for c in line.chars() {
                     let width = TerminalBuffer::char_display_width(c) as i32 * base_width;
                     dx.push(width);
-                    for _ in 1..c.len_utf16() {
-                        dx.push(0);
-                    }
+                    dx.extend(std::iter::repeat_n(0, c.len_utf16().saturating_sub(1)));
                 }
 
                 let line_pixel_width: i32 = dx.iter().sum();
@@ -239,9 +237,7 @@ impl TerminalRenderer {
         for c in comp.text.chars() {
             let w = TerminalBuffer::char_display_width(c) as i32 * base_width;
             comp_dx.push(w);
-            for _ in 1..c.len_utf16() {
-                comp_dx.push(0);
-            }
+            comp_dx.extend(std::iter::repeat_n(0, c.len_utf16().saturating_sub(1)));
             pixel_width += w;
         }
 

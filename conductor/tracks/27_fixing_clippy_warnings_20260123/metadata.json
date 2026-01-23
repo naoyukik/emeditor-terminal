@@ -1,0 +1,8 @@
+{
+  "track_id": "27_fixing_clippy_warnings_20260123",
+  "type": "bug",
+  "status": "new",
+  "created_at": "2026-01-23T01:30:00Z",
+  "updated_at": "2026-01-23T01:30:00Z",
+  "description": "fix: clippyによる警告（Lints）の修正"
+}
