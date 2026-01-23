@@ -45,6 +45,7 @@ impl TerminalBuffer {
                 if let Some(&'[') = chars.peek() {
                     chars.next(); // consume '['
                     let mut param_str = String::new();
+                    // Parse Parameters (0x30-0x3F)
                     loop {
                         match chars.peek() {
                             Some(&p) if (0x30..=0x3F).contains(&(p as u8)) => {
@@ -54,7 +55,27 @@ impl TerminalBuffer {
                             _ => break,
                         }
                     }
+                    // Parse Intermediate Bytes (0x20-0x2F)
+                    let mut intermediates = String::new();
+                    loop {
+                         match chars.peek() {
+                            Some(&p) if (0x20..=0x2F).contains(&(p as u8)) => {
+                                intermediates.push(p);
+                                chars.next();
+                            }
+                            _ => break,
+                        }
+                    }
+
                     if let Some(cmd) = chars.next() {
+                        // For now, we ignore intermediates or handle them if needed.
+                        // Ideally handle_csi should accept intermediates.
+                        // But to stop 'q' from appearing, just correctly parsing the sequence is enough.
+                        // If intermediates exists, the command meaning might change,
+                        // but current handle_csi just ignores unknown commands.
+                        if !intermediates.is_empty() {
+                            log::debug!("CSI with intermediates: cmd={}, params={}, intermediates={}", cmd, param_str, intermediates);
+                        }
                         self.handle_csi(cmd, &param_str);
                     }
                 } else if let Some(&']') = chars.peek() {
@@ -87,6 +108,7 @@ impl TerminalBuffer {
             'A' => {
                 // Cursor Up
                 let n = params.parse::<usize>().unwrap_or(1);
+                let n = if n == 0 { 1 } else { n };
                 let current_col = self.get_display_width_up_to(self.cursor.y, self.cursor.x);
                 if self.cursor.y >= n {
                     self.cursor.y -= n;
@@ -98,6 +120,7 @@ impl TerminalBuffer {
             'B' => {
                 // Cursor Down
                 let n = params.parse::<usize>().unwrap_or(1);
+                let n = if n == 0 { 1 } else { n };
                 let current_col = self.get_display_width_up_to(self.cursor.y, self.cursor.x);
                 self.cursor.y = std::cmp::min(self.height - 1, self.cursor.y + n);
                 self.cursor.x = self.display_col_to_char_index(self.cursor.y, current_col);
@@ -105,6 +128,7 @@ impl TerminalBuffer {
             'C' => {
                 // Cursor Forward
                 let n = params.parse::<usize>().unwrap_or(1);
+                let n = if n == 0 { 1 } else { n };
                 let current_col = self.get_display_width_up_to(self.cursor.y, self.cursor.x);
                 let target_col = std::cmp::min(self.width - 1, current_col + n);
                 self.cursor.x = self.display_col_to_char_index(self.cursor.y, target_col);
@@ -112,6 +136,7 @@ impl TerminalBuffer {
             'D' => {
                 // Cursor Back
                 let n = params.parse::<usize>().unwrap_or(1);
+                let n = if n == 0 { 1 } else { n };
                 let current_col = self.get_display_width_up_to(self.cursor.y, self.cursor.x);
                 let target_col = current_col.saturating_sub(n);
                 self.cursor.x = self.display_col_to_char_index(self.cursor.y, target_col);
@@ -154,6 +179,7 @@ impl TerminalBuffer {
             'P' => {
                 // Delete Character (Shift Left)
                 let n = params.parse::<usize>().unwrap_or(1);
+                let n = if n == 0 { 1 } else { n };
                 if let Some(line) = self.lines.get_mut(self.cursor.y) {
                     let mut chars: Vec<char> = line.chars().collect();
                     if self.cursor.x < chars.len() {
@@ -169,6 +195,7 @@ impl TerminalBuffer {
             'X' => {
                 // Erase Character (Replace with Space)
                 let n = params.parse::<usize>().unwrap_or(1);
+                let n = if n == 0 { 1 } else { n };
                 if let Some(line) = self.lines.get_mut(self.cursor.y) {
                     let mut chars: Vec<char> = line.chars().collect();
                     // Pad if necessary
@@ -268,6 +295,7 @@ impl TerminalBuffer {
             'G' => {
                 // Cursor Horizontal Absolute (CHA)
                 let col = params.parse::<usize>().unwrap_or(1);
+                let col = if col == 0 { 1 } else { col };
                 let target_display_col = if col > 0 { col - 1 } else { 0 };
                 let target_display_col = std::cmp::min(target_display_col, self.width.saturating_sub(1));
                 self.cursor.x = self.display_col_to_char_index(self.cursor.y, target_display_col);
@@ -275,6 +303,7 @@ impl TerminalBuffer {
             'd' => {
                 // Vertical Line Position Absolute (VPA)
                 let row = params.parse::<usize>().unwrap_or(1);
+                let row = if row == 0 { 1 } else { row };
                 let current_display_col = self.get_display_width_up_to(self.cursor.y, self.cursor.x);
                 self.cursor.y = if row > 0 { row - 1 } else { 0 };
                 if self.cursor.y >= self.height {
@@ -285,12 +314,14 @@ impl TerminalBuffer {
             'E' => {
                 // Cursor Next Line (CNL)
                 let n = params.parse::<usize>().unwrap_or(1);
+                let n = if n == 0 { 1 } else { n };
                 self.cursor.y = std::cmp::min(self.height - 1, self.cursor.y + n);
                 self.cursor.x = 0;
             }
             'F' => {
                 // Cursor Previous Line (CPL)
                 let n = params.parse::<usize>().unwrap_or(1);
+                let n = if n == 0 { 1 } else { n };
                 if self.cursor.y >= n {
                     self.cursor.y -= n;
                 } else {
@@ -719,5 +750,55 @@ mod tests {
         buffer.write_string("\x1b[1E");
         assert_eq!(buffer.cursor.y, 1);
         assert_eq!(buffer.cursor.x, 0);
+    }
+
+    #[test]
+    fn test_integration_cursor_movements() {
+        let mut buffer = TerminalBuffer::new(10, 5); // Small buffer for boundary testing
+        buffer.write_string("あいうえお"); // Display width: 10. Row 0: "あいうえお"
+        buffer.write_string("\r\n12345"); // Row 1: "12345     "
+
+        // 1. CHA to middle of CJK character (Col 2 -> start of 'い' is Col 2, idx 1)
+        // Col 3 is 2nd column of 'い'. CHA to Col 3 (4G).
+        buffer.write_string("\x1b[1;1H"); // Back to top-left
+        buffer.write_string("\x1b[3G"); // To column 3
+        // 'あ' (0-2), 'い' (2-4). Col 2 (3G) is idx 1.
+        assert_eq!(buffer.cursor.x, 1);
+
+        // 2. VPA maintaining column
+        buffer.write_string("\x1b[2d"); // To row 2
+        assert_eq!(buffer.cursor.y, 1);
+        // Row 1 is "12345". Col 2 is idx 2 ('3').
+        assert_eq!(buffer.cursor.x, 2);
+
+        // 3. Boundary Clamping
+        buffer.write_string("\x1b[99G"); // Far right
+        assert_eq!(buffer.cursor.x, 9); // Clamped to width-1
+
+        buffer.write_string("\x1b[99d"); // Far bottom
+        assert_eq!(buffer.cursor.y, 4);
+
+        buffer.write_string("\x1b[0E"); // CNL 0 -> should be treated as 1
+        assert_eq!(buffer.cursor.y, 4); // Still bottom
+        assert_eq!(buffer.cursor.x, 0); // But at start
+
+        buffer.write_string("\x1b[99F"); // CPL 99 -> top
+        assert_eq!(buffer.cursor.y, 0);
+        assert_eq!(buffer.cursor.x, 0);
+    }
+
+    #[test]
+    fn test_csi_with_intermediate_bytes() {
+        let mut buffer = TerminalBuffer::new(80, 25);
+        // DECSCUSR (Set Cursor Style): ESC [ 0 SP q
+        // Should be parsed correctly and NOT print 'q' to the buffer.
+        buffer.write_string("\x1b[0 q");
+
+        // Cursor should not move (because 'q' is unhandled, not printed)
+        assert_eq!(buffer.cursor.x, 0);
+
+        // Buffer should be empty (spaces)
+        let line = buffer.lines.get(0).unwrap();
+        assert!(line.chars().all(|c| c == ' '));
     }
 }
