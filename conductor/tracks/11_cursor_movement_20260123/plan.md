@@ -8,15 +8,15 @@
 - [x] Task: Conductor - ユーザー手動検証 'フェーズ 1' (Protocol in workflow.md)
 
 ## フェーズ 2: 拡張シーケンスの実装 (CHA, VPA)
-- [ ] Task: `CHA` (Cursor Horizontal Absolute) の実装
-    - [ ] `handle_csi` に 'G' コマンドのハンドラを追加
-    - [ ] 境界クランプ処理の実装
-    - [ ] ユニットテストの追加と実行 (feat: CHAの実装)
-- [ ] Task: `VPA` (Vertical Line Position Absolute) の実装
-    - [ ] `handle_csi` に 'd' コマンドのハンドラを追加
-    - [ ] 既存の表示カラムを維持するための再計算ロジックの実装
-    - [ ] ユニットテストの追加と実行 (feat: VPAの実装)
-- [ ] Task: Conductor - ユーザー手動検証 'フェーズ 2' (Protocol in workflow.md)
+- [x] Task: `CHA` (Cursor Horizontal Absolute) の実装
+    - [x] `handle_csi` に 'G' コマンドのハンドラを追加
+    - [x] 境界クランプ処理の実装
+    - [x] ユニットテストの追加と実行 (feat: CHAの実装)
+- [x] Task: `VPA` (Vertical Line Position Absolute) の実装
+    - [x] `handle_csi` に 'd' コマンドのハンドラを追加
+    - [x] 既存の表示カラムを維持するための再計算ロジックの実装
+    - [x] ユニットテストの追加と実行 (feat: VPAの実装)
+- [x] Task: Conductor - ユーザー手動検証 'フェーズ 2' (Protocol in workflow.md)
 
 ## フェーズ 3: 行間移動シーケンスの実装 (CNL, CPL)
 - [ ] Task: `CNL` (Cursor Next Line) の実装
