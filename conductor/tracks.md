@@ -17,3 +17,7 @@ This file tracks all major tracks for the project. Each track has its own detail
 - [x] **Track: 起動時の入力ダイアログを廃止し直接pwsh.exeを起動する**
 *Link: [./tracks/remove_dialog_20260120/](./tracks/remove_dialog_20260120/)*
 
+---
+
+- [~] **Track: feat: 追加のカーソル移動シーケンス (CHA, VPA, CNL, CPL) のサポート (Issue #11)**
+*Link: [./tracks/11_cursor_movement_20260123/](./tracks/11_cursor_movement_20260123/)*
