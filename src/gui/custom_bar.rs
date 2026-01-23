@@ -1,39 +1,36 @@
 use windows::core::{w, PCWSTR};
-use windows::Win32::Foundation::{HWND, LPARAM, LRESULT, WPARAM, HANDLE, BOOL, SIZE};
+use windows::Win32::Foundation::{BOOL, HANDLE, HWND, LPARAM, LRESULT, WPARAM};
 use windows::Win32::Graphics::Gdi::{
-    BeginPaint, EndPaint, PAINTSTRUCT, HBRUSH, COLOR_WINDOW, InvalidateRect, InvertRect,
-    GetTextExtentPoint32W, GetTextMetricsW, TEXTMETRICW, SelectObject, HGDIOBJ, CreateFontW, DeleteObject,
-    FW_NORMAL, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY, FIXED_PITCH, FF_MODERN,
-    ExtTextOutW, ETO_OPAQUE, ETO_OPTIONS, HFONT
+    BeginPaint, EndPaint, InvalidateRect, COLOR_WINDOW, HBRUSH, PAINTSTRUCT,
 };
 use windows::Win32::UI::WindowsAndMessaging::{
-    CreateWindowExW, DefWindowProcW, RegisterClassW, LoadCursorW,
-    CS_HREDRAW, CS_VREDRAW, IDC_ARROW, WM_PAINT, WNDCLASSW,
-    WS_CHILD, WS_VISIBLE, WS_CLIPCHILDREN, WS_CLIPSIBLINGS,
-    SendMessageW, PostMessageW, WM_CHAR, WM_LBUTTONDOWN, WM_SETFOCUS, WM_KILLFOCUS, WM_KEYDOWN, WM_GETDLGCODE, DLGC_WANTALLKEYS,
-    SetWindowsHookExW, UnhookWindowsHookEx, CallNextHookEx, WH_KEYBOARD, HHOOK, WM_SIZE, WM_DESTROY,
-    WM_IME_STARTCOMPOSITION, WM_IME_COMPOSITION, WM_IME_ENDCOMPOSITION, WM_IME_SETCONTEXT,
-    SetCaretPos, CreateCaret, DestroyCaret,
+    CallNextHookEx, CreateCaret, CreateWindowExW, DefWindowProcW, DestroyCaret, LoadCursorW,
+    PostMessageW, RegisterClassW, SendMessageW, SetCaretPos, SetWindowsHookExW,
+    UnhookWindowsHookEx, CS_HREDRAW, CS_VREDRAW, DLGC_WANTALLKEYS, HHOOK, IDC_ARROW, WH_KEYBOARD,
+    WM_CHAR, WM_DESTROY, WM_GETDLGCODE, WM_IME_COMPOSITION, WM_IME_ENDCOMPOSITION,
+    WM_IME_SETCONTEXT, WM_IME_STARTCOMPOSITION, WM_KEYDOWN, WM_KILLFOCUS, WM_LBUTTONDOWN, WM_PAINT,
+    WM_SETFOCUS, WM_SIZE, WNDCLASSW, WS_CHILD, WS_CLIPCHILDREN, WS_CLIPSIBLINGS, WS_VISIBLE,
 };
 const ISC_SHOWUICOMPOSITIONWINDOW: u32 = 0x80000000;
-use windows::Win32::UI::Input::KeyboardAndMouse::{
-    SetFocus, GetKeyState,
-    VK_BACK, VK_RETURN, VK_LEFT, VK_RIGHT, VK_UP, VK_DOWN,
-    VK_HOME, VK_END, VK_DELETE, VK_INSERT, VK_PRIOR, VK_NEXT,
-    VK_TAB, VK_ESCAPE, VK_F1, VK_F2, VK_F3, VK_F4, VK_F5, VK_F6,
-    VK_F7, VK_F8, VK_F9, VK_F10, VK_F11, VK_F12,
-    VK_CONTROL, VK_SHIFT, VK_MENU,
-};
-use windows::Win32::UI::Input::Ime::{ImmGetContext, ImmGetCompositionStringW, ImmReleaseContext, GCS_COMPSTR, GCS_RESULTSTR, ImmSetCompositionWindow, COMPOSITIONFORM, CFS_POINT};
-use windows::Win32::Storage::FileSystem::{ReadFile, WriteFile};
+use crate::domain::terminal::TerminalBuffer;
+use crate::gui::renderer::{CompositionData, TerminalRenderer};
+use crate::infra::conpty::ConPTY;
+use std::cell::RefCell;
 use std::ffi::c_void;
 use std::mem::size_of;
-use std::thread;
-use std::sync::{Arc, Mutex, OnceLock};
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::cell::RefCell;
-use crate::infra::conpty::ConPTY;
-use crate::domain::terminal::TerminalBuffer;
+use std::sync::{Arc, Mutex, OnceLock};
+use std::thread;
+use windows::Win32::Storage::FileSystem::{ReadFile, WriteFile};
+use windows::Win32::UI::Input::Ime::{
+    ImmGetCompositionStringW, ImmGetContext, ImmReleaseContext, ImmSetCompositionWindow, CFS_POINT,
+    COMPOSITIONFORM, GCS_COMPSTR, GCS_RESULTSTR,
+};
+use windows::Win32::UI::Input::KeyboardAndMouse::{
+    GetKeyState, SetFocus, VK_BACK, VK_CONTROL, VK_DELETE, VK_DOWN, VK_END, VK_ESCAPE, VK_F1,
+    VK_F10, VK_F11, VK_F12, VK_F2, VK_F3, VK_F4, VK_F5, VK_F6, VK_F7, VK_F8, VK_F9, VK_HOME,
+    VK_INSERT, VK_LEFT, VK_MENU, VK_NEXT, VK_PRIOR, VK_RETURN, VK_RIGHT, VK_SHIFT, VK_TAB, VK_UP,
+};
 
 // Constants from EmEditor SDK
 const WM_USER: u32 = 0x0400;
@@ -71,49 +68,6 @@ thread_local! {
     static TERMINAL_HWND: RefCell<Option<HWND>> = const { RefCell::new(None) };
 }
 
-struct TerminalMetrics {
-    char_height: i32,
-    base_width: i32,
-}
-
-/// Wrapper around a Windows `HFONT` handle that is treated as `Send` and `Sync`.
-///
-/// This is specifically intended for the pattern used in this module: the font
-/// is created and *used* (e.g., via `SelectObject` into an `HDC`) only on the
-/// UI thread, but the raw handle value is stored inside data structures that
-/// are themselves `Send + Sync` (for example, behind an `Arc<Mutex<...>>`).
-///
-/// The underlying Windows API allows a font handle to be passed between threads,
-/// but all GDI operations that depend on thread affinity (such as selecting the
-/// font into a device context) must still be performed on the thread that owns
-/// the window/HDC. Other threads may keep or forward the handle, but must not
-/// call such GDI functions on it directly.
-struct SendHFONT(HFONT);
-
-/// SAFETY:
-/// - The `HFONT` handle value itself may be moved between threads on Windows.
-/// - This wrapper does **not** make GDI operations thread-safe. All operations
-///   that use the font with a device context (e.g., `SelectObject(hdc, hfont)`,
-///   text drawing, measuring, etc.) must be performed only on the UI thread that
-///   owns the relevant window/HDC. Non-UI threads may only store, copy, or send
-///   the handle back to the UI thread.
-/// - The code that creates and owns the `HFONT` is responsible for ensuring that
-///   the font is not deleted (e.g., via `DeleteObject`) while any thread might
-///   still hold or hand the handle back to the UI thread for use.
-unsafe impl Send for SendHFONT {}
-
-/// SAFETY:
-/// - Sharing the `HFONT` handle across threads does not by itself create data
-///   races, provided that all actual GDI calls using the font are confined to
-///   the owning/UI thread.
-/// - All threads must treat the handle as an opaque identifier: they may store
-///   or forward it, but must not call GDI functions that operate on the font or
-///   its associated device context from non-UI threads.
-/// - Deletion of the font (via `DeleteObject`) must be externally synchronized
-///   so that no thread may attempt to use or forward the handle after it is
-///   destroyed.
-unsafe impl Sync for SendHFONT {}
-
 #[derive(Clone, Copy)]
 /// Wrapper around a Windows `HWND` handle that is treated as `Send` and `Sync`.
 ///
@@ -138,28 +92,23 @@ unsafe impl Sync for SendHWND {}
 struct TerminalData {
     buffer: TerminalBuffer,
     conpty: Option<ConPTY>,
-    font: Option<SendHFONT>,
-    metrics: Option<TerminalMetrics>,
+    renderer: TerminalRenderer,
     window_handle: Option<SendHWND>,
     composition: Option<CompositionData>,
 }
 
-#[derive(Clone, Debug)]
-struct CompositionData {
-    text: String,
-}
-
 fn get_terminal_data() -> Arc<Mutex<TerminalData>> {
-    TERMINAL_DATA.get_or_init(|| {
-        Arc::new(Mutex::new(TerminalData {
-            buffer: TerminalBuffer::new(80, 25),
-            conpty: None,
-            font: None,
-            metrics: None,
-            window_handle: None,
-            composition: None,
-        }))
-    }).clone()
+    TERMINAL_DATA
+        .get_or_init(|| {
+            Arc::new(Mutex::new(TerminalData {
+                buffer: TerminalBuffer::new(80, 25),
+                conpty: None,
+                renderer: TerminalRenderer::new(),
+                window_handle: None,
+                composition: None,
+            }))
+        })
+        .clone()
 }
 
 // Helper to update IME window position
@@ -167,14 +116,20 @@ fn update_ime_window_position(hwnd: HWND) {
     let data_arc = get_terminal_data();
     let data = data_arc.lock().unwrap();
 
-    if let Some(metrics) = &data.metrics {
+    if let Some(metrics) = data.renderer.get_metrics() {
         let (cursor_x, cursor_y) = data.buffer.get_cursor_pos();
         let display_cols = data.buffer.get_display_width_up_to(cursor_y, cursor_x);
 
         let pixel_x = display_cols as i32 * metrics.base_width;
         let pixel_y = cursor_y as i32 * metrics.char_height;
 
-        log::debug!("Updating IME Window position: cursor=({}, {}), pixel=({}, {})", cursor_x, cursor_y, pixel_x, pixel_y);
+        log::debug!(
+            "Updating IME Window position: cursor=({}, {}), pixel=({}, {})",
+            cursor_x,
+            cursor_y,
+            pixel_x,
+            pixel_y
+        );
 
         unsafe {
             // Update system caret position (IME uses this as reference)
@@ -185,7 +140,10 @@ fn update_ime_window_position(hwnd: HWND) {
             if himc.0 != std::ptr::null_mut() {
                 let form = COMPOSITIONFORM {
                     dwStyle: CFS_POINT,
-                    ptCurrentPos: windows::Win32::Foundation::POINT { x: pixel_x, y: pixel_y },
+                    ptCurrentPos: windows::Win32::Foundation::POINT {
+                        x: pixel_x,
+                        y: pixel_y,
+                    },
                     rcArea: windows::Win32::Foundation::RECT::default(),
                 };
                 let _ = ImmSetCompositionWindow(himc, &form);
@@ -245,7 +203,10 @@ pub fn open_custom_bar(hwnd_editor: HWND) -> bool {
             CLASS_NAME,
             w!("Terminal"),
             WS_CHILD | WS_VISIBLE | WS_CLIPCHILDREN | WS_CLIPSIBLINGS,
-            0, 0, 0, 0,
+            0,
+            0,
+            0,
+            0,
             hwnd_editor,
             None,
             h_instance,
@@ -291,7 +252,7 @@ pub fn open_custom_bar(hwnd_editor: HWND) -> bool {
                 match ConPTY::new("pwsh.exe", 80, 25) {
                     Ok(conpty) => {
                         log::info!("ConPTY started successfully");
-                        
+
                         let data_arc = get_terminal_data();
                         let output_handle = conpty.get_output_handle();
                         {
@@ -310,7 +271,7 @@ pub fn open_custom_bar(hwnd_editor: HWND) -> bool {
                                     HANDLE(output_handle_raw as *mut _),
                                     Some(&mut buffer),
                                     Some(&mut bytes_read),
-                                    None
+                                    None,
                                 ) {
                                     log::error!("ReadFile failed: {}", e);
                                     break;
@@ -319,31 +280,41 @@ pub fn open_custom_bar(hwnd_editor: HWND) -> bool {
                                     log::info!("ReadFile returned 0 bytes (EOF)");
                                     break;
                                 }
-                                
+
                                 let raw_bytes = &buffer[..bytes_read as usize];
-                                let hex_output: String = raw_bytes.iter().map(|b| format!("{:02X} ", b)).collect();
-                                log::debug!("ConPTY Raw Output ({} bytes): {}", bytes_read, hex_output);
+                                let hex_output: String =
+                                    raw_bytes.iter().map(|b| format!("{:02X} ", b)).collect();
+                                log::debug!(
+                                    "ConPTY Raw Output ({} bytes): {}",
+                                    bytes_read,
+                                    hex_output
+                                );
                                 let output = String::from_utf8_lossy(raw_bytes);
                                 log::debug!("ConPTY Output: {}", output);
-                                
+
                                 {
                                     let mut data = data_arc.lock().unwrap();
                                     data.buffer.write_string(&output);
                                 }
-                                
+
                                 // Trigger repaint via PostMessage (thread-safe)
-                                let _ = PostMessageW(HWND(hwnd_client_ptr as *mut _), WM_APP_REPAINT, WPARAM(0), LPARAM(0));
+                                let _ = PostMessageW(
+                                    HWND(hwnd_client_ptr as *mut _),
+                                    WM_APP_REPAINT,
+                                    WPARAM(0),
+                                    LPARAM(0),
+                                );
                             }
                             log::info!("ConPTY output thread finished");
                         });
                         return true;
-                    },
+                    }
                     Err(e) => {
                         log::error!("Failed to start ConPTY: {}", e);
                         return false;
                     }
                 }
-            },
+            }
             Err(e) => {
                 log::error!("Failed to create custom bar window: {}", e);
                 return false;
@@ -353,40 +324,46 @@ pub fn open_custom_bar(hwnd_editor: HWND) -> bool {
 }
 
 // Convert virtual key code to VT sequence
-fn vk_to_vt_sequence(vk_code: u16, ctrl_pressed: bool, shift_pressed: bool, alt_pressed: bool) -> Option<&'static [u8]> {
+fn vk_to_vt_sequence(
+    vk_code: u16,
+    ctrl_pressed: bool,
+    shift_pressed: bool,
+    alt_pressed: bool,
+) -> Option<&'static [u8]> {
     // Handle Ctrl+ combinations first
     if ctrl_pressed && !alt_pressed {
         match vk_code {
-            0x41..=0x5A => { // Ctrl+A through Ctrl+Z
+            0x41..=0x5A => {
+                // Ctrl+A through Ctrl+Z
                 // Return control character (A=1, B=2, ..., Z=26)
                 let ctrl_char = (vk_code - 0x40) as u8;
                 return match ctrl_char {
-                    1 => Some(b"\x01"),   // Ctrl+A
-                    2 => Some(b"\x02"),   // Ctrl+B
-                    3 => Some(b"\x03"),   // Ctrl+C
-                    4 => Some(b"\x04"),   // Ctrl+D
-                    5 => Some(b"\x05"),   // Ctrl+E
-                    6 => Some(b"\x06"),   // Ctrl+F
-                    7 => Some(b"\x07"),   // Ctrl+G
-                    8 => Some(b"\x08"),   // Ctrl+H (same as Backspace)
-                    9 => Some(b"\x09"),   // Ctrl+I (same as Tab)
-                    10 => Some(b"\x0a"),  // Ctrl+J
-                    11 => Some(b"\x0b"),  // Ctrl+K
-                    12 => Some(b"\x0c"),  // Ctrl+L
-                    13 => Some(b"\x0d"),  // Ctrl+M (same as Enter)
-                    14 => Some(b"\x0e"),  // Ctrl+N
-                    15 => Some(b"\x0f"),  // Ctrl+O
-                    16 => Some(b"\x10"),  // Ctrl+P
-                    17 => Some(b"\x11"),  // Ctrl+Q
-                    18 => Some(b"\x12"),  // Ctrl+R
-                    19 => Some(b"\x13"),  // Ctrl+S
-                    20 => Some(b"\x14"),  // Ctrl+T
-                    21 => Some(b"\x15"),  // Ctrl+U
-                    22 => Some(b"\x16"),  // Ctrl+V
-                    23 => Some(b"\x17"),  // Ctrl+W
-                    24 => Some(b"\x18"),  // Ctrl+X
-                    25 => Some(b"\x19"),  // Ctrl+Y
-                    26 => Some(b"\x1a"),  // Ctrl+Z
+                    1 => Some(b"\x01"),  // Ctrl+A
+                    2 => Some(b"\x02"),  // Ctrl+B
+                    3 => Some(b"\x03"),  // Ctrl+C
+                    4 => Some(b"\x04"),  // Ctrl+D
+                    5 => Some(b"\x05"),  // Ctrl+E
+                    6 => Some(b"\x06"),  // Ctrl+F
+                    7 => Some(b"\x07"),  // Ctrl+G
+                    8 => Some(b"\x08"),  // Ctrl+H (same as Backspace)
+                    9 => Some(b"\x09"),  // Ctrl+I (same as Tab)
+                    10 => Some(b"\x0a"), // Ctrl+J
+                    11 => Some(b"\x0b"), // Ctrl+K
+                    12 => Some(b"\x0c"), // Ctrl+L
+                    13 => Some(b"\x0d"), // Ctrl+M (same as Enter)
+                    14 => Some(b"\x0e"), // Ctrl+N
+                    15 => Some(b"\x0f"), // Ctrl+O
+                    16 => Some(b"\x10"), // Ctrl+P
+                    17 => Some(b"\x11"), // Ctrl+Q
+                    18 => Some(b"\x12"), // Ctrl+R
+                    19 => Some(b"\x13"), // Ctrl+S
+                    20 => Some(b"\x14"), // Ctrl+T
+                    21 => Some(b"\x15"), // Ctrl+U
+                    22 => Some(b"\x16"), // Ctrl+V
+                    23 => Some(b"\x17"), // Ctrl+W
+                    24 => Some(b"\x18"), // Ctrl+X
+                    25 => Some(b"\x19"), // Ctrl+Y
+                    26 => Some(b"\x1a"), // Ctrl+Z
                     _ => None,
                 };
             }
@@ -397,47 +374,75 @@ fn vk_to_vt_sequence(vk_code: u16, ctrl_pressed: bool, shift_pressed: bool, alt_
     // Special keys with modifiers
     match vk_code {
         k if k == VK_UP.0 => {
-            if ctrl_pressed { Some(b"\x1b[1;5A") }
-            else if shift_pressed { Some(b"\x1b[1;2A") }
-            else if alt_pressed { Some(b"\x1b[1;3A") }
-            else { Some(b"\x1b[A") }
+            if ctrl_pressed {
+                Some(b"\x1b[1;5A")
+            } else if shift_pressed {
+                Some(b"\x1b[1;2A")
+            } else if alt_pressed {
+                Some(b"\x1b[1;3A")
+            } else {
+                Some(b"\x1b[A")
+            }
         }
         k if k == VK_DOWN.0 => {
-            if ctrl_pressed { Some(b"\x1b[1;5B") }
-            else if shift_pressed { Some(b"\x1b[1;2B") }
-            else if alt_pressed { Some(b"\x1b[1;3B") }
-            else { Some(b"\x1b[B") }
+            if ctrl_pressed {
+                Some(b"\x1b[1;5B")
+            } else if shift_pressed {
+                Some(b"\x1b[1;2B")
+            } else if alt_pressed {
+                Some(b"\x1b[1;3B")
+            } else {
+                Some(b"\x1b[B")
+            }
         }
         k if k == VK_RIGHT.0 => {
-            if ctrl_pressed { Some(b"\x1b[1;5C") }
-            else if shift_pressed { Some(b"\x1b[1;2C") }
-            else if alt_pressed { Some(b"\x1b[1;3C") }
-            else { Some(b"\x1b[C") }
+            if ctrl_pressed {
+                Some(b"\x1b[1;5C")
+            } else if shift_pressed {
+                Some(b"\x1b[1;2C")
+            } else if alt_pressed {
+                Some(b"\x1b[1;3C")
+            } else {
+                Some(b"\x1b[C")
+            }
         }
         k if k == VK_LEFT.0 => {
-            if ctrl_pressed { Some(b"\x1b[1;5D") }
-            else if shift_pressed { Some(b"\x1b[1;2D") }
-            else if alt_pressed { Some(b"\x1b[1;3D") }
-            else { Some(b"\x1b[D") }
+            if ctrl_pressed {
+                Some(b"\x1b[1;5D")
+            } else if shift_pressed {
+                Some(b"\x1b[1;2D")
+            } else if alt_pressed {
+                Some(b"\x1b[1;3D")
+            } else {
+                Some(b"\x1b[D")
+            }
         }
         k if k == VK_HOME.0 => {
-            if ctrl_pressed { Some(b"\x1b[1;5H") }
-            else if shift_pressed { Some(b"\x1b[1;2H") }
-            else { Some(b"\x1b[H") }
+            if ctrl_pressed {
+                Some(b"\x1b[1;5H")
+            } else if shift_pressed {
+                Some(b"\x1b[1;2H")
+            } else {
+                Some(b"\x1b[H")
+            }
         }
         k if k == VK_END.0 => {
-            if ctrl_pressed { Some(b"\x1b[1;5F") }
-            else if shift_pressed { Some(b"\x1b[1;2F") }
-            else { Some(b"\x1b[F") }
+            if ctrl_pressed {
+                Some(b"\x1b[1;5F")
+            } else if shift_pressed {
+                Some(b"\x1b[1;2F")
+            } else {
+                Some(b"\x1b[F")
+            }
         }
         k if k == VK_DELETE.0 => Some(b"\x1b[3~"),
         k if k == VK_INSERT.0 => Some(b"\x1b[2~"),
-        k if k == VK_PRIOR.0 => Some(b"\x1b[5~"),  // Page Up
-        k if k == VK_NEXT.0 => Some(b"\x1b[6~"),   // Page Down
-        k if k == VK_BACK.0 => Some(b"\x7f"),      // Backspace (DEL)
-        k if k == VK_RETURN.0 => Some(b"\r"),      // Enter
-        k if k == VK_TAB.0 => Some(b"\t"),         // Tab
-        k if k == VK_ESCAPE.0 => Some(b"\x1b"),    // Escape
+        k if k == VK_PRIOR.0 => Some(b"\x1b[5~"), // Page Up
+        k if k == VK_NEXT.0 => Some(b"\x1b[6~"),  // Page Down
+        k if k == VK_BACK.0 => Some(b"\x7f"),     // Backspace (DEL)
+        k if k == VK_RETURN.0 => Some(b"\r"),     // Enter
+        k if k == VK_TAB.0 => Some(b"\t"),        // Tab
+        k if k == VK_ESCAPE.0 => Some(b"\x1b"),   // Escape
         k if k == VK_F1.0 => Some(b"\x1bOP"),
         k if k == VK_F2.0 => Some(b"\x1bOQ"),
         k if k == VK_F3.0 => Some(b"\x1bOR"),
@@ -458,12 +463,7 @@ fn vk_to_vt_sequence(vk_code: u16, ctrl_pressed: bool, shift_pressed: bool, alt_
 fn write_to_conpty(handle: HANDLE, data: &[u8]) -> Result<(), windows::core::Error> {
     let mut bytes_written = 0;
     unsafe {
-        WriteFile(
-            handle,
-            Some(data),
-            Some(&mut bytes_written),
-            None
-        )?;
+        WriteFile(handle, Some(data), Some(&mut bytes_written), None)?;
     }
     log::debug!("Wrote {} bytes to ConPTY: {:?}", bytes_written, data);
     Ok(())
@@ -480,14 +480,14 @@ pub fn send_input(text: &str) {
                 conpty.get_input_handle().0,
                 Some(utf8_bytes),
                 Some(&mut bytes_written),
-                None
+                None,
             );
             // 改行を送る
             let _ = WriteFile(
                 conpty.get_input_handle().0,
                 Some(b"\r"),
                 Some(&mut bytes_written),
-                None
+                None,
             );
         }
     }
@@ -510,7 +510,8 @@ fn send_key_to_conpty(vk_code: u16) -> bool {
     let shift_pressed = unsafe { GetKeyState(VK_SHIFT.0 as i32) } < 0;
     let alt_pressed = unsafe { GetKeyState(VK_MENU.0 as i32) } < 0;
 
-    if let Some(vt_sequence) = vk_to_vt_sequence(vk_code, ctrl_pressed, shift_pressed, alt_pressed) {
+    if let Some(vt_sequence) = vk_to_vt_sequence(vk_code, ctrl_pressed, shift_pressed, alt_pressed)
+    {
         let handle = {
             let data_arc = get_terminal_data();
             let data = data_arc.lock().unwrap();
@@ -518,7 +519,10 @@ fn send_key_to_conpty(vk_code: u16) -> bool {
         };
 
         if let Some(handle) = handle {
-            log::debug!("Keyboard hook: Sending VT sequence for vk_code 0x{:04X}", vk_code);
+            log::debug!(
+                "Keyboard hook: Sending VT sequence for vk_code 0x{:04X}",
+                vk_code
+            );
             if let Err(e) = write_to_conpty(handle, vt_sequence) {
                 log::error!("Keyboard hook: Failed to write VT sequence: {}", e);
             }
@@ -534,7 +538,7 @@ extern "system" fn keyboard_hook_proc(code: i32, wparam: WPARAM, lparam: LPARAM)
     if code >= 0 {
         let vk_code = wparam.0 as u16;
         let key_up = (lparam.0 >> 31) & 1; // bit 31 = transition state (1 = key up)
-        
+
         // Only process key down events
         if key_up == 0 {
             // Check for IME composition first
@@ -555,11 +559,14 @@ extern "system" fn keyboard_hook_proc(code: i32, wparam: WPARAM, lparam: LPARAM)
                 // Returning 1 here only indicates internally that we consumed the key; it does NOT
                 // block EmEditor/Windows from processing the event when using WH_KEYBOARD.
                 if send_key_to_conpty(vk_code) {
-                     log::debug!("Keyboard hook: Consumed vk_code 0x{:04X}", vk_code);
-                     return LRESULT(1);
+                    log::debug!("Keyboard hook: Consumed vk_code 0x{:04X}", vk_code);
+                    return LRESULT(1);
                 }
             } else {
-                log::debug!("Keyboard hook: IME composing, skipping hook for vk_code 0x{:04X}", vk_code);
+                log::debug!(
+                    "Keyboard hook: IME composing, skipping hook for vk_code 0x{:04X}",
+                    vk_code
+                );
             }
         }
     }
@@ -617,170 +624,32 @@ extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM
             unsafe {
                 let mut ps = PAINTSTRUCT::default();
                 let hdc = BeginPaint(hwnd, &mut ps);
-                
+
                 let data_arc = get_terminal_data();
                 let mut data = data_arc.lock().unwrap();
 
-                // Ensure font and metrics are initialized
-                if data.font.is_none() {
-                    let h_font = CreateFontW(
-                        16, 0, 0, 0, FW_NORMAL.0 as i32, 0, 0, 0,
-                        DEFAULT_CHARSET.0 as u32,
-                        OUT_DEFAULT_PRECIS.0 as u32, CLIP_DEFAULT_PRECIS.0 as u32,
-                        DEFAULT_QUALITY.0 as u32,
-                        (FIXED_PITCH.0 | FF_MODERN.0) as u32,
-                        w!("Consolas"),
-                    );
-                    data.font = Some(SendHFONT(h_font));
+                let mut client_rect = windows::Win32::Foundation::RECT::default();
+                let _ =
+                    windows::Win32::UI::WindowsAndMessaging::GetClientRect(hwnd, &mut client_rect);
 
-                    let old_font = SelectObject(hdc, HGDIOBJ(h_font.0));
-                    let mut tm = TEXTMETRICW::default();
-                    let _ = GetTextMetricsW(hdc, &mut tm);
-                    
-                    let zero_utf16: &[u16] = &[0x0030]; // "0"
-                    let mut size = SIZE::default();
-                    let _ = GetTextExtentPoint32W(hdc, zero_utf16, &mut size);
-                    
-                    data.metrics = Some(TerminalMetrics {
-                        char_height: tm.tmHeight,
-                        base_width: size.cx,
-                    });
-                    
-                    log::info!("Font initialized: Consolas, Height={}, BaseWidth={}", tm.tmHeight, size.cx);
-                    let _ = SelectObject(hdc, old_font);
-                }
+                let TerminalData {
+                    ref buffer,
+                    ref mut renderer,
+                    ref composition,
+                    ..
+                } = *data;
 
-                if let (Some(ref send_h_font), Some(metrics)) = (&data.font, &data.metrics) {
-                    let h_font = send_h_font.0;
-                    let old_font = SelectObject(hdc, HGDIOBJ(h_font.0));
-                    let char_height = metrics.char_height;
-                    let base_width = metrics.base_width;
+                renderer.render(hdc, &client_rect, buffer, composition.as_ref());
 
-                    let mut current_y = 0;
-                    let (cursor_x, cursor_y) = data.buffer.get_cursor_pos();
-
-                    let mut client_rect = windows::Win32::Foundation::RECT::default();
-                    let _ = windows::Win32::UI::WindowsAndMessaging::GetClientRect(hwnd, &mut client_rect);
-
-                    for (idx, line) in data.buffer.get_lines().iter().enumerate() {
-                        let wide_line: Vec<u16> = line.encode_utf16().collect();
-                        
-                        // Generate dx array based on character width
-                        // Note: Rust `char` is a Unicode scalar value; `c.len_utf16()` is guaranteed
-                        // to be 1 or 2. For characters that require two UTF-16 code units (surrogate pairs),
-                        // we push the full display width for the first unit and a 0-width entry for the second.
-                        let mut dx: Vec<i32> = Vec::with_capacity(wide_line.len());
-                        for c in line.chars() {
-                            let width = TerminalBuffer::char_display_width(c) as i32 * base_width;
-                            dx.push(width);
-                            // Handle surrogate pairs (add 0 width for the second unit)
-                            for _ in 1..c.len_utf16() {
-                                dx.push(0);
-                            }
-                        }
-
-                        // Verify dx aligns with wide_line
-                        debug_assert_eq!(dx.len(), wide_line.len(), "dx length mismatch");
-
-                        // Compute the total pixel width for background filling
-                        let line_pixel_width: i32 = dx.iter().sum();
-                        let bg_rect = windows::Win32::Foundation::RECT {
-                            left: 0,
-                            top: current_y,
-                            right: std::cmp::max(line_pixel_width, client_rect.right),
-                            bottom: current_y + char_height,
-                        };
-
-                        // Use ExtTextOutW with dx array for precise positioning and opaque background
-                        let _ = ExtTextOutW(
-                            hdc, 0, current_y, ETO_OPTIONS(ETO_OPAQUE.0), Some(&bg_rect), 
-                            PCWSTR(wide_line.as_ptr()),
-                            wide_line.len() as u32,
-                            Some(dx.as_ptr())
-                        );
-
-                        // Render cursor as an overlay when on the correct line
-                        if idx == cursor_y {
-                             let display_cols = data.buffer.get_display_width_up_to(cursor_y, cursor_x);
-                             let cursor_pixel_x = display_cols as i32 * base_width;
-
-                             // Draw Composition String if available
-                             if let Some(ref comp) = data.composition {
-                                 let comp_wide: Vec<u16> = comp.text.encode_utf16().collect();
-                                 let comp_len = comp_wide.len();
-
-                                 // Simple width calculation for composition string (fixed pitch)
-                                 // TODO: Handle wide chars in composition properly if needed
-                                 let mut comp_dx = Vec::with_capacity(comp_len);
-                                 let mut pixel_width = 0;
-                                 for c in comp.text.chars() {
-                                     let w = TerminalBuffer::char_display_width(c) as i32 * base_width;
-                                     comp_dx.push(w);
-                                     for _ in 1..c.len_utf16() {
-                                         comp_dx.push(0);
-                                     }
-                                     pixel_width += w;
-                                 }
-
-                                 let comp_rect = windows::Win32::Foundation::RECT {
-                                     left: cursor_pixel_x,
-                                     top: current_y,
-                                     right: cursor_pixel_x + pixel_width,
-                                     bottom: current_y + char_height,
-                                 };
-
-                                 // Draw composition with underline/different style
-                                 // For now, simple text out
-                                 log::debug!("Drawing Composition at ({}, {}): '{}'", cursor_pixel_x, current_y, comp.text);
-
-                                 let _ = ExtTextOutW(
-                                     hdc,
-                                     cursor_pixel_x,
-                                     current_y,
-                                     ETO_OPTIONS(ETO_OPAQUE.0),
-                                     Some(&comp_rect),
-                                     PCWSTR(comp_wide.as_ptr()),
-                                     comp_wide.len() as u32,
-                                     Some(comp_dx.as_ptr())
-                                 );
-
-                                 // Underline for composition
-                                 let pen = windows::Win32::Graphics::Gdi::CreatePen(
-                                     windows::Win32::Graphics::Gdi::PS_SOLID,
-                                     1,
-                                     windows::Win32::Foundation::COLORREF(0x00FF0000) // Blue underline (BGR)
-                                 );
-                                 let old_pen = SelectObject(hdc, HGDIOBJ(pen.0));
-                                 let _ = windows::Win32::Graphics::Gdi::MoveToEx(hdc, comp_rect.left, comp_rect.bottom - 1, None);
-                                 let _ = windows::Win32::Graphics::Gdi::LineTo(hdc, comp_rect.right, comp_rect.bottom - 1);
-                                 let _ = SelectObject(hdc, old_pen);
-                                 let _ = DeleteObject(HGDIOBJ(pen.0));
-
-                             } else if data.buffer.is_cursor_visible() {
-                                 // Normal Cursor
-                                let rect = windows::Win32::Foundation::RECT {
-                                    left: cursor_pixel_x,
-                                    top: current_y,
-                                    right: cursor_pixel_x + 2, // 2px width bar
-                                    bottom: current_y + char_height,
-                                };
-                                let _ = InvertRect(hdc, &rect);
-                             }
-                        }
-                        current_y += char_height;
-                    }
-                    
-                    // Restore original font
-                    let _ = SelectObject(hdc, old_font);
-                }
-                
                 let _ = EndPaint(hwnd, &ps);
             }
             LRESULT(0)
         }
         WM_LBUTTONDOWN => {
             log::info!("WM_LBUTTONDOWN: Setting focus");
-            unsafe { let _ = SetFocus(hwnd); }
+            unsafe {
+                let _ = SetFocus(hwnd);
+            }
             LRESULT(0)
         }
         WM_SETFOCUS => {
@@ -792,11 +661,19 @@ extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM
             // Create a caret so SetCaretPos works
             let data_arc = get_terminal_data();
             let data = data_arc.lock().unwrap();
-            if let Some(metrics) = &data.metrics {
-                unsafe {
-                    let _ = CreateCaret(hwnd, windows::Win32::Graphics::Gdi::HBITMAP::default(), 2, metrics.char_height);
-                    // We don't call ShowCaret(hwnd) because we draw our own cursor overlay
-                }
+            let char_height = data
+                .renderer
+                .get_metrics()
+                .map(|m| m.char_height)
+                .unwrap_or(16);
+            unsafe {
+                let _ = CreateCaret(
+                    hwnd,
+                    windows::Win32::Graphics::Gdi::HBITMAP::default(),
+                    2,
+                    char_height,
+                );
+                // We don't call ShowCaret(hwnd) because we draw our own cursor overlay
             }
 
             install_keyboard_hook();
@@ -819,11 +696,22 @@ extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM
             let shift_pressed = unsafe { GetKeyState(VK_SHIFT.0 as i32) } < 0;
             let alt_pressed = unsafe { GetKeyState(VK_MENU.0 as i32) } < 0;
 
-            log::debug!("Modifiers - Ctrl: {}, Shift: {}, Alt: {}", ctrl_pressed, shift_pressed, alt_pressed);
+            log::debug!(
+                "Modifiers - Ctrl: {}, Shift: {}, Alt: {}",
+                ctrl_pressed,
+                shift_pressed,
+                alt_pressed
+            );
 
             // Try to convert to VT sequence
-            if let Some(vt_sequence) = vk_to_vt_sequence(vk_code, ctrl_pressed, shift_pressed, alt_pressed) {
-                log::info!("WM_KEYDOWN: Sending VT sequence for vk_code 0x{:04X}: {:?}", vk_code, vt_sequence);
+            if let Some(vt_sequence) =
+                vk_to_vt_sequence(vk_code, ctrl_pressed, shift_pressed, alt_pressed)
+            {
+                log::info!(
+                    "WM_KEYDOWN: Sending VT sequence for vk_code 0x{:04X}: {:?}",
+                    vk_code,
+                    vt_sequence
+                );
 
                 let handle = {
                     let data_arc = get_terminal_data();
@@ -842,7 +730,10 @@ extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM
                 LRESULT(0)
             } else {
                 // Not a special key, let WM_CHAR handle it
-                log::debug!("WM_KEYDOWN: No VT sequence for vk_code 0x{:04X}, passing to DefWindowProc", vk_code);
+                log::debug!(
+                    "WM_KEYDOWN: No VT sequence for vk_code 0x{:04X}, passing to DefWindowProc",
+                    vk_code
+                );
                 unsafe { DefWindowProcW(hwnd, msg, wparam, lparam) }
             }
         }
@@ -852,12 +743,19 @@ extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM
         }
         WM_CHAR => {
             let char_code = wparam.0 as u16;
-            log::debug!("WM_CHAR received: 0x{:04X} ({})", char_code, String::from_utf16_lossy(&[char_code]));
+            log::debug!(
+                "WM_CHAR received: 0x{:04X} ({})",
+                char_code,
+                String::from_utf16_lossy(&[char_code])
+            );
 
             // Skip characters that were already handled by WM_KEYDOWN as special keys
             // This includes Enter (0x0D), Tab (0x09), Escape (0x1B), Backspace (0x08)
             if char_code == 0x0D || char_code == 0x09 || char_code == 0x1B || char_code == 0x08 {
-                log::debug!("WM_CHAR: Skipping char 0x{:04X} (already handled by WM_KEYDOWN)", char_code);
+                log::debug!(
+                    "WM_CHAR: Skipping char 0x{:04X} (already handled by WM_KEYDOWN)",
+                    char_code
+                );
                 return LRESULT(0);
             }
 
@@ -873,7 +771,7 @@ extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM
                         conpty.get_input_handle().0,
                         Some(utf8_bytes),
                         Some(&mut bytes_written),
-                        None
+                        None,
                     );
                 }
             }
@@ -895,7 +793,7 @@ extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM
             let mut data = data_arc.lock().unwrap();
 
             // Use cached metrics if available, otherwise approximation
-            let (char_width, char_height) = if let Some(metrics) = &data.metrics {
+            let (char_width, char_height) = if let Some(metrics) = data.renderer.get_metrics() {
                 (metrics.base_width, metrics.char_height)
             } else {
                 (8, 16) // Fallback approximation
@@ -925,16 +823,12 @@ extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM
             log::info!("WM_DESTROY: Cleaning up terminal resources");
             uninstall_keyboard_hook();
 
-            // Clean up ConPTY and cached font
+            // Clean up ConPTY and renderer resources
             let data_arc = get_terminal_data();
             let mut data = data_arc.lock().unwrap();
-            
-            data.window_handle = None;
 
-            if let Some(send_h_font) = data.font.take() {
-                unsafe { let _ = DeleteObject(HGDIOBJ(send_h_font.0 .0)); }
-                log::info!("Cached font handle deleted");
-            }
+            data.window_handle = None;
+            data.renderer.clear_resources();
 
             if let Some(_conpty) = data.conpty.take() {
                 log::info!("ConPTY will be dropped and cleaned up");
@@ -943,7 +837,11 @@ extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM
             LRESULT(0)
         }
         WM_IME_SETCONTEXT => {
-            log::debug!("WM_IME_SETCONTEXT: wparam={:?}, lparam={:?}", wparam, lparam);
+            log::debug!(
+                "WM_IME_SETCONTEXT: wparam={:?}, lparam={:?}",
+                wparam,
+                lparam
+            );
             // We want to draw the composition string ourselves, so we clear the ISC_SHOWUICOMPOSITIONWINDOW flag
             let mut lparam = lparam;
             lparam.0 &= !(ISC_SHOWUICOMPOSITIONWINDOW as isize);
@@ -962,15 +860,15 @@ extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM
                 unsafe {
                     let himc = ImmGetContext(hwnd);
                     if himc.0 != std::ptr::null_mut() {
-                         let len_bytes = ImmGetCompositionStringW(himc, GCS_RESULTSTR, None, 0);
-                         if len_bytes >= 0 {
+                        let len_bytes = ImmGetCompositionStringW(himc, GCS_RESULTSTR, None, 0);
+                        if len_bytes >= 0 {
                             let len_u16 = (len_bytes as usize) / size_of::<u16>();
                             let mut buffer = vec![0u16; len_u16];
                             let _ = ImmGetCompositionStringW(
                                 himc,
                                 GCS_RESULTSTR,
                                 Some(buffer.as_mut_ptr() as *mut c_void),
-                                len_bytes as u32
+                                len_bytes as u32,
                             );
                             let result_str = String::from_utf16_lossy(&buffer);
                             log::info!("IME Result: '{}'", result_str);
@@ -986,7 +884,7 @@ extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM
                                         conpty.get_input_handle().0,
                                         Some(utf8_bytes),
                                         Some(&mut bytes_written),
-                                        None
+                                        None,
                                     );
                                 }
                             }
@@ -996,8 +894,8 @@ extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM
 
                             let _ = InvalidateRect(hwnd, None, BOOL(0));
                             handled = true;
-                         }
-                         let _ = ImmReleaseContext(hwnd, himc);
+                        }
+                        let _ = ImmReleaseContext(hwnd, himc);
                     }
                 }
             }
@@ -1019,7 +917,7 @@ extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM
                                 himc,
                                 GCS_COMPSTR,
                                 Some(buffer.as_mut_ptr() as *mut c_void),
-                                len_bytes as u32
+                                len_bytes as u32,
                             );
 
                             let comp_str = String::from_utf16_lossy(&buffer);
@@ -1031,9 +929,7 @@ extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM
                             if comp_str.is_empty() {
                                 data.composition = None;
                             } else {
-                                data.composition = Some(CompositionData {
-                                    text: comp_str,
-                                });
+                                data.composition = Some(CompositionData { text: comp_str });
                             }
 
                             let _ = InvalidateRect(hwnd, None, BOOL(0));
@@ -1056,7 +952,9 @@ extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM
             let data_arc = get_terminal_data();
             let mut data = data_arc.lock().unwrap();
             data.composition = None;
-            unsafe { let _ = InvalidateRect(hwnd, None, BOOL(0)); }
+            unsafe {
+                let _ = InvalidateRect(hwnd, None, BOOL(0));
+            }
             LRESULT(0)
         }
         _ => unsafe { DefWindowProcW(hwnd, msg, wparam, lparam) },

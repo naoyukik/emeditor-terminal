@@ -1,17 +1,17 @@
+use std::ffi::c_void;
+use std::mem::size_of;
+use std::ptr::null_mut;
 use windows::core::PWSTR;
-use windows::Win32::Foundation::{BOOL, HANDLE, INVALID_HANDLE_VALUE, CloseHandle};
+use windows::Win32::Foundation::{CloseHandle, BOOL, HANDLE, INVALID_HANDLE_VALUE};
 use windows::Win32::System::Console::{
-    CreatePseudoConsole, ClosePseudoConsole, ResizePseudoConsole, COORD, HPCON,
+    ClosePseudoConsole, CreatePseudoConsole, ResizePseudoConsole, COORD, HPCON,
 };
 use windows::Win32::System::Pipes::CreatePipe;
 use windows::Win32::System::Threading::{
-    CreateProcessW, InitializeProcThreadAttributeList, UpdateProcThreadAttribute,
-    DeleteProcThreadAttributeList, PROCESS_INFORMATION, STARTUPINFOEXW,
-    EXTENDED_STARTUPINFO_PRESENT, LPPROC_THREAD_ATTRIBUTE_LIST, PROC_THREAD_ATTRIBUTE_PSEUDOCONSOLE,
+    CreateProcessW, DeleteProcThreadAttributeList, InitializeProcThreadAttributeList,
+    UpdateProcThreadAttribute, EXTENDED_STARTUPINFO_PRESENT, LPPROC_THREAD_ATTRIBUTE_LIST,
+    PROCESS_INFORMATION, PROC_THREAD_ATTRIBUTE_PSEUDOCONSOLE, STARTUPINFOEXW,
 };
-use std::ptr::null_mut;
-use std::mem::size_of;
-use std::ffi::c_void;
 
 #[repr(transparent)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -51,10 +51,18 @@ impl ConPTY {
                 return Err("Failed to create output pipe".to_string());
             }
 
-            log::info!("ConPTY pipes created: in_read={:?}, in_write={:?}, out_read={:?}, out_write={:?}",
-                h_pipe_pt_in, h_pipe_in_write, h_pipe_out_read, h_pipe_pt_out);
+            log::info!(
+                "ConPTY pipes created: in_read={:?}, in_write={:?}, out_read={:?}, out_write={:?}",
+                h_pipe_pt_in,
+                h_pipe_in_write,
+                h_pipe_out_read,
+                h_pipe_pt_out
+            );
 
-            let size = COORD { X: width, Y: height };
+            let size = COORD {
+                X: width,
+                Y: height,
+            };
             let h_pcon = match CreatePseudoConsole(size, h_pipe_pt_in, h_pipe_pt_out, 0) {
                 Ok(h) => h,
                 Err(e) => {
@@ -75,16 +83,22 @@ impl ConPTY {
             si_ex.StartupInfo.cb = size_of::<STARTUPINFOEXW>() as u32;
 
             let mut size: usize = 0;
-            let _ = InitializeProcThreadAttributeList(LPPROC_THREAD_ATTRIBUTE_LIST(null_mut()), 1, 0, &mut size);
+            let _ = InitializeProcThreadAttributeList(
+                LPPROC_THREAD_ATTRIBUTE_LIST(null_mut()),
+                1,
+                0,
+                &mut size,
+            );
 
             let mut attr_list_buffer = vec![0u8; size];
-            let lp_attribute_list = LPPROC_THREAD_ATTRIBUTE_LIST(attr_list_buffer.as_mut_ptr() as *mut c_void);
+            let lp_attribute_list =
+                LPPROC_THREAD_ATTRIBUTE_LIST(attr_list_buffer.as_mut_ptr() as *mut c_void);
 
             if InitializeProcThreadAttributeList(lp_attribute_list, 1, 0, &mut size).is_err() {
-                 ClosePseudoConsole(h_pcon);
-                 let _ = CloseHandle(h_pipe_in_write);
-                 let _ = CloseHandle(h_pipe_out_read);
-                 return Err("Failed to initialize attribute list".to_string());
+                ClosePseudoConsole(h_pcon);
+                let _ = CloseHandle(h_pipe_in_write);
+                let _ = CloseHandle(h_pipe_out_read);
+                return Err("Failed to initialize attribute list".to_string());
             }
 
             if UpdateProcThreadAttribute(
@@ -95,7 +109,9 @@ impl ConPTY {
                 size_of::<HPCON>(),
                 None,
                 None,
-            ).is_err() {
+            )
+            .is_err()
+            {
                 DeleteProcThreadAttributeList(lp_attribute_list);
                 ClosePseudoConsole(h_pcon);
                 let _ = CloseHandle(h_pipe_in_write);
@@ -107,7 +123,8 @@ impl ConPTY {
 
             let mut pi = PROCESS_INFORMATION::default();
             // Convert cmd_line to wide string (null terminated)
-            let mut cmd_line_w: Vec<u16> = cmd_line.encode_utf16().chain(std::iter::once(0)).collect();
+            let mut cmd_line_w: Vec<u16> =
+                cmd_line.encode_utf16().chain(std::iter::once(0)).collect();
 
             let success = CreateProcessW(
                 None,
@@ -140,7 +157,7 @@ impl ConPTY {
             })
         }
     }
-    
+
     pub fn get_output_handle(&self) -> SendHandle {
         self.h_pipe_out_read
     }
@@ -150,7 +167,10 @@ impl ConPTY {
     }
 
     pub fn resize(&self, width: i16, height: i16) -> Result<(), String> {
-        let size = COORD { X: width, Y: height };
+        let size = COORD {
+            X: width,
+            Y: height,
+        };
         unsafe {
             ResizePseudoConsole(self.h_pcon.0, size)
                 .map_err(|e| format!("Failed to resize pseudo console: {}", e))

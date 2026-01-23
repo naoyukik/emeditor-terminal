@@ -7,8 +7,8 @@ use windows::Win32::Foundation::{BOOL, HINSTANCE, HWND, LPARAM, LRESULT, WPARAM}
 use windows::Win32::System::SystemServices::{DLL_PROCESS_ATTACH, DLL_PROCESS_DETACH};
 
 mod domain;
-mod infra;
 mod gui;
+mod infra;
 
 use gui::custom_bar;
 
@@ -27,23 +27,17 @@ pub fn get_instance_handle() -> HINSTANCE {
 fn init_logger() {
     let mut path = std::env::temp_dir();
     path.push("emeditor_terminal.log");
-    
+
     // Set offset to +09:00:00 for JST
     let config = ConfigBuilder::new()
         .set_time_offset(time::UtcOffset::from_hms(9, 0, 0).expect("Valid JST offset"))
         .build();
 
     match File::create(&path) {
-        Ok(file) => {
-            match WriteLogger::init(
-                LevelFilter::Debug,
-                config,
-                file,
-            ) {
-                Ok(_) => log::info!("Logger initialized"),
-                Err(e) => eprintln!("Failed to initialize logger: {}", e),
-            }
-        }
+        Ok(file) => match WriteLogger::init(LevelFilter::Debug, config, file) {
+            Ok(_) => log::info!("Logger initialized"),
+            Err(e) => eprintln!("Failed to initialize logger: {}", e),
+        },
         Err(e) => eprintln!("Failed to create log file '{}': {}", path.display(), e),
     }
 }
@@ -73,7 +67,7 @@ pub extern "system" fn DllMain(
 #[allow(non_snake_case, unused_variables)]
 pub extern "system" fn OnCommand(hwnd: HWND) {
     log::info!("OnCommand called");
-    
+
     // Show custom bar
     if custom_bar::open_custom_bar(hwnd) {
         log::info!("Terminal bar opened and pwsh.exe started");
