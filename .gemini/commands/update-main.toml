@@ -1,0 +1,6 @@
+description = "mainブランチをアップデートする"
+
+# language=markdown
+prompt = """
+!{git -c credential.helper= -c core.quotepath=false -c log.showSignature=false fetch origin main:main --recurse-submodules=no --progress --prune}
+"""

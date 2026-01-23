@@ -6,10 +6,11 @@ use std::sync::OnceLock;
 use windows::Win32::Foundation::{BOOL, HINSTANCE, HWND, LPARAM, LRESULT, WPARAM};
 use windows::Win32::System::SystemServices::{DLL_PROCESS_ATTACH, DLL_PROCESS_DETACH};
 
-mod editor;
-mod custom_bar;
-mod conpty;
-mod terminal;
+mod domain;
+mod infra;
+mod gui;
+
+use gui::custom_bar;
 
 // EmEditor SDK Constants
 pub const EVENT_CREATE: u32 = 0x00000400;

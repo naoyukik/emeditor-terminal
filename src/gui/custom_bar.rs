@@ -32,8 +32,8 @@ use std::thread;
 use std::sync::{Arc, Mutex, OnceLock};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::cell::RefCell;
-use crate::conpty::ConPTY;
-use crate::terminal::TerminalBuffer;
+use crate::infra::conpty::ConPTY;
+use crate::domain::terminal::TerminalBuffer;
 
 // Constants from EmEditor SDK
 const WM_USER: u32 = 0x0400;

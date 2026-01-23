@@ -1,4 +1,4 @@
-# Project Tracks
+﻿# Project Tracks
 
 This file tracks all major tracks for the project. Each track has its own detailed plan in its respective folder.
 
@@ -16,3 +16,8 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 - [x] **Track: 起動時の入力ダイアログを廃止し直接pwsh.exeを起動する**
 *Link: [./tracks/remove_dialog_20260120/](./tracks/remove_dialog_20260120/)*
+
+---
+
+- [~] **Track: Issue #15: レイヤードアーキテクチャの導入とディレクトリ再構築**
+*Link: [./tracks/refactor_architecture_20260122/](./tracks/refactor_architecture_20260122/)*
