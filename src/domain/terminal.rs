@@ -798,7 +798,7 @@ mod tests {
         assert_eq!(buffer.cursor.x, 0);
 
         // Buffer should be empty (spaces)
-        let line = buffer.lines.get(0).unwrap();
+        let line = buffer.lines.front().unwrap();
         assert!(line.chars().all(|c| c == ' '));
     }
 }
