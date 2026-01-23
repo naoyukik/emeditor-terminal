@@ -272,6 +272,16 @@ impl TerminalBuffer {
                 let target_display_col = std::cmp::min(target_display_col, self.width.saturating_sub(1));
                 self.cursor.x = self.display_col_to_char_index(self.cursor.y, target_display_col);
             }
+            'd' => {
+                // Vertical Line Position Absolute (VPA)
+                let row = params.parse::<usize>().unwrap_or(1);
+                let current_display_col = self.get_display_width_up_to(self.cursor.y, self.cursor.x);
+                self.cursor.y = if row > 0 { row - 1 } else { 0 };
+                if self.cursor.y >= self.height {
+                    self.cursor.y = self.height - 1;
+                }
+                self.cursor.x = self.display_col_to_char_index(self.cursor.y, current_display_col);
+            }
             'h' => {
                 // Set Mode
                 if params == "?25" {
@@ -643,5 +653,34 @@ mod tests {
         // target_display_col 998 is clamped to 79.
         // Index 6 is the start of spaces. Index 6 + 70 spaces = 76.
         assert_eq!(buffer.cursor.x, 76);
+    }
+
+    #[test]
+    fn test_vpa() {
+        let mut buffer = TerminalBuffer::new(80, 25);
+        buffer.write_string("abc");
+        buffer.write_string("\r\n");
+        buffer.write_string("あいう"); // Row 1: "あいう" + spaces
+
+        // Move to row 1 (0-based) at column 4 (display col 3)
+        // Row 0 is "abc" + spaces. display col 3 is at index 3 (first space).
+        buffer.write_string("\x1b[1;4H");
+        assert_eq!(buffer.cursor.y, 0);
+        assert_eq!(buffer.cursor.x, 3);
+
+        // VPA to row 2 (1-based -> index 1)
+        // Row 1 has "あいう". display col 3 corresponds to start of 'う' (index 2).
+        buffer.write_string("\x1b[2d");
+        assert_eq!(buffer.cursor.y, 1);
+        assert_eq!(buffer.cursor.x, 2);
+
+        // Move to column 10 (display col 9) in row 2
+        buffer.write_string("\x1b[10G");
+        assert_eq!(buffer.cursor.x, 6); // end of "あいう" (3 chars) + 3 spaces = index 6
+
+        // VPA back to row 1
+        buffer.write_string("\x1b[1d");
+        assert_eq!(buffer.cursor.y, 0);
+        assert_eq!(buffer.cursor.x, 9); // "abc" (3 chars) + 6 spaces = index 9
     }
 }
