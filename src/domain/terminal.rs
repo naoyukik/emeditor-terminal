@@ -282,6 +282,22 @@ impl TerminalBuffer {
                 }
                 self.cursor.x = self.display_col_to_char_index(self.cursor.y, current_display_col);
             }
+            'E' => {
+                // Cursor Next Line (CNL)
+                let n = params.parse::<usize>().unwrap_or(1);
+                self.cursor.y = std::cmp::min(self.height - 1, self.cursor.y + n);
+                self.cursor.x = 0;
+            }
+            'F' => {
+                // Cursor Previous Line (CPL)
+                let n = params.parse::<usize>().unwrap_or(1);
+                if self.cursor.y >= n {
+                    self.cursor.y -= n;
+                } else {
+                    self.cursor.y = 0;
+                }
+                self.cursor.x = 0;
+            }
             'h' => {
                 // Set Mode
                 if params == "?25" {
@@ -682,5 +698,26 @@ mod tests {
         buffer.write_string("\x1b[1d");
         assert_eq!(buffer.cursor.y, 0);
         assert_eq!(buffer.cursor.x, 9); // "abc" (3 chars) + 6 spaces = index 9
+    }
+
+    #[test]
+    fn test_cnl_cpl() {
+        let mut buffer = TerminalBuffer::new(80, 25);
+        buffer.write_string("line1\r\nline2\r\nline3");
+
+        // Move to row 3 (idx 2) at some X
+        buffer.write_string("\x1b[3;5H");
+        assert_eq!(buffer.cursor.y, 2);
+        assert_eq!(buffer.cursor.x, 4);
+
+        // CPL 2 (Previous Line) -> should be Row 1 (idx 0), Col 1 (idx 0)
+        buffer.write_string("\x1b[2F");
+        assert_eq!(buffer.cursor.y, 0);
+        assert_eq!(buffer.cursor.x, 0);
+
+        // CNL 1 (Next Line) -> should be Row 2 (idx 1), Col 1 (idx 0)
+        buffer.write_string("\x1b[1E");
+        assert_eq!(buffer.cursor.y, 1);
+        assert_eq!(buffer.cursor.x, 0);
     }
 }
