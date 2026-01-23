@@ -6,10 +6,7 @@
 
 ## Core Technologies
 - **EmEditor SDK (C/C++ Interface)**: プラグインのプラグアンドプレイを実現するためのエントリポイント。
-- **Windows Pseudo Console (ConPTY)**: *Target for future implementation.*
-- **Standard Pipes (Current Implementation)**: 
-  - `cmd.exe` との通信には標準パイプ (`stdin`, `stdout`, `stderr`) を使用。
-  - ウィンドウ表示を抑止 (`CREATE_NO_WINDOW`) し、バックグラウンドで実行。
+- **Windows Pseudo Console (ConPTY)**: モダンなターミナル機能を提供するためのバックエンド。`CreatePseudoConsole` を利用し、リッチなTUIをサポート。
 
 ## Libraries & Frameworks (Rust Crates)
 - **windows-rs / winapi**: Windows API へのアクセス。
@@ -25,8 +22,8 @@
 - **rustfmt**: Rust のコードフォーマッタ。
 
 ## Architecture
-- **FFI Layer**: EmEditor SDK と Rust コードを繋ぐ、最小限の `unsafe` 境界 (`lib.rs`)。
-- **Session Management**: `ShellSession` (`session.rs`) がバックグラウンドスレッドでプロセスを監視。
-- **UI Logic**: 
-  - `editor.rs`: アウトプットバーへの出力。
-  - `dialog.rs`: 入力ダイアログの構築と表示（メモリ内テンプレート）。
+**レイヤードアーキテクチャ**を採用し、責務を明確に分離している。
+- **Domain 層 (`src/domain/`)**: 外部に依存しない純粋なビジネスロジック。`TerminalBuffer` やカーソル状態を管理。
+- **Infra 層 (`src/infra/`)**: OS (Win32) や外部 API (ConPTY, EmEditor SDK) との具体的な対話。
+- **GUI 層 (`src/gui/`)**: ユーザーインターフェースと描画。`TerminalRenderer` による GDI レンダリングを担当。
+- **FFI 境界 (`src/lib.rs`)**: EmEditor SDK と Rust の仲介役。

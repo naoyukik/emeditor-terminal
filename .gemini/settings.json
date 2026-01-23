@@ -1,10 +1,6 @@
 {
   "tools": {
     "exclude": [
-      "jetbrains__find_files_by_glob",
-      "jetbrains__find_files_by_name_keyword",
-      "jetbrains__search_in_files_by_regex",
-      "jetbrains__search_in_files_by_text"
     ],
     "allowed": [
       "LSTool",
@@ -16,6 +12,7 @@
       "ShellTool(cargo build)",
       "ShellTool(git add)",
       "ShellTool(git commit)",
+      "ShellTool(git diff)",
       "ShellTool(git status)",
       "ShellTool(git rev-parse)",
       "ShellTool(git log)",
@@ -27,6 +24,7 @@
       "ShellTool(cargo test)",
       "ShellTool(cargo clippy)",
       "ShellTool(cargo fmt)",
+      "ShellTool(cargo check)",
       "ShellTool(Test-Path)",
       "ShellTool(Get-Content sdk/)",
       "ShellTool(Get-Content conductor/)",
@@ -49,7 +47,8 @@
       "jetbrains__get_symbol_info",
       "jetbrains__list_directory_tree",
       "jetbrains__open_file_in_editor",
-      "activate_skill(think)"
+      "activate_skill(think)",
+      "activate_skill(operating-jetbrains-projects)"
     ]
   },
   "mcpServers": {

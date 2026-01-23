@@ -55,8 +55,26 @@ impl TerminalBuffer {
                         }
                     }
                     if let Some(cmd) = chars.next() {
-                         self.handle_csi(cmd, &param_str);
+                        self.handle_csi(cmd, &param_str);
                     }
+                } else if let Some(&']') = chars.peek() {
+                    // Handle OSC (Operating System Command) \x1b]...\x07 or \x1b]...\x1b\
+                    chars.next(); // consume ']'
+                    let mut osc_str = String::new();
+                    loop {
+                        match chars.next() {
+                            Some('\x07') => break, // BEL terminator
+                            Some('\x1b') => {
+                                if let Some(&'\\') = chars.peek() {
+                                    chars.next(); // consume '\'
+                                    break; // ST terminator
+                                }
+                            }
+                            Some(ch) => osc_str.push(ch),
+                            None => break,
+                        }
+                    }
+                    log::debug!("Ignored OSC sequence: {}", osc_str);
                 }
             } else {
                 self.process_normal_char(c);
@@ -66,7 +84,8 @@ impl TerminalBuffer {
 
     fn handle_csi(&mut self, command: char, params: &str) {
         match command {
-            'A' => { // Cursor Up
+            'A' => {
+                // Cursor Up
                 let n = params.parse::<usize>().unwrap_or(1);
                 let current_col = self.get_display_width_up_to(self.cursor.y, self.cursor.x);
                 if self.cursor.y >= n {
@@ -75,28 +94,32 @@ impl TerminalBuffer {
                     self.cursor.y = 0;
                 }
                 self.cursor.x = self.display_col_to_char_index(self.cursor.y, current_col);
-            },
-            'B' => { // Cursor Down
+            }
+            'B' => {
+                // Cursor Down
                 let n = params.parse::<usize>().unwrap_or(1);
                 let current_col = self.get_display_width_up_to(self.cursor.y, self.cursor.x);
                 self.cursor.y = std::cmp::min(self.height - 1, self.cursor.y + n);
                 self.cursor.x = self.display_col_to_char_index(self.cursor.y, current_col);
-            },
-            'C' => { // Cursor Forward
+            }
+            'C' => {
+                // Cursor Forward
                 let n = params.parse::<usize>().unwrap_or(1);
                 let current_col = self.get_display_width_up_to(self.cursor.y, self.cursor.x);
                 let target_col = std::cmp::min(self.width - 1, current_col + n);
                 self.cursor.x = self.display_col_to_char_index(self.cursor.y, target_col);
-            },
-            'D' => { // Cursor Back
+            }
+            'D' => {
+                // Cursor Back
                 let n = params.parse::<usize>().unwrap_or(1);
                 let current_col = self.get_display_width_up_to(self.cursor.y, self.cursor.x);
                 let target_col = if current_col >= n { current_col - n } else { 0 };
                 self.cursor.x = self.display_col_to_char_index(self.cursor.y, target_col);
-            },
-            'K' => { // Erase in Line
-                 let mode = params.parse::<usize>().unwrap_or(0);
-                 if let Some(line) = self.lines.get_mut(self.cursor.y) {
+            }
+            'K' => {
+                // Erase in Line
+                let mode = params.parse::<usize>().unwrap_or(0);
+                if let Some(line) = self.lines.get_mut(self.cursor.y) {
                     let mut chars: Vec<char> = line.chars().collect();
                     // Pad if necessary
                     while chars.len() < self.width {
@@ -104,62 +127,68 @@ impl TerminalBuffer {
                     }
 
                     match mode {
-                        0 => { // Cursor to end
+                        0 => {
+                            // Cursor to end
                             if self.cursor.x < chars.len() {
                                 for i in self.cursor.x..chars.len() {
                                     chars[i] = ' ';
                                 }
                             }
-                        },
-                        1 => { // Start to cursor
+                        }
+                        1 => {
+                            // Start to cursor
                             let end = std::cmp::min(self.cursor.x + 1, chars.len());
                             for i in 0..end {
                                 chars[i] = ' ';
                             }
-                        },
-                        2 => { // Whole line
+                        }
+                        2 => {
+                            // Whole line
                             for i in 0..chars.len() {
                                 chars[i] = ' ';
                             }
-                        },
+                        }
                         _ => {}
                     }
                     *line = chars.into_iter().collect();
-                 }
-            },
-            'P' => { // Delete Character (Shift Left)
+                }
+            }
+            'P' => {
+                // Delete Character (Shift Left)
                 let n = params.parse::<usize>().unwrap_or(1);
                 if let Some(line) = self.lines.get_mut(self.cursor.y) {
-                     let mut chars: Vec<char> = line.chars().collect();
-                     if self.cursor.x < chars.len() {
-                         let end_idx = std::cmp::min(self.cursor.x + n, chars.len());
-                         chars.drain(self.cursor.x..end_idx);
-                         // Pad with spaces at the end
-                         for _ in 0..(end_idx - self.cursor.x) {
-                             chars.push(' ');
-                         }
-                         *line = chars.into_iter().collect();
-                     }
+                    let mut chars: Vec<char> = line.chars().collect();
+                    if self.cursor.x < chars.len() {
+                        let end_idx = std::cmp::min(self.cursor.x + n, chars.len());
+                        chars.drain(self.cursor.x..end_idx);
+                        // Pad with spaces at the end
+                        for _ in 0..(end_idx - self.cursor.x) {
+                            chars.push(' ');
+                        }
+                        *line = chars.into_iter().collect();
+                    }
                 }
-            },
-            'X' => { // Erase Character (Replace with Space)
+            }
+            'X' => {
+                // Erase Character (Replace with Space)
                 let n = params.parse::<usize>().unwrap_or(1);
                 if let Some(line) = self.lines.get_mut(self.cursor.y) {
-                     let mut chars: Vec<char> = line.chars().collect();
-                     // Pad if necessary
-                     while chars.len() < self.width {
-                         chars.push(' ');
-                     }
-                     if self.cursor.x < chars.len() {
-                         let end_idx = std::cmp::min(self.cursor.x + n, chars.len());
-                         for i in self.cursor.x..end_idx {
-                             chars[i] = ' ';
-                         }
-                         *line = chars.into_iter().collect();
-                     }
+                    let mut chars: Vec<char> = line.chars().collect();
+                    // Pad if necessary
+                    while chars.len() < self.width {
+                        chars.push(' ');
+                    }
+                    if self.cursor.x < chars.len() {
+                        let end_idx = std::cmp::min(self.cursor.x + n, chars.len());
+                        for i in self.cursor.x..end_idx {
+                            chars[i] = ' ';
+                        }
+                        *line = chars.into_iter().collect();
+                    }
                 }
-            },
-            'H' | 'f' => { // Cursor Position (CUP) - ESC[row;colH or ESC[row;colf
+            }
+            'H' | 'f' => {
+                // Cursor Position (CUP) - ESC[row;colH or ESC[row;colf
                 // Parse row;col format, default to 1;1 if not specified
                 let parts: Vec<&str> = params.split(';').collect();
                 let row = if parts.is_empty() || parts[0].is_empty() {
@@ -183,11 +212,13 @@ impl TerminalBuffer {
                 self.cursor.x = self.display_col_to_char_index(self.cursor.y, target_display_col);
                 log::debug!("CSI H: params={}, row={}, col={}, target_display_col={}, cursor now at ({}, {})", 
                     params, row, col, target_display_col, self.cursor.x, self.cursor.y);
-            },
-            'J' => { // Erase in Display
+            }
+            'J' => {
+                // Erase in Display
                 let mode = params.parse::<usize>().unwrap_or(0);
                 match mode {
-                    0 => { // Cursor to end of screen
+                    0 => {
+                        // Cursor to end of screen
                         // Clear from cursor to end of current line
                         if let Some(line) = self.lines.get_mut(self.cursor.y) {
                             let mut chars: Vec<char> = line.chars().collect();
@@ -205,8 +236,9 @@ impl TerminalBuffer {
                                 *line = " ".repeat(self.width);
                             }
                         }
-                    },
-                    1 => { // Start of screen to cursor
+                    }
+                    1 => {
+                        // Start of screen to cursor
                         // Clear all lines above cursor
                         for y in 0..self.cursor.y {
                             if let Some(line) = self.lines.get_mut(y) {
@@ -226,27 +258,30 @@ impl TerminalBuffer {
                             }
                             *line = chars.into_iter().collect();
                         }
-                    },
-                    2 | 3 => { // Entire screen (3 also clears scrollback, but we treat same)
+                    }
+                    2 | 3 => {
+                        // Entire screen (3 also clears scrollback, but we treat same)
                         for line in self.lines.iter_mut() {
                             *line = " ".repeat(self.width);
                         }
-                    },
+                    }
                     _ => {}
                 }
-            },
-            'h' => { // Set Mode
+            }
+            'h' => {
+                // Set Mode
                 if params == "?25" {
                     self.cursor.visible = true;
                     log::debug!("CSI h: Cursor Visible");
                 }
-            },
-            'l' => { // Reset Mode
+            }
+            'l' => {
+                // Reset Mode
                 if params == "?25" {
                     self.cursor.visible = false;
                     log::debug!("CSI l: Cursor Hidden");
                 }
-            },
+            }
             _ => {
                 log::warn!("Unhandled CSI command: {} (params: {})", command, params);
             }
@@ -269,12 +304,12 @@ impl TerminalBuffer {
                 let current_col = self.get_display_width_up_to(self.cursor.y, self.cursor.x);
                 let target_col = if current_col > 0 { current_col - 1 } else { 0 };
                 self.cursor.x = self.display_col_to_char_index(self.cursor.y, target_col);
-            },
+            }
             _ => {
                 // Check if adding this character would exceed the width
                 let current_col = self.get_display_width_up_to(self.cursor.y, self.cursor.x);
                 let char_width = Self::char_display_width(c);
-                
+
                 if current_col + char_width > self.width {
                     self.cursor.x = 0;
                     self.cursor.y += 1;
@@ -283,7 +318,7 @@ impl TerminalBuffer {
                         self.cursor.y = self.height - 1;
                     }
                 }
-                
+
                 self.put_char(c);
                 self.cursor.x += 1;
             }
@@ -326,7 +361,8 @@ impl TerminalBuffer {
             || (0xFF00..=0xFF60).contains(&code)   // Full-width ASCII
             || (0xFFE0..=0xFFE6).contains(&code)   // Full-width symbols
             || (0x20000..=0x2FFFF).contains(&code) // CJK Extension B and beyond
-            || (0x30000..=0x3FFFF).contains(&code) // CJK Extension G and beyond
+            || (0x30000..=0x3FFFF).contains(&code)
+        // CJK Extension G and beyond
         {
             2
         } else {
@@ -402,18 +438,18 @@ impl TerminalBuffer {
                 current_width += w;
                 new_chars.push(c);
             }
-            
+
             // パディング
             while current_width < new_width {
                 new_chars.push(' ');
                 current_width += Self::char_display_width(' ');
             }
-            
+
             *line = new_chars.into_iter().collect();
         }
-        
+
         self.width = new_width;
-        
+
         // 高さの変更
         if new_height > self.height {
             // 行を追加
@@ -425,7 +461,7 @@ impl TerminalBuffer {
             self.lines.truncate(new_height);
         }
         self.height = new_height;
-        
+
         // カーソル位置の調整
         if self.height > 0 {
             // 先にカーソルYを現在の高さにクランプしてから、その行に基づいてXを調整
@@ -484,7 +520,7 @@ mod tests {
     #[test]
     fn test_cursor_movement_relative() {
         let mut buffer = TerminalBuffer::new(80, 25);
-        
+
         // Move to 5, 5 (1-based -> 4, 4 0-based)
         buffer.write_string("\x1b[5;5H");
         assert_eq!(buffer.cursor.y, 4);
@@ -497,7 +533,7 @@ mod tests {
         // Down 1
         buffer.write_string("\x1b[1B");
         assert_eq!(buffer.cursor.y, 3);
-        
+
         // Right 2
         buffer.write_string("\x1b[2C");
         assert_eq!(buffer.cursor.x, 6);
@@ -511,10 +547,10 @@ mod tests {
     fn test_terminal_resize() {
         let mut buffer = TerminalBuffer::new(10, 5);
         buffer.write_string("Hello CJKあいう"); // Width: 10. "Hello CJK" is 9. "あ" wraps.
-        // Line 0: "Hello CJK "
-        // Line 1: "あいう"
-        // Cursor at index 3 on Line 1.
-        
+                                                // Line 0: "Hello CJK "
+                                                // Line 1: "あいう"
+                                                // Cursor at index 3 on Line 1.
+
         assert_eq!(buffer.cursor.y, 1);
         assert_eq!(buffer.cursor.x, 3);
         assert_eq!(buffer.lines[0], "Hello CJK ");
@@ -534,11 +570,11 @@ mod tests {
         assert_eq!(buffer.width, 5);
         assert_eq!(buffer.height, 2);
         assert_eq!(buffer.lines[0], "Hello"); // Truncated
-        // "あいう" is 6 columns, but resize(5) truncates at 5.
-        // 'あ'(2), 'い'(2) -> 4. 'う'(2) would make 6. So 'う' is truncated.
-        // Line 1 becomes "あい " (4 cols + 1 space)
+                                              // "あいう" is 6 columns, but resize(5) truncates at 5.
+                                              // 'あ'(2), 'い'(2) -> 4. 'う'(2) would make 6. So 'う' is truncated.
+                                              // Line 1 becomes "あい " (4 cols + 1 space)
         assert_eq!(buffer.lines[1], "あい ");
-        
+
         // Cursor on line 1 was at x=3.
         // "あい " has 3 characters. x=3 is valid (at end).
         assert_eq!(buffer.cursor.y, 1);
@@ -561,18 +597,18 @@ mod tests {
     #[test]
     fn test_cursor_movement_cjk() {
         let mut buffer = TerminalBuffer::new(80, 25);
-        
+
         // "あいう" (3 full-width chars)
         buffer.write_string("あいう");
         assert_eq!(buffer.cursor.x, 3); // 3 characters
-        
+
         // Move back 2 columns (should move back 1 full-width char)
         // Current display pos: 6. Move back 2 -> 4.
         // Chars: 'あ'(2), 'い'(2), 'う'(2). Pos 4 corresponds to start of 'う'.
         // So char index should be 2.
         buffer.write_string("\x1b[2D");
         assert_eq!(buffer.cursor.x, 2);
-        
+
         // Move forward 2 columns
         buffer.write_string("\x1b[2C");
         assert_eq!(buffer.cursor.x, 3);
