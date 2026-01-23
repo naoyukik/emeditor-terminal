@@ -18,6 +18,45 @@ pub struct TerminalMetrics {
 }
 
 /// Wrapper around a Windows `HFONT` handle that is treated as `Send` and `Sync`.
+///
+/// # 安全性 (Safety)
+///
+/// `HFONT` 自体は GDI オブジェクトを指す単なるハンドルであり、その値を
+/// スレッド間でコピー／ムーブすること自体は Windows の設計上許可されています。
+/// そのため、「ハンドル値を他スレッドに渡す」という点だけを見れば
+/// `Send` / `Sync` を実装してもただちに未定義動作にはなりません。
+///
+/// ただし、**GDI 操作にはスレッドアフィニティがある** ことに注意してください。
+///
+/// - `SelectObject` や `ExtTextOutW`、`GetTextMetricsW` などの GDI 関数は
+///   特定の `HDC`（デバイスコンテキスト）に対して動作し、その `HDC` は通常
+///   UI スレッド（メッセージループを持つスレッド）に紐づいています。
+/// - これらの GDI 関数はスレッドセーフではなく、UI スレッド以外から
+///   呼び出すと描画の破綻や未定義動作を引き起こす可能性があります。
+///
+/// 本ラッパー型はあくまで「`HFONT` ハンドル値をスレッド間で保持・共有する」こと
+/// のみを許可するものであり、**GDI 関数の呼び出しは必ず UI スレッドで行う**
+/// という前提に依存しています。
+///
+/// # ライフタイムと DeleteObject について
+///
+/// `SendHFONT` は `HFONT` のライフタイムや所有権を管理しません。
+/// フォントの生成 (`CreateFontW`) および破棄 (`DeleteObject`) は別途、
+/// UI スレッド側で一元管理されている前提です。
+///
+/// - 他スレッドがまだ `SendHFONT` を保持している可能性がある間は
+///   対応する `HFONT` に対して `DeleteObject` を呼び出してはいけません。
+/// - `DeleteObject` が呼ばれた後に、同じ `HFONT` を用いて `SelectObject` などの
+///   GDI 操作を行うことは未定義動作になります。
+///
+/// したがって、呼び出し側は以下を保証する必要があります:
+///
+/// 1. GDI 関数の呼び出し (`SelectObject`, `ExtTextOutW`, など) は UI スレッドからのみ行う。
+/// 2. `HFONT` の実際のライフタイム管理は UI スレッド側で行い、
+///    他スレッドがそのハンドルを保持している間は `DeleteObject` しない。
+///
+/// この型自体は上記制約を静的には強制しませんが、`Send` / `Sync` の `unsafe impl` は
+/// これらの不変条件が守られていることを前提としています。
 pub struct SendHFONT(pub HFONT);
 unsafe impl Send for SendHFONT {}
 unsafe impl Sync for SendHFONT {}
@@ -73,6 +112,12 @@ impl TerminalRenderer {
                     (FIXED_PITCH.0 | FF_MODERN.0) as u32,
                     w!("Consolas"),
                 );
+
+                if h_font.0.is_null() {
+                    log::error!("TerminalRenderer: Failed to create font 'Consolas'");
+                    return;
+                }
+
                 self.font = Some(SendHFONT(h_font));
 
                 let old_font = SelectObject(hdc, HGDIOBJ(h_font.0));
@@ -224,17 +269,25 @@ impl TerminalRenderer {
                 1,
                 windows::Win32::Foundation::COLORREF(0x00FF0000),
             );
-            let old_pen = SelectObject(hdc, HGDIOBJ(pen.0));
-            let _ = windows::Win32::Graphics::Gdi::MoveToEx(
-                hdc,
-                comp_rect.left,
-                comp_rect.bottom - 1,
-                None,
-            );
-            let _ =
-                windows::Win32::Graphics::Gdi::LineTo(hdc, comp_rect.right, comp_rect.bottom - 1);
-            let _ = SelectObject(hdc, old_pen);
-            let _ = DeleteObject(HGDIOBJ(pen.0));
+
+            if !pen.0.is_null() {
+                let old_pen = SelectObject(hdc, HGDIOBJ(pen.0));
+                let _ = windows::Win32::Graphics::Gdi::MoveToEx(
+                    hdc,
+                    comp_rect.left,
+                    comp_rect.bottom - 1,
+                    None,
+                );
+                let _ = windows::Win32::Graphics::Gdi::LineTo(
+                    hdc,
+                    comp_rect.right,
+                    comp_rect.bottom - 1,
+                );
+                let _ = SelectObject(hdc, old_pen);
+                let _ = DeleteObject(HGDIOBJ(pen.0));
+            } else {
+                log::error!("TerminalRenderer: Failed to create pen for composition underline");
+            }
         }
     }
 }

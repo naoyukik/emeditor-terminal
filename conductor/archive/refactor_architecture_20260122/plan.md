@@ -31,3 +31,13 @@
     - [x] `cargo build` を実行し、DLLを生成する。
     - [x] EmEditorで動作を確認し、表示崩れがないかチェックする。
 - [ ] Task: Conductor - User Manual Verification 'Logic Extraction (Renderer)' (Protocol in workflow.md)
+
+## Phase 3: Review Fixes & Stabilization
+GitHub PR #28 のレビュー指摘事項のうち、リファクタリング起因の問題および安全性に関わる修正を行う。
+
+- [ ] Task: Critical/Safety Fixes
+    - [ ] `src/gui/renderer.rs`: `CreatePen` の戻り値 (NULL) チェックを追加し、安全性を確保する。
+    - [ ] `src/gui/renderer.rs`: `CreateFontW` の戻り値 (NULL) チェックを追加し、安全性を確保する。
+    - [ ] `conductor/tracks.md`: ファイル先頭の BOM (U+FEFF) を削除する。
+- [ ] Task: Documentation Recovery
+    - [ ] `src/gui/renderer.rs`: `SendHFONT` の `unsafe impl` に関する詳細な安全性ドキュメントを復元する。
