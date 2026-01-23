@@ -107,8 +107,7 @@ impl TerminalBuffer {
         match command {
             'A' => {
                 // Cursor Up
-                let n = params.parse::<usize>().unwrap_or(1);
-                let n = if n == 0 { 1 } else { n };
+                let n = self.parse_csi_param(params, 1);
                 let current_col = self.get_display_width_up_to(self.cursor.y, self.cursor.x);
                 if self.cursor.y >= n {
                     self.cursor.y -= n;
@@ -119,24 +118,21 @@ impl TerminalBuffer {
             }
             'B' => {
                 // Cursor Down
-                let n = params.parse::<usize>().unwrap_or(1);
-                let n = if n == 0 { 1 } else { n };
+                let n = self.parse_csi_param(params, 1);
                 let current_col = self.get_display_width_up_to(self.cursor.y, self.cursor.x);
                 self.cursor.y = std::cmp::min(self.height - 1, self.cursor.y + n);
                 self.cursor.x = self.display_col_to_char_index(self.cursor.y, current_col);
             }
             'C' => {
                 // Cursor Forward
-                let n = params.parse::<usize>().unwrap_or(1);
-                let n = if n == 0 { 1 } else { n };
+                let n = self.parse_csi_param(params, 1);
                 let current_col = self.get_display_width_up_to(self.cursor.y, self.cursor.x);
                 let target_col = std::cmp::min(self.width - 1, current_col + n);
                 self.cursor.x = self.display_col_to_char_index(self.cursor.y, target_col);
             }
             'D' => {
                 // Cursor Back
-                let n = params.parse::<usize>().unwrap_or(1);
-                let n = if n == 0 { 1 } else { n };
+                let n = self.parse_csi_param(params, 1);
                 let current_col = self.get_display_width_up_to(self.cursor.y, self.cursor.x);
                 let target_col = current_col.saturating_sub(n);
                 self.cursor.x = self.display_col_to_char_index(self.cursor.y, target_col);
@@ -178,8 +174,7 @@ impl TerminalBuffer {
             }
             'P' => {
                 // Delete Character (Shift Left)
-                let n = params.parse::<usize>().unwrap_or(1);
-                let n = if n == 0 { 1 } else { n };
+                let n = self.parse_csi_param(params, 1);
                 if let Some(line) = self.lines.get_mut(self.cursor.y) {
                     let mut chars: Vec<char> = line.chars().collect();
                     if self.cursor.x < chars.len() {
@@ -194,8 +189,7 @@ impl TerminalBuffer {
             }
             'X' => {
                 // Erase Character (Replace with Space)
-                let n = params.parse::<usize>().unwrap_or(1);
-                let n = if n == 0 { 1 } else { n };
+                let n = self.parse_csi_param(params, 1);
                 if let Some(line) = self.lines.get_mut(self.cursor.y) {
                     let mut chars: Vec<char> = line.chars().collect();
                     // Pad if necessary
@@ -294,16 +288,14 @@ impl TerminalBuffer {
             }
             'G' => {
                 // Cursor Horizontal Absolute (CHA)
-                let col = params.parse::<usize>().unwrap_or(1);
-                let col = if col == 0 { 1 } else { col };
+                let col = self.parse_csi_param(params, 1);
                 let target_display_col = if col > 0 { col - 1 } else { 0 };
                 let target_display_col = std::cmp::min(target_display_col, self.width.saturating_sub(1));
                 self.cursor.x = self.display_col_to_char_index(self.cursor.y, target_display_col);
             }
             'd' => {
                 // Vertical Line Position Absolute (VPA)
-                let row = params.parse::<usize>().unwrap_or(1);
-                let row = if row == 0 { 1 } else { row };
+                let row = self.parse_csi_param(params, 1);
                 let current_display_col = self.get_display_width_up_to(self.cursor.y, self.cursor.x);
                 self.cursor.y = if row > 0 { row - 1 } else { 0 };
                 if self.cursor.y >= self.height {
@@ -313,15 +305,13 @@ impl TerminalBuffer {
             }
             'E' => {
                 // Cursor Next Line (CNL)
-                let n = params.parse::<usize>().unwrap_or(1);
-                let n = if n == 0 { 1 } else { n };
+                let n = self.parse_csi_param(params, 1);
                 self.cursor.y = std::cmp::min(self.height - 1, self.cursor.y + n);
                 self.cursor.x = 0;
             }
             'F' => {
                 // Cursor Previous Line (CPL)
-                let n = params.parse::<usize>().unwrap_or(1);
-                let n = if n == 0 { 1 } else { n };
+                let n = self.parse_csi_param(params, 1);
                 if self.cursor.y >= n {
                     self.cursor.y -= n;
                 } else {
@@ -461,6 +451,16 @@ impl TerminalBuffer {
             chars.len()
         } else {
             target_display_col // Fallback
+        }
+    }
+
+    /// CSIパラメータをパースし、0を1に正規化する。
+    fn parse_csi_param(&self, params: &str, default: usize) -> usize {
+        let n = params.parse::<usize>().unwrap_or(default);
+        if n == 0 {
+            1
+        } else {
+            n
         }
     }
 
@@ -758,11 +758,11 @@ mod tests {
         buffer.write_string("あいうえお"); // Display width: 10. Row 0: "あいうえお"
         buffer.write_string("\r\n12345"); // Row 1: "12345     "
 
-        // 1. CHA to middle of CJK character (Col 2 -> start of 'い' is Col 2, idx 1)
-        // Col 3 is 2nd column of 'い'. CHA to Col 3 (4G).
+        // 1. CHA to middle of a CJK character.
+        // Visual columns: 'あ' at 1-2, 'い' at 3-4. CHA to column 3 (3G), the first cell of 'い'.
         buffer.write_string("\x1b[1;1H"); // Back to top-left
         buffer.write_string("\x1b[3G"); // To column 3
-        // 'あ' (0-2), 'い' (2-4). Col 2 (3G) is idx 1.
+        // In the internal buffer, column 3 (3G) corresponds to idx 1.
         assert_eq!(buffer.cursor.x, 1);
 
         // 2. VPA maintaining column
