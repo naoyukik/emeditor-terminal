@@ -23,7 +23,7 @@ prompt = """
     !{git diff main..HEAD -- . ':(exclude)package-lock.json' ':(exclude)yarn.lock' ':(exclude)*.lock'}
 
 2. Issueの確認
-チケット番号が存在する場合、Issueを確認するため下記の `gh issue view` コマンドを使用してissueの内容を取得すること
+チケット番号が存在する場合、Issueを確認するため GitHub MCP Serverの `issue_read` コマンドを使用してissueの内容を取得すること
 
 3. 推論と構築 (Reasoning)
 取得した情報を以下の優先順位で統合し、PRの内容を構築せよ。
