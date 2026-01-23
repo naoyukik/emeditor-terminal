@@ -45,6 +45,7 @@ impl TerminalBuffer {
                 if let Some(&'[') = chars.peek() {
                     chars.next(); // consume '['
                     let mut param_str = String::new();
+                    // Parse Parameters (0x30-0x3F)
                     loop {
                         match chars.peek() {
                             Some(&p) if (0x30..=0x3F).contains(&(p as u8)) => {
@@ -54,7 +55,27 @@ impl TerminalBuffer {
                             _ => break,
                         }
                     }
+                    // Parse Intermediate Bytes (0x20-0x2F)
+                    let mut intermediates = String::new();
+                    loop {
+                         match chars.peek() {
+                            Some(&p) if (0x20..=0x2F).contains(&(p as u8)) => {
+                                intermediates.push(p);
+                                chars.next();
+                            }
+                            _ => break,
+                        }
+                    }
+
                     if let Some(cmd) = chars.next() {
+                        // For now, we ignore intermediates or handle them if needed.
+                        // Ideally handle_csi should accept intermediates.
+                        // But to stop 'q' from appearing, just correctly parsing the sequence is enough.
+                        // If intermediates exists, the command meaning might change,
+                        // but current handle_csi just ignores unknown commands.
+                        if !intermediates.is_empty() {
+                            log::debug!("CSI with intermediates: cmd={}, params={}, intermediates={}", cmd, param_str, intermediates);
+                        }
                         self.handle_csi(cmd, &param_str);
                     }
                 } else if let Some(&']') = chars.peek() {
@@ -86,7 +107,7 @@ impl TerminalBuffer {
         match command {
             'A' => {
                 // Cursor Up
-                let n = params.parse::<usize>().unwrap_or(1);
+                let n = self.parse_csi_param(params, 1);
                 let current_col = self.get_display_width_up_to(self.cursor.y, self.cursor.x);
                 if self.cursor.y >= n {
                     self.cursor.y -= n;
@@ -97,21 +118,21 @@ impl TerminalBuffer {
             }
             'B' => {
                 // Cursor Down
-                let n = params.parse::<usize>().unwrap_or(1);
+                let n = self.parse_csi_param(params, 1);
                 let current_col = self.get_display_width_up_to(self.cursor.y, self.cursor.x);
                 self.cursor.y = std::cmp::min(self.height - 1, self.cursor.y + n);
                 self.cursor.x = self.display_col_to_char_index(self.cursor.y, current_col);
             }
             'C' => {
                 // Cursor Forward
-                let n = params.parse::<usize>().unwrap_or(1);
+                let n = self.parse_csi_param(params, 1);
                 let current_col = self.get_display_width_up_to(self.cursor.y, self.cursor.x);
                 let target_col = std::cmp::min(self.width - 1, current_col + n);
                 self.cursor.x = self.display_col_to_char_index(self.cursor.y, target_col);
             }
             'D' => {
                 // Cursor Back
-                let n = params.parse::<usize>().unwrap_or(1);
+                let n = self.parse_csi_param(params, 1);
                 let current_col = self.get_display_width_up_to(self.cursor.y, self.cursor.x);
                 let target_col = current_col.saturating_sub(n);
                 self.cursor.x = self.display_col_to_char_index(self.cursor.y, target_col);
@@ -153,7 +174,7 @@ impl TerminalBuffer {
             }
             'P' => {
                 // Delete Character (Shift Left)
-                let n = params.parse::<usize>().unwrap_or(1);
+                let n = self.parse_csi_param(params, 1);
                 if let Some(line) = self.lines.get_mut(self.cursor.y) {
                     let mut chars: Vec<char> = line.chars().collect();
                     if self.cursor.x < chars.len() {
@@ -168,7 +189,7 @@ impl TerminalBuffer {
             }
             'X' => {
                 // Erase Character (Replace with Space)
-                let n = params.parse::<usize>().unwrap_or(1);
+                let n = self.parse_csi_param(params, 1);
                 if let Some(line) = self.lines.get_mut(self.cursor.y) {
                     let mut chars: Vec<char> = line.chars().collect();
                     // Pad if necessary
@@ -264,6 +285,39 @@ impl TerminalBuffer {
                     }
                     _ => {}
                 }
+            }
+            'G' => {
+                // Cursor Horizontal Absolute (CHA)
+                let col = self.parse_csi_param(params, 1);
+                let target_display_col = if col > 0 { col - 1 } else { 0 };
+                let target_display_col = std::cmp::min(target_display_col, self.width.saturating_sub(1));
+                self.cursor.x = self.display_col_to_char_index(self.cursor.y, target_display_col);
+            }
+            'd' => {
+                // Vertical Line Position Absolute (VPA)
+                let row = self.parse_csi_param(params, 1);
+                let current_display_col = self.get_display_width_up_to(self.cursor.y, self.cursor.x);
+                self.cursor.y = if row > 0 { row - 1 } else { 0 };
+                if self.cursor.y >= self.height {
+                    self.cursor.y = self.height - 1;
+                }
+                self.cursor.x = self.display_col_to_char_index(self.cursor.y, current_display_col);
+            }
+            'E' => {
+                // Cursor Next Line (CNL)
+                let n = self.parse_csi_param(params, 1);
+                self.cursor.y = std::cmp::min(self.height - 1, self.cursor.y + n);
+                self.cursor.x = 0;
+            }
+            'F' => {
+                // Cursor Previous Line (CPL)
+                let n = self.parse_csi_param(params, 1);
+                if self.cursor.y >= n {
+                    self.cursor.y -= n;
+                } else {
+                    self.cursor.y = 0;
+                }
+                self.cursor.x = 0;
             }
             'h' => {
                 // Set Mode
@@ -397,6 +451,16 @@ impl TerminalBuffer {
             chars.len()
         } else {
             target_display_col // Fallback
+        }
+    }
+
+    /// CSIパラメータをパースし、0を1に正規化する。
+    fn parse_csi_param(&self, params: &str, default: usize) -> usize {
+        let n = params.parse::<usize>().unwrap_or(default);
+        if n == 0 {
+            1
+        } else {
+            n
         }
     }
 
@@ -609,5 +673,132 @@ mod tests {
         // Move forward 2 columns
         buffer.write_string("\x1b[2C");
         assert_eq!(buffer.cursor.x, 3);
+    }
+
+    #[test]
+    fn test_cha() {
+        let mut buffer = TerminalBuffer::new(80, 25);
+        buffer.write_string("abcあいう"); // display width: 3 + 6 = 9
+
+        // Move to column 1 (display col 0)
+        buffer.write_string("\x1b[1G");
+        assert_eq!(buffer.cursor.x, 0);
+
+        // Move to column 4 (display col 3) - start of 'あ'
+        buffer.write_string("\x1b[4G");
+        assert_eq!(buffer.cursor.x, 3);
+
+        // Move to column 5 (display col 4) - middle of 'あ' (should snap to start of 'あ' or 'い')
+        // display_col_to_char_index current implementation returns index that covers the target_display_col.
+        // If we target col 4, it should return char_idx 3.
+        buffer.write_string("\x1b[5G");
+        assert_eq!(buffer.cursor.x, 4); // index of 'い'
+
+        // Out of bounds
+        buffer.write_string("\x1b[999G");
+        // Row 0 has "abcあいう" (9 display width) + 71 spaces. Total display width 80.
+        // target_display_col 998 is clamped to 79.
+        // Index 6 is the start of spaces. Index 6 + 70 spaces = 76.
+        assert_eq!(buffer.cursor.x, 76);
+    }
+
+    #[test]
+    fn test_vpa() {
+        let mut buffer = TerminalBuffer::new(80, 25);
+        buffer.write_string("abc");
+        buffer.write_string("\r\n");
+        buffer.write_string("あいう"); // Row 1: "あいう" + spaces
+
+        // Move to row 1 (0-based) at column 4 (display col 3)
+        // Row 0 is "abc" + spaces. display col 3 is at index 3 (first space).
+        buffer.write_string("\x1b[1;4H");
+        assert_eq!(buffer.cursor.y, 0);
+        assert_eq!(buffer.cursor.x, 3);
+
+        // VPA to row 2 (1-based -> index 1)
+        // Row 1 has "あいう". display col 3 corresponds to start of 'う' (index 2).
+        buffer.write_string("\x1b[2d");
+        assert_eq!(buffer.cursor.y, 1);
+        assert_eq!(buffer.cursor.x, 2);
+
+        // Move to column 10 (display col 9) in row 2
+        buffer.write_string("\x1b[10G");
+        assert_eq!(buffer.cursor.x, 6); // end of "あいう" (3 chars) + 3 spaces = index 6
+
+        // VPA back to row 1
+        buffer.write_string("\x1b[1d");
+        assert_eq!(buffer.cursor.y, 0);
+        assert_eq!(buffer.cursor.x, 9); // "abc" (3 chars) + 6 spaces = index 9
+    }
+
+    #[test]
+    fn test_cnl_cpl() {
+        let mut buffer = TerminalBuffer::new(80, 25);
+        buffer.write_string("line1\r\nline2\r\nline3");
+
+        // Move to row 3 (idx 2) at some X
+        buffer.write_string("\x1b[3;5H");
+        assert_eq!(buffer.cursor.y, 2);
+        assert_eq!(buffer.cursor.x, 4);
+
+        // CPL 2 (Previous Line) -> should be Row 1 (idx 0), Col 1 (idx 0)
+        buffer.write_string("\x1b[2F");
+        assert_eq!(buffer.cursor.y, 0);
+        assert_eq!(buffer.cursor.x, 0);
+
+        // CNL 1 (Next Line) -> should be Row 2 (idx 1), Col 1 (idx 0)
+        buffer.write_string("\x1b[1E");
+        assert_eq!(buffer.cursor.y, 1);
+        assert_eq!(buffer.cursor.x, 0);
+    }
+
+    #[test]
+    fn test_integration_cursor_movements() {
+        let mut buffer = TerminalBuffer::new(10, 5); // Small buffer for boundary testing
+        buffer.write_string("あいうえお"); // Display width: 10. Row 0: "あいうえお"
+        buffer.write_string("\r\n12345"); // Row 1: "12345     "
+
+        // 1. CHA to middle of a CJK character.
+        // Visual columns: 'あ' at 1-2, 'い' at 3-4. CHA to column 3 (3G), the first cell of 'い'.
+        buffer.write_string("\x1b[1;1H"); // Back to top-left
+        buffer.write_string("\x1b[3G"); // To column 3
+        // In the internal buffer, column 3 (3G) corresponds to idx 1.
+        assert_eq!(buffer.cursor.x, 1);
+
+        // 2. VPA maintaining column
+        buffer.write_string("\x1b[2d"); // To row 2
+        assert_eq!(buffer.cursor.y, 1);
+        // Row 1 is "12345". Col 2 is idx 2 ('3').
+        assert_eq!(buffer.cursor.x, 2);
+
+        // 3. Boundary Clamping
+        buffer.write_string("\x1b[99G"); // Far right
+        assert_eq!(buffer.cursor.x, 9); // Clamped to width-1
+
+        buffer.write_string("\x1b[99d"); // Far bottom
+        assert_eq!(buffer.cursor.y, 4);
+
+        buffer.write_string("\x1b[0E"); // CNL 0 -> should be treated as 1
+        assert_eq!(buffer.cursor.y, 4); // Still bottom
+        assert_eq!(buffer.cursor.x, 0); // But at start
+
+        buffer.write_string("\x1b[99F"); // CPL 99 -> top
+        assert_eq!(buffer.cursor.y, 0);
+        assert_eq!(buffer.cursor.x, 0);
+    }
+
+    #[test]
+    fn test_csi_with_intermediate_bytes() {
+        let mut buffer = TerminalBuffer::new(80, 25);
+        // DECSCUSR (Set Cursor Style): ESC [ 0 SP q
+        // Should be parsed correctly and NOT print 'q' to the buffer.
+        buffer.write_string("\x1b[0 q");
+
+        // Cursor should not move (because 'q' is unhandled, not printed)
+        assert_eq!(buffer.cursor.x, 0);
+
+        // Buffer should be empty (spaces)
+        let line = buffer.lines.front().unwrap();
+        assert!(line.chars().all(|c| c == ' '));
     }
 }
