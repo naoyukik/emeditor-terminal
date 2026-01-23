@@ -19,5 +19,10 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 ---
 
-- [~] **Track: feat: 追加のカーソル移動シーケンス (CHA, VPA, CNL, CPL) のサポート (Issue #11)**
-*Link: [./tracks/11_cursor_movement_20260123/](./tracks/11_cursor_movement_20260123/)*
+- [x] **Track: feat: 追加のカーソル移動シーケンス (CHA, VPA, CNL, CPL) のサポート (Issue #11)**
+*Link: [./archive/11_cursor_movement_20260123/](./archive/11_cursor_movement_20260123/)*
+
+---
+
+- [ ] **Track: feat: TUIアプリケーション（Microsoft Edit等）における表示崩れの修正 (Issue #30)**
+*Link: [./tracks/30_fix_tui_rendering_20260123/](./tracks/30_fix_tui_rendering_20260123/)*
