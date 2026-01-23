@@ -137,7 +137,7 @@ fn update_ime_window_position(hwnd: HWND) {
 
             // Explicitly set composition window position
             let himc = ImmGetContext(hwnd);
-            if himc.0 != std::ptr::null_mut() {
+            if !himc.0.is_null() {
                 let form = COMPOSITIONFORM {
                     dwStyle: CFS_POINT,
                     ptCurrentPos: windows::Win32::Foundation::POINT {
@@ -157,7 +157,7 @@ fn update_ime_window_position(hwnd: HWND) {
 fn is_ime_composing(hwnd: HWND) -> bool {
     unsafe {
         let himc = ImmGetContext(hwnd);
-        if himc.0 == std::ptr::null_mut() {
+        if himc.0.is_null() {
             return false;
         }
         let len = ImmGetCompositionStringW(himc, GCS_COMPSTR, None, 0);
@@ -215,7 +215,7 @@ pub fn open_custom_bar(hwnd_editor: HWND) -> bool {
 
         match hwnd_client_result {
             Ok(hwnd_client) => {
-                if hwnd_client.0 == std::ptr::null_mut() {
+                if hwnd_client.0.is_null() {
                     log::error!("Failed to create custom bar window: Handle is NULL");
                     return false;
                 }
@@ -307,17 +307,17 @@ pub fn open_custom_bar(hwnd_editor: HWND) -> bool {
                             }
                             log::info!("ConPTY output thread finished");
                         });
-                        return true;
+                        true
                     }
                     Err(e) => {
                         log::error!("Failed to start ConPTY: {}", e);
-                        return false;
+                        false
                     }
                 }
             }
             Err(e) => {
                 log::error!("Failed to create custom bar window: {}", e);
-                return false;
+                false
             }
         }
     }
@@ -332,42 +332,39 @@ fn vk_to_vt_sequence(
 ) -> Option<&'static [u8]> {
     // Handle Ctrl+ combinations first
     if ctrl_pressed && !alt_pressed {
-        match vk_code {
-            0x41..=0x5A => {
-                // Ctrl+A through Ctrl+Z
-                // Return control character (A=1, B=2, ..., Z=26)
-                let ctrl_char = (vk_code - 0x40) as u8;
-                return match ctrl_char {
-                    1 => Some(b"\x01"),  // Ctrl+A
-                    2 => Some(b"\x02"),  // Ctrl+B
-                    3 => Some(b"\x03"),  // Ctrl+C
-                    4 => Some(b"\x04"),  // Ctrl+D
-                    5 => Some(b"\x05"),  // Ctrl+E
-                    6 => Some(b"\x06"),  // Ctrl+F
-                    7 => Some(b"\x07"),  // Ctrl+G
-                    8 => Some(b"\x08"),  // Ctrl+H (same as Backspace)
-                    9 => Some(b"\x09"),  // Ctrl+I (same as Tab)
-                    10 => Some(b"\x0a"), // Ctrl+J
-                    11 => Some(b"\x0b"), // Ctrl+K
-                    12 => Some(b"\x0c"), // Ctrl+L
-                    13 => Some(b"\x0d"), // Ctrl+M (same as Enter)
-                    14 => Some(b"\x0e"), // Ctrl+N
-                    15 => Some(b"\x0f"), // Ctrl+O
-                    16 => Some(b"\x10"), // Ctrl+P
-                    17 => Some(b"\x11"), // Ctrl+Q
-                    18 => Some(b"\x12"), // Ctrl+R
-                    19 => Some(b"\x13"), // Ctrl+S
-                    20 => Some(b"\x14"), // Ctrl+T
-                    21 => Some(b"\x15"), // Ctrl+U
-                    22 => Some(b"\x16"), // Ctrl+V
-                    23 => Some(b"\x17"), // Ctrl+W
-                    24 => Some(b"\x18"), // Ctrl+X
-                    25 => Some(b"\x19"), // Ctrl+Y
-                    26 => Some(b"\x1a"), // Ctrl+Z
-                    _ => None,
-                };
-            }
-            _ => {}
+        if let 0x41..=0x5A = vk_code {
+            // Ctrl+A through Ctrl+Z
+            // Return control character (A=1, B=2, ..., Z=26)
+            let ctrl_char = (vk_code - 0x40) as u8;
+            return match ctrl_char {
+                1 => Some(b"\x01"),  // Ctrl+A
+                2 => Some(b"\x02"),  // Ctrl+B
+                3 => Some(b"\x03"),  // Ctrl+C
+                4 => Some(b"\x04"),  // Ctrl+D
+                5 => Some(b"\x05"),  // Ctrl+E
+                6 => Some(b"\x06"),  // Ctrl+F
+                7 => Some(b"\x07"),  // Ctrl+G
+                8 => Some(b"\x08"),  // Ctrl+H (same as Backspace)
+                9 => Some(b"\x09"),  // Ctrl+I (same as Tab)
+                10 => Some(b"\x0a"), // Ctrl+J
+                11 => Some(b"\x0b"), // Ctrl+K
+                12 => Some(b"\x0c"), // Ctrl+L
+                13 => Some(b"\x0d"), // Ctrl+M (same as Enter)
+                14 => Some(b"\x0e"), // Ctrl+N
+                15 => Some(b"\x0f"), // Ctrl+O
+                16 => Some(b"\x10"), // Ctrl+P
+                17 => Some(b"\x11"), // Ctrl+Q
+                18 => Some(b"\x12"), // Ctrl+R
+                19 => Some(b"\x13"), // Ctrl+S
+                20 => Some(b"\x14"), // Ctrl+T
+                21 => Some(b"\x15"), // Ctrl+U
+                22 => Some(b"\x16"), // Ctrl+V
+                23 => Some(b"\x17"), // Ctrl+W
+                24 => Some(b"\x18"), // Ctrl+X
+                25 => Some(b"\x19"), // Ctrl+Y
+                26 => Some(b"\x1a"), // Ctrl+Z
+                _ => None,
+            };
         }
     }
 
@@ -469,6 +466,7 @@ fn write_to_conpty(handle: HANDLE, data: &[u8]) -> Result<(), windows::core::Err
     Ok(())
 }
 
+#[allow(dead_code)]
 pub fn send_input(text: &str) {
     let data_arc = get_terminal_data();
     let data = data_arc.lock().unwrap();
@@ -859,7 +857,7 @@ extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM
             if (lparam.0 as u32 & GCS_RESULTSTR.0) != 0 {
                 unsafe {
                     let himc = ImmGetContext(hwnd);
-                    if himc.0 != std::ptr::null_mut() {
+                    if !himc.0.is_null() {
                         let len_bytes = ImmGetCompositionStringW(himc, GCS_RESULTSTR, None, 0);
                         if len_bytes >= 0 {
                             let len_u16 = (len_bytes as usize) / size_of::<u16>();
@@ -879,14 +877,12 @@ extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM
                             if let Some(conpty) = &data.conpty {
                                 let utf8_bytes = result_str.as_bytes();
                                 let mut bytes_written = 0;
-                                unsafe {
-                                    let _ = WriteFile(
-                                        conpty.get_input_handle().0,
-                                        Some(utf8_bytes),
-                                        Some(&mut bytes_written),
-                                        None,
-                                    );
-                                }
+                                let _ = WriteFile(
+                                    conpty.get_input_handle().0,
+                                    Some(utf8_bytes),
+                                    Some(&mut bytes_written),
+                                    None,
+                                );
                             }
 
                             // Clear composition data on commit
@@ -905,7 +901,7 @@ extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM
                 update_ime_window_position(hwnd);
                 unsafe {
                     let himc = ImmGetContext(hwnd);
-                    if himc.0 != std::ptr::null_mut() {
+                    if !himc.0.is_null() {
                         // Get size first
                         let len_bytes = ImmGetCompositionStringW(himc, GCS_COMPSTR, None, 0);
                         if len_bytes >= 0 {

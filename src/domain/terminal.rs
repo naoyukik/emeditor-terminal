@@ -113,7 +113,7 @@ impl TerminalBuffer {
                 // Cursor Back
                 let n = params.parse::<usize>().unwrap_or(1);
                 let current_col = self.get_display_width_up_to(self.cursor.y, self.cursor.x);
-                let target_col = if current_col >= n { current_col - n } else { 0 };
+                let target_col = current_col.saturating_sub(n);
                 self.cursor.x = self.display_col_to_char_index(self.cursor.y, target_col);
             }
             'K' => {
@@ -130,23 +130,21 @@ impl TerminalBuffer {
                         0 => {
                             // Cursor to end
                             if self.cursor.x < chars.len() {
-                                for i in self.cursor.x..chars.len() {
-                                    chars[i] = ' ';
+                                for ch in chars.iter_mut().skip(self.cursor.x) {
+                                    *ch = ' ';
                                 }
                             }
                         }
                         1 => {
                             // Start to cursor
                             let end = std::cmp::min(self.cursor.x + 1, chars.len());
-                            for i in 0..end {
-                                chars[i] = ' ';
+                            for ch in chars.iter_mut().take(end) {
+                                *ch = ' ';
                             }
                         }
                         2 => {
                             // Whole line
-                            for i in 0..chars.len() {
-                                chars[i] = ' ';
-                            }
+                            chars.fill(' ');
                         }
                         _ => {}
                     }
@@ -160,11 +158,10 @@ impl TerminalBuffer {
                     let mut chars: Vec<char> = line.chars().collect();
                     if self.cursor.x < chars.len() {
                         let end_idx = std::cmp::min(self.cursor.x + n, chars.len());
+                        let removed_count = end_idx - self.cursor.x;
                         chars.drain(self.cursor.x..end_idx);
                         // Pad with spaces at the end
-                        for _ in 0..(end_idx - self.cursor.x) {
-                            chars.push(' ');
-                        }
+                        chars.extend(std::iter::repeat_n(' ', removed_count));
                         *line = chars.into_iter().collect();
                     }
                 }
@@ -180,8 +177,8 @@ impl TerminalBuffer {
                     }
                     if self.cursor.x < chars.len() {
                         let end_idx = std::cmp::min(self.cursor.x + n, chars.len());
-                        for i in self.cursor.x..end_idx {
-                            chars[i] = ' ';
+                        for ch in chars.iter_mut().take(end_idx).skip(self.cursor.x) {
+                            *ch = ' ';
                         }
                         *line = chars.into_iter().collect();
                     }
@@ -225,8 +222,8 @@ impl TerminalBuffer {
                             while chars.len() < self.width {
                                 chars.push(' ');
                             }
-                            for i in self.cursor.x..chars.len() {
-                                chars[i] = ' ';
+                            for ch in chars.iter_mut().skip(self.cursor.x) {
+                                *ch = ' ';
                             }
                             *line = chars.into_iter().collect();
                         }
