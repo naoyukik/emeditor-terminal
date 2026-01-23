@@ -19,15 +19,15 @@
 - [x] Task: Conductor - ユーザー手動検証 'フェーズ 2' (Protocol in workflow.md)
 
 ## フェーズ 3: 行間移動シーケンスの実装 (CNL, CPL)
-- [ ] Task: `CNL` (Cursor Next Line) の実装
-    - [ ] `handle_csi` に 'E' コマンドのハンドラを追加
-    - [ ] 下方向への移動と X=0 へのリセット処理の実装
-    - [ ] ユニットテストの追加と実行 (feat: CNLの実装)
-- [ ] Task: `CPL` (Cursor Previous Line) の実装
-    - [ ] `handle_csi` に 'F' コマンドのハンドラを追加
-    - [ ] 上方向への移動と X=0 へのリセット処理の実装
-    - [ ] ユニットテストの追加と実行 (feat: CPLの実装)
-- [ ] Task: Conductor - ユーザー手動検証 'フェーズ 3' (Protocol in workflow.md)
+- [x] Task: `CNL` (Cursor Next Line) の実装
+    - [x] `handle_csi` に 'E' コマンドのハンドラを追加
+    - [x] 下方向への移動と X=0 へのリセット処理の実装
+    - [x] ユニットテストの追加と実行 (feat: CNLの実装)
+- [x] Task: `CPL` (Cursor Previous Line) の実装
+    - [x] `handle_csi` に 'F' コマンドのハンドラを追加
+    - [x] 上方向への移動と X=0 へのリセット処理の実装
+    - [x] ユニットテストの追加と実行 (feat: CPLの実装)
+- [x] Task: Conductor - ユーザー手動検証 'フェーズ 3' (Protocol in workflow.md)
 
 ## フェーズ 4: 統合テストと最終調整
 - [ ] Task: 境界条件と全角文字混在の総合テスト
