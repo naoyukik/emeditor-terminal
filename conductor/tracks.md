@@ -19,5 +19,5 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 ---
 
-- [~] **Track: Issue #15: レイヤードアーキテクチャの導入とディレクトリ再構築**
+- [x] **Track: Issue #15: レイヤードアーキテクチャの導入とディレクトリ再構築**
 *Link: [./tracks/refactor_architecture_20260122/](./tracks/refactor_architecture_20260122/)*
