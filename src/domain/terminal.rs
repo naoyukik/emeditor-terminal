@@ -38,7 +38,8 @@ impl TerminalBuffer {
     }
 
     pub fn write_string(&mut self, s: &str) {
-        log::debug!("TerminalBuffer::write_string input: {:?}", s);
+        // [DEBUG] Issue #30: Dump raw input for analysis
+        log::debug!("RAW INPUT: {:?}", s);
         let mut chars = s.chars().peekable();
         while let Some(c) = chars.next() {
             if c == '\x1b' {
@@ -76,7 +77,7 @@ impl TerminalBuffer {
                         if !intermediates.is_empty() {
                             log::debug!("CSI with intermediates: cmd={}, params={}, intermediates={}", cmd, param_str, intermediates);
                         }
-                        self.handle_csi(cmd, &param_str);
+                        self.handle_csi(cmd, &param_str, &intermediates);
                     }
                 } else if let Some(&']') = chars.peek() {
                     // Handle OSC (Operating System Command) \x1b]...\x07 or \x1b]...\x1b\
@@ -103,8 +104,14 @@ impl TerminalBuffer {
         }
     }
 
-    fn handle_csi(&mut self, command: char, params: &str) {
+    fn handle_csi(&mut self, command: char, params: &str, intermediates: &str) {
         match command {
+            'm' => {
+                // SGR (Select Graphic Rendition)
+                // Issue #30: We need to consume and skip complex SGR sequences like 38;2;R;G;B
+                // and 48;2;R;G;B to avoid raw text leakage.
+                log::debug!("SGR parameters: {}", params);
+            }
             'A' => {
                 // Cursor Up
                 let n = self.parse_csi_param(params, 1);
@@ -333,8 +340,16 @@ impl TerminalBuffer {
                     log::debug!("CSI l: Cursor Hidden");
                 }
             }
+            'r' => {
+                // DECSTBM - Set Top and Bottom Margins
+                log::debug!("DECSTBM (Set Scrolling Region): params={}", params);
+            }
             _ => {
-                log::warn!("Unhandled CSI command: {} (params: {})", command, params);
+                if !intermediates.is_empty() {
+                    log::warn!("Unhandled CSI command: {} (params: {}, intermediates: {})", command, params, intermediates);
+                } else {
+                    log::warn!("Unhandled CSI command: {} (params: {})", command, params);
+                }
             }
         }
     }
