@@ -29,5 +29,5 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 ---
 
-- [~] **Track: feat: AltキーによるTUIアプリケーション의メニュー操作をサポートする (Issue #32)**
+- [x] **Track: feat: AltキーによるTUIアプリケーション의メニュー操作をサポートする (Issue #32)**
 *Link: [./tracks/32_support_alt_key_tui_20260124/](./tracks/32_support_alt_key_tui_20260124/)*

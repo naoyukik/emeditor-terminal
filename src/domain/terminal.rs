@@ -99,16 +99,15 @@ impl TerminalBuffer {
                     if complete {
                         let end_idx = current_idx;
                         let cmd = char_vec[end_idx];
-                        
+
                         // Extract params and intermediates
                         let inner = &char_vec[(i + 2)..end_idx];
-                        let param_str: String = inner.iter()
+                        let param_str: String = inner
+                            .iter()
                             .take_while(|&&c| (0x30..=0x3F).contains(&(c as u32 as u8)))
                             .collect();
-                        
-                        let intermediate_str: String = inner.iter()
-                            .skip(param_str.len())
-                            .collect();
+
+                        let intermediate_str: String = inner.iter().skip(param_str.len()).collect();
 
                         self.handle_csi(cmd, &param_str, &intermediate_str);
                         i = end_idx + 1;
@@ -126,20 +125,22 @@ impl TerminalBuffer {
 
                     while current_idx < char_vec.len() {
                         let ch = char_vec[current_idx];
-                        if ch == '\x07' { // BEL
+                        if ch == '\x07' {
+                            // BEL
                             found_terminator = true;
                             terminator_len = 1;
                             break;
                         } else if ch == '\x1b' {
                             if current_idx + 1 < char_vec.len() {
-                                if char_vec[current_idx + 1] == '\\' { // ESC \
+                                if char_vec[current_idx + 1] == '\\' {
+                                    // ESC \
                                     found_terminator = true;
                                     terminator_len = 2;
                                     break;
                                 }
                             } else {
                                 // ESC at end, might be partial terminator
-                                break; 
+                                break;
                             }
                         }
                         current_idx += 1;
@@ -361,13 +362,15 @@ impl TerminalBuffer {
                 // Cursor Horizontal Absolute (CHA)
                 let col = self.parse_csi_param(params, 1);
                 let target_display_col = if col > 0 { col - 1 } else { 0 };
-                let target_display_col = std::cmp::min(target_display_col, self.width.saturating_sub(1));
+                let target_display_col =
+                    std::cmp::min(target_display_col, self.width.saturating_sub(1));
                 self.cursor.x = self.display_col_to_char_index(self.cursor.y, target_display_col);
             }
             'd' => {
                 // Vertical Line Position Absolute (VPA)
                 let row = self.parse_csi_param(params, 1);
-                let current_display_col = self.get_display_width_up_to(self.cursor.y, self.cursor.x);
+                let current_display_col =
+                    self.get_display_width_up_to(self.cursor.y, self.cursor.x);
                 self.cursor.y = if row > 0 { row - 1 } else { 0 };
                 if self.cursor.y >= self.height {
                     self.cursor.y = self.height - 1;
@@ -437,11 +440,20 @@ impl TerminalBuffer {
                     self.cursor.x = 0;
                     self.cursor.y = 0;
                 }
-                log::debug!("DECSTBM applied: top={}, bottom={}, cursor reset to (0,0)", self.scroll_top, self.scroll_bottom);
+                log::debug!(
+                    "DECSTBM applied: top={}, bottom={}, cursor reset to (0,0)",
+                    self.scroll_top,
+                    self.scroll_bottom
+                );
             }
             _ => {
                 if !intermediates.is_empty() {
-                    log::warn!("Unhandled CSI command: {} (params: {}, intermediates: {})", command, params, intermediates);
+                    log::warn!(
+                        "Unhandled CSI command: {} (params: {}, intermediates: {})",
+                        command,
+                        params,
+                        intermediates
+                    );
                 } else {
                     log::warn!("Unhandled CSI command: {} (params: {})", command, params);
                 }
@@ -473,11 +485,11 @@ impl TerminalBuffer {
                 let tab_stop = 8;
                 let next_col = (current_col / tab_stop + 1) * tab_stop;
                 let spaces = next_col - current_col;
-                
+
                 // Check wrapping
                 if next_col >= self.width {
-                     self.cursor.x = 0;
-                     if self.cursor.y == self.scroll_bottom {
+                    self.cursor.x = 0;
+                    if self.cursor.y == self.scroll_bottom {
                         self.scroll_up();
                     } else if self.cursor.y < self.height - 1 {
                         self.cursor.y += 1;
@@ -500,7 +512,7 @@ impl TerminalBuffer {
                 if current_col + char_width > self.width {
                     self.cursor.x = 0;
                     // Wrap to next line
-                     if self.cursor.y == self.scroll_bottom {
+                    if self.cursor.y == self.scroll_bottom {
                         self.scroll_up();
                     } else if self.cursor.y < self.height - 1 {
                         self.cursor.y += 1;
@@ -532,11 +544,14 @@ impl TerminalBuffer {
 
     fn scroll_up(&mut self) {
         // Ensure scroll region is valid
-        if self.scroll_top >= self.lines.len() || self.scroll_bottom >= self.lines.len() || self.scroll_top > self.scroll_bottom {
-             // Fallback to full scroll if invalid state
-             self.lines.pop_front();
-             self.lines.push_back(" ".repeat(self.width));
-             return;
+        if self.scroll_top >= self.lines.len()
+            || self.scroll_bottom >= self.lines.len()
+            || self.scroll_top > self.scroll_bottom
+        {
+            // Fallback to full scroll if invalid state
+            self.lines.pop_front();
+            self.lines.push_back(" ".repeat(self.width));
+            return;
         }
 
         // Remove line at scroll_top
@@ -554,7 +569,8 @@ impl TerminalBuffer {
         // Remove at 1 (B): -> A, C, D.
         // Insert at 2: -> A, C, New, D.
         // Yes, insertion at scroll_bottom works because removal at <= scroll_bottom shifts indices.
-        self.lines.insert(self.scroll_bottom, " ".repeat(self.width));
+        self.lines
+            .insert(self.scroll_bottom, " ".repeat(self.width));
     }
 
     /// Calculate the display width of a character (1 for half-width, 2 for full-width)
@@ -925,7 +941,7 @@ mod tests {
         // Visual columns: 'あ' at 1-2, 'い' at 3-4. CHA to column 3 (3G), the first cell of 'い'.
         buffer.write_string("\x1b[1;1H"); // Back to top-left
         buffer.write_string("\x1b[3G"); // To column 3
-        // In the internal buffer, column 3 (3G) corresponds to idx 1.
+                                        // In the internal buffer, column 3 (3G) corresponds to idx 1.
         assert_eq!(buffer.cursor.x, 1);
 
         // 2. VPA maintaining column
