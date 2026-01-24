@@ -159,9 +159,19 @@ impl TerminalBuffer {
                     }
                 } else {
                     // Other ESC sequences (e.g. ESC M, ESC 7, ESC 8, ESC c)
-                    // Assume 2 chars length (ESC + x) for simplicity for now
-                    // TODO: Handle specific sequences if needed
-                    let _cmd = next_c;
+                    match next_c {
+                        '7' => {
+                            self.save_cursor();
+                        }
+                        '8' => {
+                            self.restore_cursor();
+                        }
+                        _ => {
+                            // Assume 2 chars length (ESC + x) for simplicity for now
+                            // TODO: Handle other specific sequences if needed
+                            log::debug!("Unhandled simple ESC sequence: ESC {}", next_c);
+                        }
+                    }
                     i += 2;
                 }
             } else {
@@ -654,11 +664,24 @@ impl TerminalBuffer {
     }
 
     pub fn save_cursor(&mut self) {
-        // TODO: Implement in Phase 2
+        self.saved_cursor = Some((self.cursor.x, self.cursor.y));
+        log::debug!("Cursor saved at ({}, {})", self.cursor.x, self.cursor.y);
     }
 
     pub fn restore_cursor(&mut self) {
-        // TODO: Implement in Phase 2
+        if let Some((x, y)) = self.saved_cursor {
+            // 現在の画面サイズに合わせてクリッピング
+            self.cursor.y = std::cmp::min(y, self.height.saturating_sub(1));
+
+            if let Some(line) = self.lines.get(self.cursor.y) {
+                // 保存時の文字インデックスが現在の行の文字数を超えないようにクランプ
+                let char_count = line.chars().count();
+                self.cursor.x = std::cmp::min(x, char_count);
+            } else {
+                self.cursor.x = 0;
+            }
+            log::debug!("Cursor restored to ({}, {})", self.cursor.x, self.cursor.y);
+        }
     }
 
     /// カーソル位置より前のテキストを取得する（描画幅計算用）
@@ -1051,8 +1074,33 @@ mod tests {
         // Restore
         buffer.restore_cursor();
 
-        // Should be clamped to max indices (9, 9)
+        // Should be clamped to max indices (9, 9) -> (9, 10) because x can be equal to width
         assert_eq!(buffer.cursor.y, 9);
+        assert_eq!(buffer.cursor.x, 10);
+    }
+
+    #[test]
+    fn test_integration_save_restore() {
+        let mut buffer = TerminalBuffer::new(80, 25);
+
+        // Move cursor using CSI
+        buffer.write_string("\x1b[5;10H"); // 4, 9
+        assert_eq!(buffer.cursor.y, 4);
+        assert_eq!(buffer.cursor.x, 9);
+
+        // Save using ESC 7
+        buffer.write_string("\x1b7");
+
+        // Move elsewhere
+        buffer.write_string("\x1b[1;1H");
+        assert_eq!(buffer.cursor.y, 0);
+        assert_eq!(buffer.cursor.x, 0);
+
+        // Restore using ESC 8
+        buffer.write_string("\x1b8");
+
+        // Check restoration
+        assert_eq!(buffer.cursor.y, 4);
         assert_eq!(buffer.cursor.x, 9);
     }
 }
