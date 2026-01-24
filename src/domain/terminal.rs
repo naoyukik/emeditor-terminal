@@ -21,6 +21,8 @@ pub struct TerminalBuffer {
     width: usize,
     height: usize,
     cursor: Cursor,
+    scroll_top: usize,    // 0-based, inclusive
+    scroll_bottom: usize, // 0-based, inclusive
 }
 
 impl TerminalBuffer {
@@ -34,6 +36,8 @@ impl TerminalBuffer {
             width,
             height,
             cursor: Cursor::default(),
+            scroll_top: 0,
+            scroll_bottom: height.saturating_sub(1),
         }
     }
 
@@ -343,6 +347,37 @@ impl TerminalBuffer {
             'r' => {
                 // DECSTBM - Set Top and Bottom Margins
                 log::debug!("DECSTBM (Set Scrolling Region): params={}", params);
+                let parts: Vec<&str> = params.split(';').collect();
+                let top = if parts.is_empty() || parts[0].is_empty() {
+                    1
+                } else {
+                    parts[0].parse::<usize>().unwrap_or(1)
+                };
+                let bottom = if parts.len() < 2 || parts[1].is_empty() {
+                    self.height
+                } else {
+                    parts[1].parse::<usize>().unwrap_or(self.height)
+                };
+
+                // Convert to 0-based
+                let top_idx = if top > 0 { top - 1 } else { 0 };
+                let bottom_idx = if bottom > 0 { bottom - 1 } else { 0 };
+
+                // Validate and set
+                if top_idx < bottom_idx && bottom_idx < self.height {
+                    self.scroll_top = top_idx;
+                    self.scroll_bottom = bottom_idx;
+                    // Cursor is reset to home position (1;1) by DECSTBM spec
+                    self.cursor.x = 0;
+                    self.cursor.y = 0;
+                } else {
+                    // Reset to full screen if invalid (or explicitly requested default)
+                    self.scroll_top = 0;
+                    self.scroll_bottom = self.height.saturating_sub(1);
+                    self.cursor.x = 0;
+                    self.cursor.y = 0;
+                }
+                log::debug!("DECSTBM applied: top={}, bottom={}, cursor reset to (0,0)", self.scroll_top, self.scroll_bottom);
             }
             _ => {
                 if !intermediates.is_empty() {
@@ -359,10 +394,11 @@ impl TerminalBuffer {
             '\r' => self.cursor.x = 0,
             '\n' => {
                 self.cursor.x = 0;
-                self.cursor.y += 1;
-                if self.cursor.y >= self.height {
+                // Check if cursor is at the bottom of the scroll region
+                if self.cursor.y == self.scroll_bottom {
                     self.scroll_up();
-                    self.cursor.y = self.height - 1;
+                } else if self.cursor.y < self.height - 1 {
+                    self.cursor.y += 1;
                 }
             }
             '\x08' => {
@@ -378,10 +414,11 @@ impl TerminalBuffer {
 
                 if current_col + char_width > self.width {
                     self.cursor.x = 0;
-                    self.cursor.y += 1;
-                    if self.cursor.y >= self.height {
+                    // Wrap to next line
+                     if self.cursor.y == self.scroll_bottom {
                         self.scroll_up();
-                        self.cursor.y = self.height - 1;
+                    } else if self.cursor.y < self.height - 1 {
+                        self.cursor.y += 1;
                     }
                 }
 
@@ -409,8 +446,30 @@ impl TerminalBuffer {
     }
 
     fn scroll_up(&mut self) {
-        self.lines.pop_front();
-        self.lines.push_back(" ".repeat(self.width));
+        // Ensure scroll region is valid
+        if self.scroll_top >= self.lines.len() || self.scroll_bottom >= self.lines.len() || self.scroll_top > self.scroll_bottom {
+             // Fallback to full scroll if invalid state
+             self.lines.pop_front();
+             self.lines.push_back(" ".repeat(self.width));
+             return;
+        }
+
+        // Remove line at scroll_top
+        self.lines.remove(self.scroll_top);
+
+        // Insert new empty line at scroll_bottom
+        // After removal, the indices shift down by 1 for items after scroll_top.
+        // So scroll_bottom index effectively points to the slot where the new line should go.
+        // Example: 0, 1, 2, 3. Top=1, Bottom=2.
+        // Remove 1 -> 0, 2, 3. (Old 2 is now at 1)
+        // Insert at 2 -> 0, 2, New, 3. (Correct?)
+        // Wait.
+        // Original: A, B, C, D. Top=1, Bottom=2. (Scroll region: B, C)
+        // Expected: A, C, New, D.
+        // Remove at 1 (B): -> A, C, D.
+        // Insert at 2: -> A, C, New, D.
+        // Yes, insertion at scroll_bottom works because removal at <= scroll_bottom shifts indices.
+        self.lines.insert(self.scroll_bottom, " ".repeat(self.width));
     }
 
     /// Calculate the display width of a character (1 for half-width, 2 for full-width)
@@ -537,6 +596,10 @@ impl TerminalBuffer {
             self.lines.truncate(new_height);
         }
         self.height = new_height;
+
+        // Reset scroll region
+        self.scroll_top = 0;
+        self.scroll_bottom = self.height.saturating_sub(1);
 
         // カーソル位置の調整
         if self.height > 0 {
