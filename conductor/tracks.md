@@ -9,10 +9,5 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 ---
 
-- [x] **Track: Implement ConPty cursor rendering (Bar style)**
-*Link: [./archive/7_conpty_cursor_20260117/](./archive/7_conpty_cursor_20260117/)*
-
----
-
 - [x] **Track: feat: 追加のカーソル移動シーケンス (CHA, VPA, CNL, CPL) のサポート (Issue #11)**
 *Link: [./archive/11_cursor_movement_20260123/](./archive/11_cursor_movement_20260123/)*
