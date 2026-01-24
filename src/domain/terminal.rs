@@ -23,6 +23,7 @@ pub struct TerminalBuffer {
     cursor: Cursor,
     scroll_top: usize,    // 0-based, inclusive
     scroll_bottom: usize, // 0-based, inclusive
+    incomplete_sequence: String,
 }
 
 impl TerminalBuffer {
@@ -38,72 +39,136 @@ impl TerminalBuffer {
             cursor: Cursor::default(),
             scroll_top: 0,
             scroll_bottom: height.saturating_sub(1),
+            incomplete_sequence: String::new(),
         }
     }
 
     pub fn write_string(&mut self, s: &str) {
+        let input = if !self.incomplete_sequence.is_empty() {
+            let mut combined = std::mem::take(&mut self.incomplete_sequence);
+            combined.push_str(s);
+            combined
+        } else {
+            s.to_string()
+        };
+
         // [DEBUG] Issue #30: Dump raw input for analysis
-        log::debug!("RAW INPUT: {:?}", s);
-        let mut chars = s.chars().peekable();
-        while let Some(c) = chars.next() {
+        log::debug!("RAW INPUT: {:?}", input);
+
+        let char_vec: Vec<char> = input.chars().collect();
+        let mut i = 0;
+
+        while i < char_vec.len() {
+            let c = char_vec[i];
             if c == '\x1b' {
-                if let Some(&'[') = chars.peek() {
-                    chars.next(); // consume '['
-                    let mut param_str = String::new();
-                    // Parse Parameters (0x30-0x3F)
-                    loop {
-                        match chars.peek() {
-                            Some(&p) if (0x30..=0x3F).contains(&(p as u8)) => {
-                                param_str.push(p);
-                                chars.next();
-                            }
-                            _ => break,
-                        }
-                    }
-                    // Parse Intermediate Bytes (0x20-0x2F)
-                    let mut intermediates = String::new();
-                    loop {
-                         match chars.peek() {
-                            Some(&p) if (0x20..=0x2F).contains(&(p as u8)) => {
-                                intermediates.push(p);
-                                chars.next();
-                            }
-                            _ => break,
+                // If EOF immediately after ESC, save and break
+                if i + 1 >= char_vec.len() {
+                    self.incomplete_sequence.push(c);
+                    break;
+                }
+
+                let next_c = char_vec[i + 1];
+                if next_c == '[' {
+                    // CSI: ESC [ ... cmd
+                    let start_idx = i;
+                    // Check params and intermediates
+                    // Format: ESC [ [parameter bytes] [intermediate bytes] final byte
+                    // Parameter bytes: 0x30-0x3F
+                    // Intermediate bytes: 0x20-0x2F
+                    // Final byte: 0x40-0x7E
+
+                    let mut current_idx = i + 2;
+                    let mut complete = false;
+
+                    while current_idx < char_vec.len() {
+                        let ch = char_vec[current_idx];
+                        let code = ch as u32 as u8;
+                        if (0x30..=0x3F).contains(&code) || (0x20..=0x2F).contains(&code) {
+                            current_idx += 1;
+                        } else if (0x40..=0x7E).contains(&code) {
+                            // Found final byte
+                            complete = true;
+                            break;
+                        } else {
+                            // Invalid char in CSI, stop parsing this as CSI?
+                            // For robustness, we assume it ends here or invalid.
+                            // But usually invalid chars interrupt the sequence.
+                            // Let's treat it as complete to consume it.
+                            complete = true;
+                            break;
                         }
                     }
 
-                    if let Some(cmd) = chars.next() {
-                        // For now, we ignore intermediates or handle them if needed.
-                        // Ideally handle_csi should accept intermediates.
-                        // But to stop 'q' from appearing, just correctly parsing the sequence is enough.
-                        // If intermediates exists, the command meaning might change,
-                        // but current handle_csi just ignores unknown commands.
-                        if !intermediates.is_empty() {
-                            log::debug!("CSI with intermediates: cmd={}, params={}, intermediates={}", cmd, param_str, intermediates);
-                        }
-                        self.handle_csi(cmd, &param_str, &intermediates);
+                    if complete {
+                        let end_idx = current_idx;
+                        let cmd = char_vec[end_idx];
+                        
+                        // Extract params and intermediates
+                        // Re-scan to separate them
+                        let inner = &char_vec[(i + 2)..end_idx];
+                        let param_str: String = inner.iter()
+                            .take_while(|&&c| (0x30..=0x3F).contains(&(c as u32 as u8)))
+                            .collect();
+                        
+                        let intermediate_len = inner.len() - param_str.len();
+                        let intermediate_str: String = inner.iter()
+                            .skip(param_str.len())
+                            .collect(); // remaining are intermediates
+
+                        self.handle_csi(cmd, &param_str, &intermediate_str);
+                        i = end_idx + 1;
+                    } else {
+                        // Incomplete CSI
+                        self.incomplete_sequence = char_vec[start_idx..].iter().collect();
+                        break;
                     }
-                } else if let Some(&']') = chars.peek() {
-                    // Handle OSC (Operating System Command) \x1b]...\x07 or \x1b]...\x1b\
-                    chars.next(); // consume ']'
-                    let mut osc_str = String::new();
-                    loop {
-                        match chars.next() {
-                            Some('\x07') => break, // BEL terminator
-                            Some('\x1b') => {
-                                if let Some(&'\\') = chars.peek() {
-                                    chars.next(); // consume '\'
-                                    break; // ST terminator
+                } else if next_c == ']' {
+                    // OSC: ESC ] ... BEL or ESC \
+                    let start_idx = i;
+                    let mut current_idx = i + 2;
+                    let mut found_terminator = false;
+                    let mut terminator_len = 0;
+
+                    while current_idx < char_vec.len() {
+                        let ch = char_vec[current_idx];
+                        if ch == '\x07' { // BEL
+                            found_terminator = true;
+                            terminator_len = 1;
+                            break;
+                        } else if ch == '\x1b' {
+                            if current_idx + 1 < char_vec.len() {
+                                if char_vec[current_idx + 1] == '\\' { // ESC \
+                                    found_terminator = true;
+                                    terminator_len = 2;
+                                    break;
                                 }
+                            } else {
+                                // ESC at end, might be partial terminator
+                                break; 
                             }
-                            Some(ch) => osc_str.push(ch),
-                            None => break,
                         }
+                        current_idx += 1;
                     }
-                    log::debug!("Ignored OSC sequence: {}", osc_str);
+
+                    if found_terminator {
+                        let _osc_content: String = char_vec[(i + 2)..current_idx].iter().collect();
+                        log::debug!("Ignored OSC sequence");
+                        i = current_idx + terminator_len;
+                    } else {
+                        // Incomplete OSC
+                        self.incomplete_sequence = char_vec[start_idx..].iter().collect();
+                        break;
+                    }
+                } else {
+                    // Other ESC sequences (e.g. ESC M, ESC 7, ESC 8, ESC c)
+                    // Assume 2 chars length (ESC + x) for simplicity for now
+                    // TODO: Handle specific sequences if needed
+                    let _cmd = next_c;
+                    i += 2;
                 }
             } else {
                 self.process_normal_char(c);
+                i += 1;
             }
         }
     }
