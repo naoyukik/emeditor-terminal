@@ -23,7 +23,7 @@
 
 ## Architecture
 **レイヤードアーキテクチャ**を採用し、責務を明確に分離している。
-- **Domain 層 (`src/domain/`)**: 外部に依存しない純粋なビジネスロジック。`TerminalBuffer` やカーソル状態を管理。
+- **Domain 層 (`src/domain/`)**: 外部に依存しない純粋なビジネスロジック。`TerminalBuffer` やカーソル状態、VTシーケンスのパース（ステートマシン）を管理。
 - **Infra 層 (`src/infra/`)**: OS (Win32) や外部 API (ConPTY, EmEditor SDK) との具体的な対話。
 - **GUI 層 (`src/gui/`)**: ユーザーインターフェースと描画。`TerminalRenderer` による GDI レンダリングを担当。
 - **FFI 境界 (`src/lib.rs`)**: EmEditor SDK と Rust の仲介役。
