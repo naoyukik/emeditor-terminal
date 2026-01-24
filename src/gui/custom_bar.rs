@@ -248,16 +248,39 @@ pub fn open_custom_bar(hwnd_editor: HWND) -> bool {
                     LPARAM(&mut info as *mut _ as isize),
                 );
 
+                // Calculate initial size
+                let mut client_rect = windows::Win32::Foundation::RECT::default();
+                let _ = windows::Win32::UI::WindowsAndMessaging::GetClientRect(hwnd_client, &mut client_rect);
+                let width_px = client_rect.right - client_rect.left;
+                let height_px = client_rect.bottom - client_rect.top;
+
+                let (initial_cols, initial_rows) = if width_px > 0 && height_px > 0 {
+                    let data = data_arc.lock().unwrap();
+                    let (char_width, char_height) = if let Some(metrics) = data.renderer.get_metrics() {
+                        (metrics.base_width, metrics.char_height)
+                    } else {
+                        (8, 16) // Fallback
+                    };
+                    (
+                        (width_px / char_width).max(1) as i16,
+                        (height_px / char_height).max(1) as i16,
+                    )
+                } else {
+                    (80, 25)
+                };
+
                 // Start ConPTY
-                match ConPTY::new("pwsh.exe", 80, 25) {
+                match ConPTY::new("pwsh.exe", initial_cols, initial_rows) {
                     Ok(conpty) => {
-                        log::info!("ConPTY started successfully");
+                        log::info!("ConPTY started successfully with size {}x{}", initial_cols, initial_rows);
 
                         let data_arc = get_terminal_data();
                         let output_handle = conpty.get_output_handle();
                         {
                             let mut data = data_arc.lock().unwrap();
                             data.conpty = Some(conpty);
+                            // Sync buffer size with ConPTY
+                            data.buffer.resize(initial_cols as usize, initial_rows as usize);
                         }
 
                         let output_handle_raw = output_handle.0 .0 as usize;

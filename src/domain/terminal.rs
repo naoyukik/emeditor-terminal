@@ -21,6 +21,9 @@ pub struct TerminalBuffer {
     width: usize,
     height: usize,
     cursor: Cursor,
+    scroll_top: usize,    // 0-based, inclusive
+    scroll_bottom: usize, // 0-based, inclusive
+    incomplete_sequence: String,
 }
 
 impl TerminalBuffer {
@@ -34,77 +37,145 @@ impl TerminalBuffer {
             width,
             height,
             cursor: Cursor::default(),
+            scroll_top: 0,
+            scroll_bottom: height.saturating_sub(1),
+            incomplete_sequence: String::new(),
         }
     }
 
     pub fn write_string(&mut self, s: &str) {
-        log::debug!("TerminalBuffer::write_string input: {:?}", s);
-        let mut chars = s.chars().peekable();
-        while let Some(c) = chars.next() {
+        let input = if !self.incomplete_sequence.is_empty() {
+            let mut combined = std::mem::take(&mut self.incomplete_sequence);
+            combined.push_str(s);
+            combined
+        } else {
+            s.to_string()
+        };
+
+        // [DEBUG] Issue #30: Dump raw input for analysis (Removed for final)
+        // log::debug!("RAW INPUT: {:?}", input);
+
+        let char_vec: Vec<char> = input.chars().collect();
+        let mut i = 0;
+
+        while i < char_vec.len() {
+            let c = char_vec[i];
             if c == '\x1b' {
-                if let Some(&'[') = chars.peek() {
-                    chars.next(); // consume '['
-                    let mut param_str = String::new();
-                    // Parse Parameters (0x30-0x3F)
-                    loop {
-                        match chars.peek() {
-                            Some(&p) if (0x30..=0x3F).contains(&(p as u8)) => {
-                                param_str.push(p);
-                                chars.next();
-                            }
-                            _ => break,
-                        }
-                    }
-                    // Parse Intermediate Bytes (0x20-0x2F)
-                    let mut intermediates = String::new();
-                    loop {
-                         match chars.peek() {
-                            Some(&p) if (0x20..=0x2F).contains(&(p as u8)) => {
-                                intermediates.push(p);
-                                chars.next();
-                            }
-                            _ => break,
+                // If EOF immediately after ESC, save and break
+                if i + 1 >= char_vec.len() {
+                    self.incomplete_sequence.push(c);
+                    break;
+                }
+
+                let next_c = char_vec[i + 1];
+                if next_c == '[' {
+                    // CSI: ESC [ ... cmd
+                    let start_idx = i;
+                    // Check params and intermediates
+                    // Format: ESC [ [parameter bytes] [intermediate bytes] final byte
+                    // Parameter bytes: 0x30-0x3F
+                    // Intermediate bytes: 0x20-0x2F
+                    // Final byte: 0x40-0x7E
+
+                    let mut current_idx = i + 2;
+                    let mut complete = false;
+
+                    while current_idx < char_vec.len() {
+                        let ch = char_vec[current_idx];
+                        let code = ch as u32 as u8;
+                        if (0x30..=0x3F).contains(&code) || (0x20..=0x2F).contains(&code) {
+                            current_idx += 1;
+                        } else if (0x40..=0x7E).contains(&code) {
+                            // Found final byte
+                            complete = true;
+                            break;
+                        } else {
+                            // Invalid char in CSI, treat as complete to consume
+                            complete = true;
+                            break;
                         }
                     }
 
-                    if let Some(cmd) = chars.next() {
-                        // For now, we ignore intermediates or handle them if needed.
-                        // Ideally handle_csi should accept intermediates.
-                        // But to stop 'q' from appearing, just correctly parsing the sequence is enough.
-                        // If intermediates exists, the command meaning might change,
-                        // but current handle_csi just ignores unknown commands.
-                        if !intermediates.is_empty() {
-                            log::debug!("CSI with intermediates: cmd={}, params={}, intermediates={}", cmd, param_str, intermediates);
-                        }
-                        self.handle_csi(cmd, &param_str);
+                    if complete {
+                        let end_idx = current_idx;
+                        let cmd = char_vec[end_idx];
+                        
+                        // Extract params and intermediates
+                        let inner = &char_vec[(i + 2)..end_idx];
+                        let param_str: String = inner.iter()
+                            .take_while(|&&c| (0x30..=0x3F).contains(&(c as u32 as u8)))
+                            .collect();
+                        
+                        let intermediate_str: String = inner.iter()
+                            .skip(param_str.len())
+                            .collect();
+
+                        self.handle_csi(cmd, &param_str, &intermediate_str);
+                        i = end_idx + 1;
+                    } else {
+                        // Incomplete CSI
+                        self.incomplete_sequence = char_vec[start_idx..].iter().collect();
+                        break;
                     }
-                } else if let Some(&']') = chars.peek() {
-                    // Handle OSC (Operating System Command) \x1b]...\x07 or \x1b]...\x1b\
-                    chars.next(); // consume ']'
-                    let mut osc_str = String::new();
-                    loop {
-                        match chars.next() {
-                            Some('\x07') => break, // BEL terminator
-                            Some('\x1b') => {
-                                if let Some(&'\\') = chars.peek() {
-                                    chars.next(); // consume '\'
-                                    break; // ST terminator
+                } else if next_c == ']' {
+                    // OSC: ESC ] ... BEL or ESC \
+                    let start_idx = i;
+                    let mut current_idx = i + 2;
+                    let mut found_terminator = false;
+                    let mut terminator_len = 0;
+
+                    while current_idx < char_vec.len() {
+                        let ch = char_vec[current_idx];
+                        if ch == '\x07' { // BEL
+                            found_terminator = true;
+                            terminator_len = 1;
+                            break;
+                        } else if ch == '\x1b' {
+                            if current_idx + 1 < char_vec.len() {
+                                if char_vec[current_idx + 1] == '\\' { // ESC \
+                                    found_terminator = true;
+                                    terminator_len = 2;
+                                    break;
                                 }
+                            } else {
+                                // ESC at end, might be partial terminator
+                                break; 
                             }
-                            Some(ch) => osc_str.push(ch),
-                            None => break,
                         }
+                        current_idx += 1;
                     }
-                    log::debug!("Ignored OSC sequence: {}", osc_str);
+
+                    if found_terminator {
+                        let _osc_content: String = char_vec[(i + 2)..current_idx].iter().collect();
+                        log::debug!("Ignored OSC sequence");
+                        i = current_idx + terminator_len;
+                    } else {
+                        // Incomplete OSC
+                        self.incomplete_sequence = char_vec[start_idx..].iter().collect();
+                        break;
+                    }
+                } else {
+                    // Other ESC sequences (e.g. ESC M, ESC 7, ESC 8, ESC c)
+                    // Assume 2 chars length (ESC + x) for simplicity for now
+                    // TODO: Handle specific sequences if needed
+                    let _cmd = next_c;
+                    i += 2;
                 }
             } else {
                 self.process_normal_char(c);
+                i += 1;
             }
         }
     }
 
-    fn handle_csi(&mut self, command: char, params: &str) {
+    fn handle_csi(&mut self, command: char, params: &str, intermediates: &str) {
         match command {
+            'm' => {
+                // SGR (Select Graphic Rendition)
+                // Issue #30: We need to consume and skip complex SGR sequences like 38;2;R;G;B
+                // and 48;2;R;G;B to avoid raw text leakage.
+                log::debug!("SGR parameters: {}", params);
+            }
             'A' => {
                 // Cursor Up
                 let n = self.parse_csi_param(params, 1);
@@ -333,8 +404,47 @@ impl TerminalBuffer {
                     log::debug!("CSI l: Cursor Hidden");
                 }
             }
+            'r' => {
+                // DECSTBM - Set Top and Bottom Margins
+                log::debug!("DECSTBM (Set Scrolling Region): params={}", params);
+                let parts: Vec<&str> = params.split(';').collect();
+                let top = if parts.is_empty() || parts[0].is_empty() {
+                    1
+                } else {
+                    parts[0].parse::<usize>().unwrap_or(1)
+                };
+                let bottom = if parts.len() < 2 || parts[1].is_empty() {
+                    self.height
+                } else {
+                    parts[1].parse::<usize>().unwrap_or(self.height)
+                };
+
+                // Convert to 0-based
+                let top_idx = if top > 0 { top - 1 } else { 0 };
+                let bottom_idx = if bottom > 0 { bottom - 1 } else { 0 };
+
+                // Validate and set
+                if top_idx < bottom_idx && bottom_idx < self.height {
+                    self.scroll_top = top_idx;
+                    self.scroll_bottom = bottom_idx;
+                    // Cursor is reset to home position (1;1) by DECSTBM spec
+                    self.cursor.x = 0;
+                    self.cursor.y = 0;
+                } else {
+                    // Reset to full screen if invalid (or explicitly requested default)
+                    self.scroll_top = 0;
+                    self.scroll_bottom = self.height.saturating_sub(1);
+                    self.cursor.x = 0;
+                    self.cursor.y = 0;
+                }
+                log::debug!("DECSTBM applied: top={}, bottom={}, cursor reset to (0,0)", self.scroll_top, self.scroll_bottom);
+            }
             _ => {
-                log::warn!("Unhandled CSI command: {} (params: {})", command, params);
+                if !intermediates.is_empty() {
+                    log::warn!("Unhandled CSI command: {} (params: {}, intermediates: {})", command, params, intermediates);
+                } else {
+                    log::warn!("Unhandled CSI command: {} (params: {})", command, params);
+                }
             }
         }
     }
@@ -344,10 +454,11 @@ impl TerminalBuffer {
             '\r' => self.cursor.x = 0,
             '\n' => {
                 self.cursor.x = 0;
-                self.cursor.y += 1;
-                if self.cursor.y >= self.height {
+                // Check if cursor is at the bottom of the scroll region
+                if self.cursor.y == self.scroll_bottom {
                     self.scroll_up();
-                    self.cursor.y = self.height - 1;
+                } else if self.cursor.y < self.height - 1 {
+                    self.cursor.y += 1;
                 }
             }
             '\x08' => {
@@ -356,6 +467,31 @@ impl TerminalBuffer {
                 let target_col = if current_col > 0 { current_col - 1 } else { 0 };
                 self.cursor.x = self.display_col_to_char_index(self.cursor.y, target_col);
             }
+            '\t' => {
+                // Tab: Move to next tab stop (every 8 columns)
+                let current_col = self.get_display_width_up_to(self.cursor.y, self.cursor.x);
+                let tab_stop = 8;
+                let next_col = (current_col / tab_stop + 1) * tab_stop;
+                let spaces = next_col - current_col;
+                
+                // Check wrapping
+                if next_col >= self.width {
+                     self.cursor.x = 0;
+                     if self.cursor.y == self.scroll_bottom {
+                        self.scroll_up();
+                    } else if self.cursor.y < self.height - 1 {
+                        self.cursor.y += 1;
+                    }
+                } else {
+                    // Fill with spaces? Or just move cursor?
+                    // Terminal usually just moves cursor, but buffer needs content.
+                    // If we overwrite, we should put spaces.
+                    for _ in 0..spaces {
+                        self.put_char(' ');
+                        self.cursor.x += 1;
+                    }
+                }
+            }
             _ => {
                 // Check if adding this character would exceed the width
                 let current_col = self.get_display_width_up_to(self.cursor.y, self.cursor.x);
@@ -363,10 +499,11 @@ impl TerminalBuffer {
 
                 if current_col + char_width > self.width {
                     self.cursor.x = 0;
-                    self.cursor.y += 1;
-                    if self.cursor.y >= self.height {
+                    // Wrap to next line
+                     if self.cursor.y == self.scroll_bottom {
                         self.scroll_up();
-                        self.cursor.y = self.height - 1;
+                    } else if self.cursor.y < self.height - 1 {
+                        self.cursor.y += 1;
                     }
                 }
 
@@ -394,8 +531,30 @@ impl TerminalBuffer {
     }
 
     fn scroll_up(&mut self) {
-        self.lines.pop_front();
-        self.lines.push_back(" ".repeat(self.width));
+        // Ensure scroll region is valid
+        if self.scroll_top >= self.lines.len() || self.scroll_bottom >= self.lines.len() || self.scroll_top > self.scroll_bottom {
+             // Fallback to full scroll if invalid state
+             self.lines.pop_front();
+             self.lines.push_back(" ".repeat(self.width));
+             return;
+        }
+
+        // Remove line at scroll_top
+        self.lines.remove(self.scroll_top);
+
+        // Insert new empty line at scroll_bottom
+        // After removal, the indices shift down by 1 for items after scroll_top.
+        // So scroll_bottom index effectively points to the slot where the new line should go.
+        // Example: 0, 1, 2, 3. Top=1, Bottom=2.
+        // Remove 1 -> 0, 2, 3. (Old 2 is now at 1)
+        // Insert at 2 -> 0, 2, New, 3. (Correct?)
+        // Wait.
+        // Original: A, B, C, D. Top=1, Bottom=2. (Scroll region: B, C)
+        // Expected: A, C, New, D.
+        // Remove at 1 (B): -> A, C, D.
+        // Insert at 2: -> A, C, New, D.
+        // Yes, insertion at scroll_bottom works because removal at <= scroll_bottom shifts indices.
+        self.lines.insert(self.scroll_bottom, " ".repeat(self.width));
     }
 
     /// Calculate the display width of a character (1 for half-width, 2 for full-width)
@@ -522,6 +681,10 @@ impl TerminalBuffer {
             self.lines.truncate(new_height);
         }
         self.height = new_height;
+
+        // Reset scroll region
+        self.scroll_top = 0;
+        self.scroll_bottom = self.height.saturating_sub(1);
 
         // カーソル位置の調整
         if self.height > 0 {
