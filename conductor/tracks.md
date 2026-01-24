@@ -24,5 +24,5 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 ---
 
-- [~] **Track: feat: TUIアプリケーション（Microsoft Edit等）における表示崩れの修正 (Issue #30)**
+- [x] **Track: feat: TUIアプリケーション（Microsoft Edit等）における表示崩れの修正 (Issue #30)**
 *Link: [./tracks/30_fix_tui_rendering_20260124/](./tracks/30_fix_tui_rendering_20260124/)*

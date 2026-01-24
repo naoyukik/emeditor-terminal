@@ -52,8 +52,8 @@ impl TerminalBuffer {
             s.to_string()
         };
 
-        // [DEBUG] Issue #30: Dump raw input for analysis
-        log::debug!("RAW INPUT: {:?}", input);
+        // [DEBUG] Issue #30: Dump raw input for analysis (Removed for final)
+        // log::debug!("RAW INPUT: {:?}", input);
 
         let char_vec: Vec<char> = input.chars().collect();
         let mut i = 0;
@@ -90,10 +90,7 @@ impl TerminalBuffer {
                             complete = true;
                             break;
                         } else {
-                            // Invalid char in CSI, stop parsing this as CSI?
-                            // For robustness, we assume it ends here or invalid.
-                            // But usually invalid chars interrupt the sequence.
-                            // Let's treat it as complete to consume it.
+                            // Invalid char in CSI, treat as complete to consume
                             complete = true;
                             break;
                         }
@@ -104,16 +101,14 @@ impl TerminalBuffer {
                         let cmd = char_vec[end_idx];
                         
                         // Extract params and intermediates
-                        // Re-scan to separate them
                         let inner = &char_vec[(i + 2)..end_idx];
                         let param_str: String = inner.iter()
                             .take_while(|&&c| (0x30..=0x3F).contains(&(c as u32 as u8)))
                             .collect();
                         
-                        let intermediate_len = inner.len() - param_str.len();
                         let intermediate_str: String = inner.iter()
                             .skip(param_str.len())
-                            .collect(); // remaining are intermediates
+                            .collect();
 
                         self.handle_csi(cmd, &param_str, &intermediate_str);
                         i = end_idx + 1;
