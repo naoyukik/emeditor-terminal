@@ -1,4 +1,4 @@
-# Track remove_dialog_20260120 Context
+# Track 12_cursor_save_restore_20260124 Context
 
 - [Specification](./spec.md)
 - [Implementation Plan](./plan.md)

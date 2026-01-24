@@ -1,8 +1,0 @@
-{
-  "track_id": "remove_dialog_20260120",
-  "type": "feature",
-  "status": "new",
-  "created_at": "2026-01-20T22:47:00Z",
-  "updated_at": "2026-01-20T22:47:00Z",
-  "description": "起動時の入力ダイアログを廃止し、直接pwsh.exeを起動する"
-}
