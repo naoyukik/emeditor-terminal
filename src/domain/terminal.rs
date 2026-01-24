@@ -24,6 +24,7 @@ pub struct TerminalBuffer {
     scroll_top: usize,    // 0-based, inclusive
     scroll_bottom: usize, // 0-based, inclusive
     incomplete_sequence: String,
+    saved_cursor: Option<(usize, usize)>,
 }
 
 impl TerminalBuffer {
@@ -40,6 +41,7 @@ impl TerminalBuffer {
             scroll_top: 0,
             scroll_bottom: height.saturating_sub(1),
             incomplete_sequence: String::new(),
+            saved_cursor: None,
         }
     }
 
@@ -651,6 +653,14 @@ impl TerminalBuffer {
         (self.cursor.x, self.cursor.y)
     }
 
+    pub fn save_cursor(&mut self) {
+        // TODO: Implement in Phase 2
+    }
+
+    pub fn restore_cursor(&mut self) {
+        // TODO: Implement in Phase 2
+    }
+
     /// カーソル位置より前のテキストを取得する（描画幅計算用）
     #[allow(dead_code)]
     pub fn get_text_before_cursor(&self) -> String {
@@ -979,5 +989,70 @@ mod tests {
         // Buffer should be empty (spaces)
         let line = buffer.lines.front().unwrap();
         assert!(line.chars().all(|c| c == ' '));
+    }
+
+    #[test]
+    fn test_save_restore_cursor_basic() {
+        let mut buffer = TerminalBuffer::new(80, 25);
+
+        // Move to specific position
+        buffer.write_string("\x1b[10;20H"); // Row 9, Col 19
+        assert_eq!(buffer.cursor.y, 9);
+        assert_eq!(buffer.cursor.x, 19);
+
+        // Save cursor
+        buffer.save_cursor();
+
+        // Move elsewhere
+        buffer.write_string("\x1b[1;1H");
+        assert_eq!(buffer.cursor.y, 0);
+        assert_eq!(buffer.cursor.x, 0);
+
+        // Restore cursor
+        buffer.restore_cursor();
+
+        // Should be back at 9, 19
+        assert_eq!(buffer.cursor.y, 9);
+        assert_eq!(buffer.cursor.x, 19);
+    }
+
+    #[test]
+    fn test_restore_without_save() {
+        let mut buffer = TerminalBuffer::new(80, 25);
+
+        // Move to specific position
+        buffer.write_string("\x1b[5;5H");
+        assert_eq!(buffer.cursor.y, 4);
+        assert_eq!(buffer.cursor.x, 4);
+
+        // Restore without saving (should do nothing)
+        buffer.restore_cursor();
+
+        assert_eq!(buffer.cursor.y, 4);
+        assert_eq!(buffer.cursor.x, 4);
+    }
+
+    #[test]
+    fn test_restore_cursor_clipping() {
+        let mut buffer = TerminalBuffer::new(20, 20);
+
+        // Move to 15, 15 (idx 14, 14)
+        buffer.write_string("\x1b[15;15H");
+        buffer.save_cursor();
+
+        // Resize smaller than saved position
+        buffer.resize(10, 10);
+
+        // Move cursor to home to ensure restore actually does something
+        buffer.write_string("\x1b[H");
+        assert_eq!(buffer.cursor.x, 0);
+        assert_eq!(buffer.cursor.y, 0);
+
+        // Restore
+        buffer.restore_cursor();
+
+        // Should be clamped to max indices (9, 9)
+        assert_eq!(buffer.cursor.y, 9);
+        assert_eq!(buffer.cursor.x, 9);
     }
 }

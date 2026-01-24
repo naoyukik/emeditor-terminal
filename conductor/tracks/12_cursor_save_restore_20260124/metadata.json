@@ -1,0 +1,8 @@
+{
+  "track_id": "12_cursor_save_restore_20260124",
+  "type": "feature",
+  "status": "new",
+  "created_at": "2026-01-24T19:09:00Z",
+  "updated_at": "2026-01-24T19:09:00Z",
+  "description": "feat: カーソル位置の保存/復元 (DECSC/DECRC) の実装"
+}
