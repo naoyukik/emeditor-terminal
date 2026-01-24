@@ -8,8 +8,9 @@ use windows::Win32::UI::WindowsAndMessaging::{
     PostMessageW, RegisterClassW, SendMessageW, SetCaretPos, SetWindowsHookExW,
     UnhookWindowsHookEx, CS_HREDRAW, CS_VREDRAW, DLGC_WANTALLKEYS, HHOOK, IDC_ARROW, WH_KEYBOARD,
     WM_CHAR, WM_DESTROY, WM_GETDLGCODE, WM_IME_COMPOSITION, WM_IME_ENDCOMPOSITION,
-    WM_IME_SETCONTEXT, WM_IME_STARTCOMPOSITION, WM_KEYDOWN, WM_KILLFOCUS, WM_LBUTTONDOWN, WM_PAINT,
-    WM_SETFOCUS, WM_SIZE, WNDCLASSW, WS_CHILD, WS_CLIPCHILDREN, WS_CLIPSIBLINGS, WS_VISIBLE,
+    WM_IME_SETCONTEXT, WM_IME_STARTCOMPOSITION, WM_KEYDOWN, WM_KEYUP, WM_KILLFOCUS, WM_LBUTTONDOWN,
+    WM_PAINT, WM_SETFOCUS, WM_SIZE, WM_SYSCHAR, WM_SYSCOMMAND, WM_SYSKEYDOWN, WM_SYSKEYUP,
+    WNDCLASSW, WS_CHILD, WS_CLIPCHILDREN, WS_CLIPSIBLINGS, WS_VISIBLE,
 };
 const ISC_SHOWUICOMPOSITIONWINDOW: u32 = 0x80000000;
 use crate::domain::terminal::TerminalBuffer;
@@ -29,7 +30,8 @@ use windows::Win32::UI::Input::Ime::{
 use windows::Win32::UI::Input::KeyboardAndMouse::{
     GetKeyState, SetFocus, VK_BACK, VK_CONTROL, VK_DELETE, VK_DOWN, VK_END, VK_ESCAPE, VK_F1,
     VK_F10, VK_F11, VK_F12, VK_F2, VK_F3, VK_F4, VK_F5, VK_F6, VK_F7, VK_F8, VK_F9, VK_HOME,
-    VK_INSERT, VK_LEFT, VK_MENU, VK_NEXT, VK_PRIOR, VK_RETURN, VK_RIGHT, VK_SHIFT, VK_TAB, VK_UP,
+    VK_INSERT, VK_LEFT, VK_MENU, VK_NEXT, VK_PRIOR, VK_RETURN, VK_RIGHT, VK_SHIFT, VK_SPACE,
+    VK_TAB, VK_UP,
 };
 
 // Constants from EmEditor SDK
@@ -250,17 +252,21 @@ pub fn open_custom_bar(hwnd_editor: HWND) -> bool {
 
                 // Calculate initial size
                 let mut client_rect = windows::Win32::Foundation::RECT::default();
-                let _ = windows::Win32::UI::WindowsAndMessaging::GetClientRect(hwnd_client, &mut client_rect);
+                let _ = windows::Win32::UI::WindowsAndMessaging::GetClientRect(
+                    hwnd_client,
+                    &mut client_rect,
+                );
                 let width_px = client_rect.right - client_rect.left;
                 let height_px = client_rect.bottom - client_rect.top;
 
                 let (initial_cols, initial_rows) = if width_px > 0 && height_px > 0 {
                     let data = data_arc.lock().unwrap();
-                    let (char_width, char_height) = if let Some(metrics) = data.renderer.get_metrics() {
-                        (metrics.base_width, metrics.char_height)
-                    } else {
-                        (8, 16) // Fallback
-                    };
+                    let (char_width, char_height) =
+                        if let Some(metrics) = data.renderer.get_metrics() {
+                            (metrics.base_width, metrics.char_height)
+                        } else {
+                            (8, 16) // Fallback
+                        };
                     (
                         (width_px / char_width).max(1) as i16,
                         (height_px / char_height).max(1) as i16,
@@ -272,7 +278,11 @@ pub fn open_custom_bar(hwnd_editor: HWND) -> bool {
                 // Start ConPTY
                 match ConPTY::new("pwsh.exe", initial_cols, initial_rows) {
                     Ok(conpty) => {
-                        log::info!("ConPTY started successfully with size {}x{}", initial_cols, initial_rows);
+                        log::info!(
+                            "ConPTY started successfully with size {}x{}",
+                            initial_cols,
+                            initial_rows
+                        );
 
                         let data_arc = get_terminal_data();
                         let output_handle = conpty.get_output_handle();
@@ -280,7 +290,8 @@ pub fn open_custom_bar(hwnd_editor: HWND) -> bool {
                             let mut data = data_arc.lock().unwrap();
                             data.conpty = Some(conpty);
                             // Sync buffer size with ConPTY
-                            data.buffer.resize(initial_cols as usize, initial_rows as usize);
+                            data.buffer
+                                .resize(initial_cols as usize, initial_rows as usize);
                         }
 
                         let output_handle_raw = output_handle.0 .0 as usize;
@@ -531,6 +542,16 @@ fn send_key_to_conpty(vk_code: u16) -> bool {
     let shift_pressed = unsafe { GetKeyState(VK_SHIFT.0 as i32) } < 0;
     let alt_pressed = unsafe { GetKeyState(VK_MENU.0 as i32) } < 0;
 
+    // Skip system shortcuts in hook to allow Windows/EmEditor to handle them
+    if alt_pressed
+        && (vk_code == VK_F4.0
+            || vk_code == VK_TAB.0
+            || vk_code == VK_SPACE.0
+            || vk_code == VK_ESCAPE.0)
+    {
+        return false;
+    }
+
     if let Some(vt_sequence) = vk_to_vt_sequence(vk_code, ctrl_pressed, shift_pressed, alt_pressed)
     {
         let handle = {
@@ -757,6 +778,129 @@ extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM
                 );
                 unsafe { DefWindowProcW(hwnd, msg, wparam, lparam) }
             }
+        }
+        WM_SYSKEYDOWN => {
+            let vk_code = wparam.0 as u16;
+            log::debug!("WM_SYSKEYDOWN received: 0x{:04X}", vk_code);
+
+            // Exclusion list for system shortcuts that should be handled by Windows/EmEditor
+            if vk_code == VK_TAB.0
+                || vk_code == VK_F4.0
+                || vk_code == VK_SPACE.0
+                || vk_code == VK_ESCAPE.0
+            {
+                return unsafe { DefWindowProcW(hwnd, msg, wparam, lparam) };
+            }
+
+            if vk_code == VK_MENU.0 {
+                log::debug!(
+                    "Alt key (VK_MENU) pressed in WM_SYSKEYDOWN, suppressing DefWindowProcW"
+                );
+                return LRESULT(0);
+            }
+
+            // Handle Alt + Key combinations for TUI
+            let ctrl_pressed = unsafe { GetKeyState(VK_CONTROL.0 as i32) } < 0;
+            let shift_pressed = unsafe { GetKeyState(VK_SHIFT.0 as i32) } < 0;
+            let alt_pressed = true; // WM_SYSKEYDOWN usually implies Alt is pressed
+
+            // 1. Try special keys (Arrows, F-keys, etc.) via existing vk_to_vt_sequence
+            if let Some(vt_sequence) =
+                vk_to_vt_sequence(vk_code, ctrl_pressed, shift_pressed, alt_pressed)
+            {
+                log::debug!(
+                    "WM_SYSKEYDOWN: Sending VT sequence for Alt combination: {:?}",
+                    vt_sequence
+                );
+                let handle = {
+                    let data_arc = get_terminal_data();
+                    let data = data_arc.lock().unwrap();
+                    data.conpty.as_ref().map(|c| c.get_input_handle().0)
+                };
+                if let Some(handle) = handle {
+                    if let Err(e) = write_to_conpty(handle, vt_sequence) {
+                        log::error!("WM_SYSKEYDOWN: Failed to write VT sequence: {}", e);
+                    }
+                }
+                return LRESULT(0);
+            }
+
+            // 2. Handle Alt + Letter/Number (Meta key)
+            // Send ESC (0x1B) followed by the character
+            if (0x30..=0x39).contains(&vk_code) || (0x41..=0x5A).contains(&vk_code) {
+                let mut char_to_send = vk_code as u8;
+                if (0x41..=0x5A).contains(&vk_code) && !shift_pressed {
+                    char_to_send = (vk_code + 0x20) as u8; // To lowercase
+                }
+                log::debug!(
+                    "WM_SYSKEYDOWN: Sending Meta sequence: ESC + '{}'",
+                    char_to_send as char
+                );
+                let seq = [0x1bu8, char_to_send];
+                let handle = {
+                    let data_arc = get_terminal_data();
+                    let data = data_arc.lock().unwrap();
+                    data.conpty.as_ref().map(|c| c.get_input_handle().0)
+                };
+                if let Some(handle) = handle {
+                    if let Err(e) = write_to_conpty(handle, &seq) {
+                        log::error!("WM_SYSKEYDOWN: Failed to write Meta sequence: {}", e);
+                    }
+                }
+                return LRESULT(0);
+            }
+
+            // For other system keys, pass to DefWindowProcW
+            unsafe { DefWindowProcW(hwnd, msg, wparam, lparam) }
+        }
+        WM_SYSKEYUP => {
+            let vk_code = wparam.0 as u16;
+            log::debug!("WM_SYSKEYUP received: 0x{:04X}", vk_code);
+
+            if vk_code == VK_MENU.0 {
+                log::debug!(
+                    "Alt key (VK_MENU) released in WM_SYSKEYUP, suppressing DefWindowProcW"
+                );
+                return LRESULT(0);
+            }
+
+            unsafe { DefWindowProcW(hwnd, msg, wparam, lparam) }
+        }
+        WM_KEYUP => {
+            let vk_code = wparam.0 as u16;
+            if vk_code == VK_MENU.0 {
+                log::debug!("WM_KEYUP received for VK_MENU (Alt)");
+            }
+            unsafe { DefWindowProcW(hwnd, msg, wparam, lparam) }
+        }
+        WM_SYSCHAR => {
+            let char_code = wparam.0 as u16;
+            log::debug!("WM_SYSCHAR received: 0x{:04X}", char_code);
+
+            // Allow Alt+Space (System Menu) to pass through
+            if char_code == 0x0020 {
+                return unsafe { DefWindowProcW(hwnd, msg, wparam, lparam) };
+            }
+
+            // Alt+Key combinations often generate WM_SYSCHAR. Suppress it to prevent system beeps or menus.
+            LRESULT(0)
+        }
+        WM_SYSCOMMAND => {
+            let cmd = wparam.0 & 0xFFF0; // Low 4 bits are reserved
+            log::debug!("WM_SYSCOMMAND received: 0x{:04X}", cmd);
+            if cmd == 0xF100 {
+                // SC_KEYMENU
+                // When SC_KEYMENU is sent by a keystroke, lParam contains the char code in low word.
+                let key_char = (lparam.0 & 0xFFFF) as u16;
+                if key_char == 0x0020 {
+                    log::debug!("SC_KEYMENU from Alt+Space: passing to DefWindowProcW");
+                    return unsafe { DefWindowProcW(hwnd, msg, wparam, lparam) };
+                }
+
+                log::debug!("SC_KEYMENU received (Menu activation blocked)");
+                return LRESULT(0);
+            }
+            unsafe { DefWindowProcW(hwnd, msg, wparam, lparam) }
         }
         WM_GETDLGCODE => {
             log::debug!("WM_GETDLGCODE received");
