@@ -818,7 +818,9 @@ extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM
                     data.conpty.as_ref().map(|c| c.get_input_handle().0)
                 };
                 if let Some(handle) = handle {
-                    let _ = write_to_conpty(handle, vt_sequence);
+                    if let Err(e) = write_to_conpty(handle, vt_sequence) {
+                        log::error!("WM_SYSKEYDOWN: Failed to write VT sequence: {}", e);
+                    }
                 }
                 return LRESULT(0);
             }
@@ -841,7 +843,9 @@ extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM
                     data.conpty.as_ref().map(|c| c.get_input_handle().0)
                 };
                 if let Some(handle) = handle {
-                    let _ = write_to_conpty(handle, &seq);
+                    if let Err(e) = write_to_conpty(handle, &seq) {
+                        log::error!("WM_SYSKEYDOWN: Failed to write Meta sequence: {}", e);
+                    }
                 }
                 return LRESULT(0);
             }
@@ -886,6 +890,13 @@ extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM
             log::debug!("WM_SYSCOMMAND received: 0x{:04X}", cmd);
             if cmd == 0xF100 {
                 // SC_KEYMENU
+                // When SC_KEYMENU is sent by a keystroke, lParam contains the char code in low word.
+                let key_char = (lparam.0 & 0xFFFF) as u16;
+                if key_char == 0x0020 {
+                    log::debug!("SC_KEYMENU from Alt+Space: passing to DefWindowProcW");
+                    return unsafe { DefWindowProcW(hwnd, msg, wparam, lparam) };
+                }
+
                 log::debug!("SC_KEYMENU received (Menu activation blocked)");
                 return LRESULT(0);
             }
