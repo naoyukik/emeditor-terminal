@@ -407,6 +407,31 @@ impl TerminalBuffer {
                 let target_col = if current_col > 0 { current_col - 1 } else { 0 };
                 self.cursor.x = self.display_col_to_char_index(self.cursor.y, target_col);
             }
+            '\t' => {
+                // Tab: Move to next tab stop (every 8 columns)
+                let current_col = self.get_display_width_up_to(self.cursor.y, self.cursor.x);
+                let tab_stop = 8;
+                let next_col = (current_col / tab_stop + 1) * tab_stop;
+                let spaces = next_col - current_col;
+                
+                // Check wrapping
+                if next_col >= self.width {
+                     self.cursor.x = 0;
+                     if self.cursor.y == self.scroll_bottom {
+                        self.scroll_up();
+                    } else if self.cursor.y < self.height - 1 {
+                        self.cursor.y += 1;
+                    }
+                } else {
+                    // Fill with spaces? Or just move cursor?
+                    // Terminal usually just moves cursor, but buffer needs content.
+                    // If we overwrite, we should put spaces.
+                    for _ in 0..spaces {
+                        self.put_char(' ');
+                        self.cursor.x += 1;
+                    }
+                }
+            }
             _ => {
                 // Check if adding this character would exceed the width
                 let current_col = self.get_display_width_up_to(self.cursor.y, self.cursor.x);
