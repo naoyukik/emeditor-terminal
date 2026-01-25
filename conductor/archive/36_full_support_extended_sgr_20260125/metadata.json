@@ -1,0 +1,8 @@
+{
+  "track_id": "36_full_support_extended_sgr_20260125",
+  "type": "feature",
+  "status": "new",
+  "created_at": "2026-01-25T11:45:00Z",
+  "updated_at": "2026-01-25T11:45:00Z",
+  "description": "拡張SGRシーケンス（256色、TrueColor、太字、斜体、下線等）の完全サポート"
+}

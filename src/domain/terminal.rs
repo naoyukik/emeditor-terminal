@@ -1,23 +1,51 @@
 use std::collections::VecDeque;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub enum Color {
+pub enum TerminalColor {
     Default,
     Ansi(u8),
+    Xterm(u8),
     Rgb(u8, u8, u8),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct TerminalAttribute {
+    pub fg: TerminalColor,
+    pub bg: TerminalColor,
+    pub bold: bool,
+    pub dim: bool,
+    pub italic: bool,
+    pub underline: bool,
+    pub inverse: bool,
+    pub strikethrough: bool,
+}
+
+impl Default for TerminalAttribute {
+    fn default() -> Self {
+        Self {
+            fg: TerminalColor::Default,
+            bg: TerminalColor::Default,
+            bold: false,
+            dim: false,
+            italic: false,
+            underline: false,
+            inverse: false,
+            strikethrough: false,
+        }
+    }
 }
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub struct Cell {
     pub c: char,
-    pub fg_color: Color,
+    pub attribute: TerminalAttribute,
 }
 
 impl Default for Cell {
     fn default() -> Self {
         Self {
             c: ' ',
-            fg_color: Color::Default,
+            attribute: TerminalAttribute::default(),
         }
     }
 }
@@ -43,7 +71,7 @@ pub struct TerminalBuffer {
     width: usize,
     height: usize,
     cursor: Cursor,
-    current_fg_color: Color,
+    current_attribute: TerminalAttribute,
     scroll_top: usize,    // 0-based, inclusive
     scroll_bottom: usize, // 0-based, inclusive
     incomplete_sequence: String,
@@ -61,7 +89,7 @@ impl TerminalBuffer {
             width,
             height,
             cursor: Cursor::default(),
-            current_fg_color: Color::Default,
+            current_attribute: TerminalAttribute::default(),
             scroll_top: 0,
             scroll_bottom: height.saturating_sub(1),
             incomplete_sequence: String::new(),
@@ -138,7 +166,6 @@ impl TerminalBuffer {
                         } else if ch == '\x1b' {
                             if current_idx + 1 < char_vec.len() {
                                 if char_vec[current_idx + 1] == '\\' {
-                                    // Corrected from '\'' to '\\'
                                     found_terminator = true;
                                     terminator_len = 2;
                                     break;
@@ -160,7 +187,7 @@ impl TerminalBuffer {
                     match next_c {
                         '7' => self.save_cursor(),
                         '8' => self.restore_cursor(),
-                        _ => {}
+                        _ => {} // Ignore other control chars
                     }
                     i += 2;
                 }
@@ -173,43 +200,7 @@ impl TerminalBuffer {
 
     fn handle_csi(&mut self, command: char, params: &str, _intermediates: &str) {
         match command {
-            'm' => {
-                if params.is_empty() {
-                    self.current_fg_color = Color::Default;
-                } else {
-                    let parts: Vec<&str> = params.split(';').collect();
-                    let mut i = 0;
-                    while i < parts.len() {
-                        let p = parts[i].parse::<u8>().unwrap_or(0);
-                        match p {
-                            0 => self.current_fg_color = Color::Default,
-                            30..=37 => self.current_fg_color = Color::Ansi(p - 30),
-                            38 => {
-                                if i + 1 < parts.len() {
-                                    let type_p = parts[i + 1].parse::<u8>().unwrap_or(0);
-                                    if type_p == 5 && i + 2 < parts.len() {
-                                        let color_idx = parts[i + 2].parse::<u8>().unwrap_or(0);
-                                        self.current_fg_color = Color::Ansi(color_idx);
-                                        i += 3;
-                                        continue;
-                                    } else if type_p == 2 && i + 4 < parts.len() {
-                                        let r = parts[i + 2].parse::<u8>().unwrap_or(0);
-                                        let g = parts[i + 3].parse::<u8>().unwrap_or(0);
-                                        let b = parts[i + 4].parse::<u8>().unwrap_or(0);
-                                        self.current_fg_color = Color::Rgb(r, g, b);
-                                        i += 5;
-                                        continue;
-                                    }
-                                }
-                            }
-                            39 => self.current_fg_color = Color::Default,
-                            90..=97 => self.current_fg_color = Color::Ansi(p - 90 + 8),
-                            _ => {}
-                        }
-                        i += 1;
-                    }
-                }
-            }
+            'm' => self.handle_sgr(params),
             'A' => {
                 let n = self.parse_csi_param(params, 1);
                 let current_col = self.get_display_width_up_to(self.cursor.y, self.cursor.x);
@@ -261,7 +252,7 @@ impl TerminalBuffer {
                         2 => {
                             line.fill(Cell::default());
                         }
-                        _ => {}
+                        _ => {} // Ignore unknown erase modes
                     }
                 }
             }
@@ -347,7 +338,7 @@ impl TerminalBuffer {
                             line.fill(Cell::default());
                         }
                     }
-                    _ => {}
+                    _ => {} // Ignore unknown erase modes
                 }
             }
             'G' => {
@@ -417,7 +408,118 @@ impl TerminalBuffer {
                     self.cursor.y = 0;
                 }
             }
-            _ => {}
+            _ => {} // Ignore unknown CSI commands
+        }
+    }
+
+    fn handle_sgr(&mut self, params: &str) {
+        if params.is_empty() {
+            self.current_attribute = TerminalAttribute::default();
+            return;
+        }
+
+        // ANSI/VT の仕様上、SGR の「主パラメータ」は ';' 区切りで、'38' / '48' のような
+        // 拡張カラー指定に続く「サブパラメータ」にのみ ':' 区切りが使われます。
+        // この実装では、互換性と実用性を優先して ';' と ':' の両方を同列に区切り文字とし、
+        // `\x1b[31:32m` のような非標準だが実際に出力されうるシーケンスも受け入れます。
+        // より厳密な仕様準拠のパースが必要になった場合は、ここを「主パラメータは ';' で分割し、
+        // '38' / '48' などの後続のみ ':' で再分割する」実装に差し替えてください。
+        let parts: Vec<&str> = params.split(|c| c == ';' || c == ':').collect();
+        let mut i = 0;
+        while i < parts.len() {
+            let p = parts[i].parse::<u8>().unwrap_or(0);
+            match p {
+                0 => self.current_attribute = TerminalAttribute::default(),
+                1 => self.current_attribute.bold = true,
+                2 => self.current_attribute.dim = true,
+                3 => self.current_attribute.italic = true,
+                4 => self.current_attribute.underline = true,
+                7 => self.current_attribute.inverse = true,
+                9 => self.current_attribute.strikethrough = true,
+                22 => {
+                    self.current_attribute.bold = false;
+                    self.current_attribute.dim = false;
+                }
+                23 => self.current_attribute.italic = false,
+                24 => self.current_attribute.underline = false,
+                27 => self.current_attribute.inverse = false,
+                29 => self.current_attribute.strikethrough = false,
+                30..=37 => self.current_attribute.fg = TerminalColor::Ansi(p - 30),
+                38 => {
+                    i += 1; // Consume '38'
+                    if i < parts.len() {
+                        let type_p = parts[i].parse::<u8>().unwrap_or(0);
+                        match type_p {
+                            5 => {
+                                i += 1; // Consume '5'
+                                if i < parts.len() {
+                                    let color_idx = parts[i].parse::<u8>().unwrap_or(0);
+                                    self.current_attribute.fg = TerminalColor::Xterm(color_idx);
+                                    i += 1;
+                                }
+                            }
+                            2 => {
+                                i += 1; // Consume '2'
+                                if i + 2 < parts.len() {
+                                    let r = parts[i].parse::<u8>().unwrap_or(0);
+                                    let g = parts[i + 1].parse::<u8>().unwrap_or(0);
+                                    let b = parts[i + 2].parse::<u8>().unwrap_or(0);
+                                    self.current_attribute.fg = TerminalColor::Rgb(r, g, b);
+                                    i += 3;
+                                } else {
+                                    i = parts.len();
+                                }
+                            }
+                            _ => {
+                                // Unknown type, '38' is already consumed.
+                                // 'type_p' will be handled by next iteration if we don't i+=1.
+                                // We decide to consume type_p as well to avoid misinterpreting it as SGR command.
+                                i += 1;
+                            }
+                        }
+                    }
+                    continue; // Skip i += 1 at the end
+                }
+                39 => self.current_attribute.fg = TerminalColor::Default,
+                40..=47 => self.current_attribute.bg = TerminalColor::Ansi(p - 40),
+                48 => {
+                    i += 1; // Consume '48'
+                    if i < parts.len() {
+                        let type_p = parts[i].parse::<u8>().unwrap_or(0);
+                        match type_p {
+                            5 => {
+                                i += 1; // Consume '5'
+                                if i < parts.len() {
+                                    let color_idx = parts[i].parse::<u8>().unwrap_or(0);
+                                    self.current_attribute.bg = TerminalColor::Xterm(color_idx);
+                                    i += 1;
+                                }
+                            }
+                            2 => {
+                                i += 1; // Consume '2'
+                                if i + 2 < parts.len() {
+                                    let r = parts[i].parse::<u8>().unwrap_or(0);
+                                    let g = parts[i + 1].parse::<u8>().unwrap_or(0);
+                                    let b = parts[i + 2].parse::<u8>().unwrap_or(0);
+                                    self.current_attribute.bg = TerminalColor::Rgb(r, g, b);
+                                    i += 3;
+                                } else {
+                                    i = parts.len();
+                                }
+                            }
+                            _ => {
+                                i += 1;
+                            }
+                        }
+                    }
+                    continue;
+                }
+                49 => self.current_attribute.bg = TerminalColor::Default,
+                90..=97 => self.current_attribute.fg = TerminalColor::Ansi(p - 90 + 8),
+                100..=107 => self.current_attribute.bg = TerminalColor::Ansi(p - 100 + 8),
+                _ => {} // Ignore unknown SGR parameters
+            }
+            i += 1;
         }
     }
 
@@ -478,7 +580,7 @@ impl TerminalBuffer {
             }
             let cell = Cell {
                 c,
-                fg_color: self.current_fg_color,
+                attribute: self.current_attribute,
             };
             if self.cursor.x < line.len() {
                 line[self.cursor.x] = cell;
@@ -489,7 +591,7 @@ impl TerminalBuffer {
     }
 
     fn scroll_up(&mut self) {
-        if self.scroll_top >= self.lines.len()
+        if self.scroll_top >= self.lines.len() 
             || self.scroll_bottom >= self.lines.len()
             || self.scroll_top > self.scroll_bottom
         {
@@ -643,12 +745,12 @@ mod tests {
     fn test_sgr_colors() {
         let mut buffer = TerminalBuffer::new(80, 25);
         buffer.write_string("\x1b[31mRed\x1b[39mDefault");
-        assert_eq!(buffer.lines[0][0].fg_color, Color::Ansi(1));
-        assert_eq!(buffer.lines[0][3].fg_color, Color::Default);
+        assert_eq!(buffer.lines[0][0].attribute.fg, TerminalColor::Ansi(1));
+        assert_eq!(buffer.lines[0][3].attribute.fg, TerminalColor::Default);
         buffer.write_string("\x1b[38;5;208mOrange");
-        assert_eq!(buffer.lines[0][10].fg_color, Color::Ansi(208));
+        assert_eq!(buffer.lines[0][10].attribute.fg, TerminalColor::Xterm(208));
         buffer.write_string("\x1b[38;2;255;100;50mRGB");
-        assert_eq!(buffer.lines[0][16].fg_color, Color::Rgb(255, 100, 50));
+        assert_eq!(buffer.lines[0][16].attribute.fg, TerminalColor::Rgb(255, 100, 50));
     }
 
     #[test]
@@ -657,23 +759,24 @@ mod tests {
 
         // Bright colors (90-97)
         buffer.write_string("\x1b[91mBrightRed");
-        assert_eq!(buffer.lines[0][0].fg_color, Color::Ansi(9));
+        assert_eq!(buffer.lines[0][0].attribute.fg, TerminalColor::Ansi(9));
 
         // Reset (0)
         buffer.write_string("\x1b[0mReset");
-        assert_eq!(buffer.lines[0][9].fg_color, Color::Default);
+        assert_eq!(buffer.lines[0][9].attribute.fg, TerminalColor::Default);
 
         // Multiple params: \x1b[31;1m -> Red (31). Bold (1) ignored.
         buffer.write_string("\x1b[31;1mMulti");
-        assert_eq!(buffer.lines[0][14].fg_color, Color::Ansi(1));
+        assert_eq!(buffer.lines[0][14].attribute.fg, TerminalColor::Ansi(1));
+        assert_eq!(buffer.lines[0][14].attribute.bold, true);
 
         // Invalid 38;5 (missing index)
         buffer.write_string("\x1b[38;5mInvalid");
-        assert_eq!(buffer.lines[0][19].fg_color, Color::Ansi(1));
+        assert_eq!(buffer.lines[0][19].attribute.fg, TerminalColor::Ansi(1));
 
         // Incomplete 38;2 (missing RGB)
         buffer.write_string("\x1b[38;2;10;20mIncomplete");
-        assert_eq!(buffer.lines[0][26].fg_color, Color::Ansi(1));
+        assert_eq!(buffer.lines[0][26].attribute.fg, TerminalColor::Ansi(1));
     }
 
     #[test]
@@ -688,5 +791,87 @@ mod tests {
         buffer.resize(5, 2);
         assert_eq!(line_to_string(&buffer.lines[0]), "Hello");
         assert_eq!(line_to_string(&buffer.lines[1]), "あい ");
+    }
+
+    #[test]
+    fn test_sgr_256_colors() {
+        let mut buffer = TerminalBuffer::new(80, 25);
+        // 256 color foreground
+        buffer.write_string("\x1b[38;5;123mColor123");
+        assert_eq!(buffer.lines[0][0].attribute.fg, TerminalColor::Xterm(123));
+        
+        // 256 color background
+        buffer.write_string("\x1b[48;5;200mBg200");
+        assert_eq!(buffer.lines[0][8].attribute.bg, TerminalColor::Xterm(200));
+    }
+
+    #[test]
+    fn test_sgr_true_colors() {
+        let mut buffer = TerminalBuffer::new(80, 25);
+        // RGB foreground
+        buffer.write_string("\x1b[38;2;10;20;30mRGB_FG");
+        assert_eq!(buffer.lines[0][0].attribute.fg, TerminalColor::Rgb(10, 20, 30));
+        
+        // RGB background
+        buffer.write_string("\x1b[48;2;40;50;60mRGB_BG");
+        assert_eq!(buffer.lines[0][6].attribute.bg, TerminalColor::Rgb(40, 50, 60));
+    }
+
+    #[test]
+    fn test_sgr_aixterm_colors() {
+        let mut buffer = TerminalBuffer::new(80, 25);
+        // Bright Foreground (90-97)
+        buffer.write_string("\x1b[90mBrightBlack\x1b[97mBrightWhite");
+        assert_eq!(buffer.lines[0][0].attribute.fg, TerminalColor::Ansi(8)); // 90 -> 8
+        assert_eq!(buffer.lines[0][11].attribute.fg, TerminalColor::Ansi(15)); // 97 -> 15
+
+        // Bright Background (100-107)
+        buffer.write_string("\x1b[100mBgBrightBlack\x1b[107mBgBrightWhite");
+        assert_eq!(buffer.lines[0][22].attribute.bg, TerminalColor::Ansi(8));
+        assert_eq!(buffer.lines[0][35].attribute.bg, TerminalColor::Ansi(15));
+    }
+
+    #[test]
+    fn test_sgr_mixed_attributes() {
+        let mut buffer = TerminalBuffer::new(80, 25);
+        // Bold + Underline + RGB FG + 256 BG
+        buffer.write_string("\x1b[1;4;38;2;100;150;200;48;5;10mComplex");
+        let attr = buffer.lines[0][0].attribute;
+        assert!(attr.bold);
+        assert!(attr.underline);
+        assert_eq!(attr.fg, TerminalColor::Rgb(100, 150, 200));
+        assert_eq!(attr.bg, TerminalColor::Xterm(10));
+        
+        // Reset check
+        buffer.write_string("\x1b[0mNormal");
+        let reset_attr = buffer.lines[0][7].attribute;
+        assert!(!reset_attr.bold);
+        assert!(!reset_attr.underline);
+        assert_eq!(reset_attr.fg, TerminalColor::Default);
+        assert_eq!(reset_attr.bg, TerminalColor::Default);
+    }
+
+    #[test]
+    fn test_sgr_colon_separator() {
+        let mut buffer = TerminalBuffer::new(80, 25);
+        // Colon separator for true color: 38:2:r:g:b
+        buffer.write_string("\x1b[38:2:10:20:30mColonRGB");
+        assert_eq!(buffer.lines[0][0].attribute.fg, TerminalColor::Rgb(10, 20, 30));
+        
+        // Mixed separators
+        buffer.write_string("\x1b[38;2;40:50;60mMixedRGB");
+        assert_eq!(buffer.lines[0][8].attribute.fg, TerminalColor::Rgb(40, 50, 60));
+    }
+
+    #[test]
+    fn test_sgr_invalid_extended() {
+        let mut buffer = TerminalBuffer::new(80, 25);
+        // Invalid type_p (3) for SGR 38. 
+        buffer.write_string("\x1b[38;3;31mText");
+        // '3' is normally Italic, but here it's part of an invalid '38' sequence.
+        // It should be consumed as part of '38' handling and NOT set Italic.
+        let attr = buffer.lines[0][0].attribute;
+        assert!(!attr.italic); 
+        assert_eq!(attr.fg, TerminalColor::Ansi(1)); // '31' should still be processed as Red
     }
 }
