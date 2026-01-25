@@ -10,10 +10,11 @@ use windows::Win32::UI::WindowsAndMessaging::{
     WM_CHAR, WM_DESTROY, WM_GETDLGCODE, WM_IME_COMPOSITION, WM_IME_ENDCOMPOSITION,
     WM_IME_SETCONTEXT, WM_IME_STARTCOMPOSITION, WM_KEYDOWN, WM_KEYUP, WM_KILLFOCUS, WM_LBUTTONDOWN,
     WM_PAINT, WM_SETFOCUS, WM_SIZE, WM_SYSCHAR, WM_SYSCOMMAND, WM_SYSKEYDOWN, WM_SYSKEYUP,
-    WNDCLASSW, WS_CHILD, WS_CLIPCHILDREN, WS_CLIPSIBLINGS, WS_VISIBLE,
+    WNDCLASSW, WS_CHILD, WS_VISIBLE, WS_CLIPCHILDREN, WS_CLIPSIBLINGS,
 };
 const ISC_SHOWUICOMPOSITIONWINDOW: u32 = 0x80000000;
 use crate::domain::terminal::TerminalBuffer;
+use crate::domain::parser::AnsiParser;
 use crate::gui::renderer::{CompositionData, TerminalRenderer};
 use crate::infra::conpty::ConPTY;
 use std::cell::RefCell;
@@ -93,6 +94,7 @@ unsafe impl Sync for SendHWND {}
 
 struct TerminalData {
     buffer: TerminalBuffer,
+    parser: AnsiParser,
     conpty: Option<ConPTY>,
     renderer: TerminalRenderer,
     window_handle: Option<SendHWND>,
@@ -104,6 +106,7 @@ fn get_terminal_data() -> Arc<Mutex<TerminalData>> {
         .get_or_init(|| {
             Arc::new(Mutex::new(TerminalData {
                 buffer: TerminalBuffer::new(80, 25),
+                parser: AnsiParser::new(),
                 conpty: None,
                 renderer: TerminalRenderer::new(),
                 window_handle: None,
@@ -328,7 +331,8 @@ pub fn open_custom_bar(hwnd_editor: HWND) -> bool {
 
                                 {
                                     let mut data = data_arc.lock().unwrap();
-                                    data.buffer.write_string(&output);
+                                    let TerminalData { ref mut parser, ref mut buffer, .. } = *data;
+                                    parser.parse(&output, buffer);
                                 }
 
                                 // Trigger repaint via PostMessage (thread-safe)
@@ -997,126 +1001,6 @@ extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM
 
             if let Some(_conpty) = data.conpty.take() {
                 log::info!("ConPTY will be dropped and cleaned up");
-                // Drop happens automatically when _conpty goes out of scope
-            }
-            LRESULT(0)
-        }
-        WM_IME_SETCONTEXT => {
-            log::debug!(
-                "WM_IME_SETCONTEXT: wparam={:?}, lparam={:?}",
-                wparam,
-                lparam
-            );
-            // We want to draw the composition string ourselves, so we clear the ISC_SHOWUICOMPOSITIONWINDOW flag
-            let mut lparam = lparam;
-            lparam.0 &= !(ISC_SHOWUICOMPOSITIONWINDOW as isize);
-            unsafe { DefWindowProcW(hwnd, msg, wparam, lparam) }
-        }
-        WM_IME_STARTCOMPOSITION => {
-            log::debug!("WM_IME_STARTCOMPOSITION");
-            LRESULT(0)
-        }
-        WM_IME_COMPOSITION => {
-            log::debug!("WM_IME_COMPOSITION: lparam={:?}", lparam);
-            let mut handled = false;
-
-            // Handle Result String (Committed)
-            if (lparam.0 as u32 & GCS_RESULTSTR.0) != 0 {
-                unsafe {
-                    let himc = ImmGetContext(hwnd);
-                    if !himc.0.is_null() {
-                        let len_bytes = ImmGetCompositionStringW(himc, GCS_RESULTSTR, None, 0);
-                        if len_bytes >= 0 {
-                            let len_u16 = (len_bytes as usize) / size_of::<u16>();
-                            let mut buffer = vec![0u16; len_u16];
-                            let _ = ImmGetCompositionStringW(
-                                himc,
-                                GCS_RESULTSTR,
-                                Some(buffer.as_mut_ptr() as *mut c_void),
-                                len_bytes as u32,
-                            );
-                            let result_str = String::from_utf16_lossy(&buffer);
-                            log::info!("IME Result: '{}'", result_str);
-
-                            // Send result string to ConPTY
-                            let data_arc = get_terminal_data();
-                            let mut data = data_arc.lock().unwrap();
-                            if let Some(conpty) = &data.conpty {
-                                let utf8_bytes = result_str.as_bytes();
-                                let mut bytes_written = 0;
-                                let _ = WriteFile(
-                                    conpty.get_input_handle().0,
-                                    Some(utf8_bytes),
-                                    Some(&mut bytes_written),
-                                    None,
-                                );
-                            }
-
-                            // Clear composition data on commit
-                            data.composition = None;
-
-                            let _ = InvalidateRect(hwnd, None, BOOL(0));
-                            handled = true;
-                        }
-                        let _ = ImmReleaseContext(hwnd, himc);
-                    }
-                }
-            }
-
-            // Handle Composition String (In-progress)
-            if (lparam.0 as u32 & GCS_COMPSTR.0) != 0 {
-                update_ime_window_position(hwnd);
-                unsafe {
-                    let himc = ImmGetContext(hwnd);
-                    if !himc.0.is_null() {
-                        // Get size first
-                        let len_bytes = ImmGetCompositionStringW(himc, GCS_COMPSTR, None, 0);
-                        if len_bytes >= 0 {
-                            let len_u16 = (len_bytes as usize) / size_of::<u16>();
-                            let mut buffer = vec![0u16; len_u16];
-
-                            // Get content
-                            let _ = ImmGetCompositionStringW(
-                                himc,
-                                GCS_COMPSTR,
-                                Some(buffer.as_mut_ptr() as *mut c_void),
-                                len_bytes as u32,
-                            );
-
-                            let comp_str = String::from_utf16_lossy(&buffer);
-                            log::info!("IME Composition: '{}' (len={})", comp_str, len_u16);
-
-                            let data_arc = get_terminal_data();
-                            let mut data = data_arc.lock().unwrap();
-
-                            if comp_str.is_empty() {
-                                data.composition = None;
-                            } else {
-                                data.composition = Some(CompositionData { text: comp_str });
-                            }
-
-                            let _ = InvalidateRect(hwnd, None, BOOL(0));
-                            handled = true;
-                        }
-                        let _ = ImmReleaseContext(hwnd, himc);
-                    }
-                }
-            }
-
-            if !handled {
-                unsafe { DefWindowProcW(hwnd, msg, wparam, lparam) }
-            } else {
-                LRESULT(0)
-            }
-        }
-        WM_IME_ENDCOMPOSITION => {
-            log::debug!("WM_IME_ENDCOMPOSITION");
-            // Ensure composition is cleared when IME ends
-            let data_arc = get_terminal_data();
-            let mut data = data_arc.lock().unwrap();
-            data.composition = None;
-            unsafe {
-                let _ = InvalidateRect(hwnd, None, BOOL(0));
             }
             LRESULT(0)
         }

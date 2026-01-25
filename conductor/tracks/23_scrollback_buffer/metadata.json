@@ -1,0 +1,8 @@
+{
+  "track_id": "23_scrollback_buffer",
+  "type": "feature",
+  "status": "new",
+  "created_at": "2026-01-25T23:35:00Z",
+  "updated_at": "2026-01-25T23:35:00Z",
+  "description": "スクロールバック・バッファ（履歴バッファ）の実装。過去の出力を遡って閲覧可能にする。"
+}

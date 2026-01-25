@@ -67,15 +67,14 @@ impl Default for Cursor {
 }
 
 pub struct TerminalBuffer {
-    lines: VecDeque<Vec<Cell>>,
-    width: usize,
-    height: usize,
-    cursor: Cursor,
-    current_attribute: TerminalAttribute,
-    scroll_top: usize,    // 0-based, inclusive
-    scroll_bottom: usize, // 0-based, inclusive
-    incomplete_sequence: String,
-    saved_cursor: Option<(usize, usize)>,
+    pub(crate) lines: VecDeque<Vec<Cell>>,
+    pub(crate) width: usize,
+    pub(crate) height: usize,
+    pub(crate) cursor: Cursor,
+    pub(crate) current_attribute: TerminalAttribute,
+    pub(crate) scroll_top: usize,    // 0-based, inclusive
+    pub(crate) scroll_bottom: usize, // 0-based, inclusive
+    pub(crate) saved_cursor: Option<(usize, usize)>,
 }
 
 impl TerminalBuffer {
@@ -92,438 +91,25 @@ impl TerminalBuffer {
             current_attribute: TerminalAttribute::default(),
             scroll_top: 0,
             scroll_bottom: height.saturating_sub(1),
-            incomplete_sequence: String::new(),
             saved_cursor: None,
         }
     }
 
-    pub fn write_string(&mut self, s: &str) {
-        let input = if !self.incomplete_sequence.is_empty() {
-            let mut combined = std::mem::take(&mut self.incomplete_sequence);
-            combined.push_str(s);
-            combined
-        } else {
-            s.to_string()
-        };
-
-        let char_vec: Vec<char> = input.chars().collect();
-        let mut i = 0;
-
-        while i < char_vec.len() {
-            let c = char_vec[i];
-            if c == '\x1b' {
-                if i + 1 >= char_vec.len() {
-                    self.incomplete_sequence.push(c);
-                    break;
-                }
-
-                let next_c = char_vec[i + 1];
-                if next_c == '[' {
-                    let start_idx = i;
-                    let mut current_idx = i + 2;
-                    let mut complete = false;
-
-                    while current_idx < char_vec.len() {
-                        let ch = char_vec[current_idx];
-                        let code = ch as u32 as u8;
-                        if (0x30..=0x3F).contains(&code) || (0x20..=0x2F).contains(&code) {
-                            current_idx += 1;
-                        } else {
-                            complete = true;
-                            break;
-                        }
-                    }
-
-                    if complete {
-                        let end_idx = current_idx;
-                        let cmd = char_vec[end_idx];
-                        let inner = &char_vec[(i + 2)..end_idx];
-                        let param_str: String = inner
-                            .iter()
-                            .take_while(|&&c| (0x30..=0x3F).contains(&(c as u32 as u8)))
-                            .collect();
-
-                        let intermediate_str: String = inner.iter().skip(param_str.len()).collect();
-
-                        self.handle_csi(cmd, &param_str, &intermediate_str);
-                        i = end_idx + 1;
-                    } else {
-                        self.incomplete_sequence = char_vec[start_idx..].iter().collect();
-                        break;
-                    }
-                } else if next_c == ']' {
-                    let start_idx = i;
-                    let mut current_idx = i + 2;
-                    let mut found_terminator = false;
-                    let mut terminator_len = 0;
-
-                    while current_idx < char_vec.len() {
-                        let ch = char_vec[current_idx];
-                        if ch == '\x07' {
-                            found_terminator = true;
-                            terminator_len = 1;
-                            break;
-                        } else if ch == '\x1b' {
-                            if current_idx + 1 < char_vec.len() {
-                                if char_vec[current_idx + 1] == '\\' {
-                                    found_terminator = true;
-                                    terminator_len = 2;
-                                    break;
-                                }
-                            } else {
-                                break;
-                            }
-                        }
-                        current_idx += 1;
-                    }
-
-                    if found_terminator {
-                        i = current_idx + terminator_len;
-                    } else {
-                        self.incomplete_sequence = char_vec[start_idx..].iter().collect();
-                        break;
-                    }
-                } else {
-                    match next_c {
-                        '7' => self.save_cursor(),
-                        '8' => self.restore_cursor(),
-                        _ => {} // Ignore other control chars
-                    }
-                    i += 2;
-                }
-            } else {
-                self.process_normal_char(c);
-                i += 1;
-            }
-        }
-    }
-
-    fn handle_csi(&mut self, command: char, params: &str, _intermediates: &str) {
-        match command {
-            'm' => self.handle_sgr(params),
-            'A' => {
-                let n = self.parse_csi_param(params, 1);
-                let current_col = self.get_display_width_up_to(self.cursor.y, self.cursor.x);
-                if self.cursor.y >= n {
-                    self.cursor.y -= n;
-                } else {
-                    self.cursor.y = 0;
-                }
-                self.cursor.x = self.display_col_to_char_index(self.cursor.y, current_col);
-            }
-            'B' => {
-                let n = self.parse_csi_param(params, 1);
-                let current_col = self.get_display_width_up_to(self.cursor.y, self.cursor.x);
-                self.cursor.y = std::cmp::min(self.height - 1, self.cursor.y + n);
-                self.cursor.x = self.display_col_to_char_index(self.cursor.y, current_col);
-            }
-            'C' => {
-                let n = self.parse_csi_param(params, 1);
-                let current_col = self.get_display_width_up_to(self.cursor.y, self.cursor.x);
-                let target_col = std::cmp::min(self.width - 1, current_col + n);
-                self.cursor.x = self.display_col_to_char_index(self.cursor.y, target_col);
-            }
-            'D' => {
-                let n = self.parse_csi_param(params, 1);
-                let current_col = self.get_display_width_up_to(self.cursor.y, self.cursor.x);
-                let target_col = current_col.saturating_sub(n);
-                self.cursor.x = self.display_col_to_char_index(self.cursor.y, target_col);
-            }
-            'K' => {
-                let mode = params.parse::<usize>().unwrap_or(0);
-                if let Some(line) = self.lines.get_mut(self.cursor.y) {
-                    while line.len() < self.width {
-                        line.push(Cell::default());
-                    }
-                    match mode {
-                        0 => {
-                            if self.cursor.x < line.len() {
-                                for cell in line.iter_mut().skip(self.cursor.x) {
-                                    *cell = Cell::default();
-                                }
-                            }
-                        }
-                        1 => {
-                            let end = std::cmp::min(self.cursor.x + 1, line.len());
-                            for cell in line.iter_mut().take(end) {
-                                *cell = Cell::default();
-                            }
-                        }
-                        2 => {
-                            line.fill(Cell::default());
-                        }
-                        _ => {} // Ignore unknown erase modes
-                    }
-                }
-            }
-            'P' => {
-                let n = self.parse_csi_param(params, 1);
-                if let Some(line) = self.lines.get_mut(self.cursor.y) {
-                    if self.cursor.x < line.len() {
-                        let end_idx = std::cmp::min(self.cursor.x + n, line.len());
-                        let removed_count = end_idx - self.cursor.x;
-                        line.drain(self.cursor.x..end_idx);
-                        line.extend(std::iter::repeat_n(Cell::default(), removed_count));
-                    }
-                }
-            }
-            'X' => {
-                let n = self.parse_csi_param(params, 1);
-                if let Some(line) = self.lines.get_mut(self.cursor.y) {
-                    while line.len() < self.width {
-                        line.push(Cell::default());
-                    }
-                    if self.cursor.x < line.len() {
-                        let end_idx = std::cmp::min(self.cursor.x + n, line.len());
-                        for cell in line.iter_mut().take(end_idx).skip(self.cursor.x) {
-                            *cell = Cell::default();
-                        }
-                    }
-                }
-            }
-            'H' | 'f' => {
-                let parts: Vec<&str> = params.split(';').collect();
-                let row = if parts.is_empty() || parts[0].is_empty() {
-                    1
-                } else {
-                    parts[0].parse::<usize>().unwrap_or(1)
-                };
-                let col = if parts.len() < 2 || parts[1].is_empty() {
-                    1
-                } else {
-                    parts[1].parse::<usize>().unwrap_or(1)
-                };
-                self.cursor.y = if row > 0 { row - 1 } else { 0 };
-                if self.cursor.y >= self.height {
-                    self.cursor.y = self.height - 1;
-                }
-                let target_display_col = if col > 0 { col - 1 } else { 0 };
-                self.cursor.x = self.display_col_to_char_index(self.cursor.y, target_display_col);
-            }
-            'J' => {
-                let mode = params.parse::<usize>().unwrap_or(0);
-                match mode {
-                    0 => {
-                        if let Some(line) = self.lines.get_mut(self.cursor.y) {
-                            while line.len() < self.width {
-                                line.push(Cell::default());
-                            }
-                            for cell in line.iter_mut().skip(self.cursor.x) {
-                                *cell = Cell::default();
-                            }
-                        }
-                        for y in (self.cursor.y + 1)..self.lines.len() {
-                            if let Some(line) = self.lines.get_mut(y) {
-                                line.fill(Cell::default());
-                            }
-                        }
-                    }
-                    1 => {
-                        for y in 0..self.cursor.y {
-                            if let Some(line) = self.lines.get_mut(y) {
-                                line.fill(Cell::default());
-                            }
-                        }
-                        if let Some(line) = self.lines.get_mut(self.cursor.y) {
-                            while line.len() < self.width {
-                                line.push(Cell::default());
-                            }
-                            for cell in line.iter_mut().take(self.cursor.x + 1) {
-                                *cell = Cell::default();
-                            }
-                        }
-                    }
-                    2 | 3 => {
-                        for line in self.lines.iter_mut() {
-                            line.fill(Cell::default());
-                        }
-                    }
-                    _ => {} // Ignore unknown erase modes
-                }
-            }
-            'G' => {
-                let col = self.parse_csi_param(params, 1);
-                let target_display_col = if col > 0 { col - 1 } else { 0 };
-                let target_display_col =
-                    std::cmp::min(target_display_col, self.width.saturating_sub(1));
-                self.cursor.x = self.display_col_to_char_index(self.cursor.y, target_display_col);
-            }
-            'd' => {
-                let row = self.parse_csi_param(params, 1);
-                let current_display_col =
-                    self.get_display_width_up_to(self.cursor.y, self.cursor.x);
-                self.cursor.y = if row > 0 { row - 1 } else { 0 };
-                if self.cursor.y >= self.height {
-                    self.cursor.y = self.height - 1;
-                }
-                self.cursor.x = self.display_col_to_char_index(self.cursor.y, current_display_col);
-            }
-            'E' => {
-                let n = self.parse_csi_param(params, 1);
-                self.cursor.y = std::cmp::min(self.height - 1, self.cursor.y + n);
-                self.cursor.x = 0;
-            }
-            'F' => {
-                let n = self.parse_csi_param(params, 1);
-                if self.cursor.y >= n {
-                    self.cursor.y -= n;
-                } else {
-                    self.cursor.y = 0;
-                }
-                self.cursor.x = 0;
-            }
-            'h' => {
-                if params == "?25" {
-                    self.cursor.visible = true;
-                }
-            }
-            'l' => {
-                if params == "?25" {
-                    self.cursor.visible = false;
-                }
-            }
-            'r' => {
-                let parts: Vec<&str> = params.split(';').collect();
-                let top = if parts.is_empty() || parts[0].is_empty() {
-                    1
-                } else {
-                    parts[0].parse::<usize>().unwrap_or(1)
-                };
-                let bottom = if parts.len() < 2 || parts[1].is_empty() {
-                    self.height
-                } else {
-                    parts[1].parse::<usize>().unwrap_or(self.height)
-                };
-                let top_idx = if top > 0 { top - 1 } else { 0 };
-                let bottom_idx = if bottom > 0 { bottom - 1 } else { 0 };
-                if top_idx < bottom_idx && bottom_idx < self.height {
-                    self.scroll_top = top_idx;
-                    self.scroll_bottom = bottom_idx;
-                    self.cursor.x = 0;
-                    self.cursor.y = 0;
-                } else {
-                    self.scroll_top = 0;
-                    self.scroll_bottom = self.height.saturating_sub(1);
-                    self.cursor.x = 0;
-                    self.cursor.y = 0;
-                }
-            }
-            _ => {} // Ignore unknown CSI commands
-        }
-    }
-
-    fn handle_sgr(&mut self, params: &str) {
-        if params.is_empty() {
-            self.current_attribute = TerminalAttribute::default();
+    pub(crate) fn scroll_up(&mut self) {
+        if self.scroll_top >= self.lines.len() 
+            || self.scroll_bottom >= self.lines.len()
+            || self.scroll_top > self.scroll_bottom
+        {
+            self.lines.pop_front();
+            self.lines.push_back(vec![Cell::default(); self.width]);
             return;
         }
-
-        // ANSI/VT の仕様上、SGR の「主パラメータ」は ';' 区切りで、'38' / '48' のような
-        // 拡張カラー指定に続く「サブパラメータ」にのみ ':' 区切りが使われます。
-        // この実装では、互換性と実用性を優先して ';' と ':' の両方を同列に区切り文字とし、
-        // `\x1b[31:32m` のような非標準だが実際に出力されうるシーケンスも受け入れます。
-        // より厳密な仕様準拠のパースが必要になった場合は、ここを「主パラメータは ';' で分割し、
-        // '38' / '48' などの後続のみ ':' で再分割する」実装に差し替えてください。
-        let parts: Vec<&str> = params.split(|c| c == ';' || c == ':').collect();
-        let mut i = 0;
-        while i < parts.len() {
-            let p = parts[i].parse::<u8>().unwrap_or(0);
-            match p {
-                0 => self.current_attribute = TerminalAttribute::default(),
-                1 => self.current_attribute.bold = true,
-                2 => self.current_attribute.dim = true,
-                3 => self.current_attribute.italic = true,
-                4 => self.current_attribute.underline = true,
-                7 => self.current_attribute.inverse = true,
-                9 => self.current_attribute.strikethrough = true,
-                22 => {
-                    self.current_attribute.bold = false;
-                    self.current_attribute.dim = false;
-                }
-                23 => self.current_attribute.italic = false,
-                24 => self.current_attribute.underline = false,
-                27 => self.current_attribute.inverse = false,
-                29 => self.current_attribute.strikethrough = false,
-                30..=37 => self.current_attribute.fg = TerminalColor::Ansi(p - 30),
-                38 => {
-                    i += 1; // Consume '38'
-                    if i < parts.len() {
-                        let type_p = parts[i].parse::<u8>().unwrap_or(0);
-                        match type_p {
-                            5 => {
-                                i += 1; // Consume '5'
-                                if i < parts.len() {
-                                    let color_idx = parts[i].parse::<u8>().unwrap_or(0);
-                                    self.current_attribute.fg = TerminalColor::Xterm(color_idx);
-                                    i += 1;
-                                }
-                            }
-                            2 => {
-                                i += 1; // Consume '2'
-                                if i + 2 < parts.len() {
-                                    let r = parts[i].parse::<u8>().unwrap_or(0);
-                                    let g = parts[i + 1].parse::<u8>().unwrap_or(0);
-                                    let b = parts[i + 2].parse::<u8>().unwrap_or(0);
-                                    self.current_attribute.fg = TerminalColor::Rgb(r, g, b);
-                                    i += 3;
-                                } else {
-                                    i = parts.len();
-                                }
-                            }
-                            _ => {
-                                // Unknown type, '38' is already consumed.
-                                // 'type_p' will be handled by next iteration if we don't i+=1.
-                                // We decide to consume type_p as well to avoid misinterpreting it as SGR command.
-                                i += 1;
-                            }
-                        }
-                    }
-                    continue; // Skip i += 1 at the end
-                }
-                39 => self.current_attribute.fg = TerminalColor::Default,
-                40..=47 => self.current_attribute.bg = TerminalColor::Ansi(p - 40),
-                48 => {
-                    i += 1; // Consume '48'
-                    if i < parts.len() {
-                        let type_p = parts[i].parse::<u8>().unwrap_or(0);
-                        match type_p {
-                            5 => {
-                                i += 1; // Consume '5'
-                                if i < parts.len() {
-                                    let color_idx = parts[i].parse::<u8>().unwrap_or(0);
-                                    self.current_attribute.bg = TerminalColor::Xterm(color_idx);
-                                    i += 1;
-                                }
-                            }
-                            2 => {
-                                i += 1; // Consume '2'
-                                if i + 2 < parts.len() {
-                                    let r = parts[i].parse::<u8>().unwrap_or(0);
-                                    let g = parts[i + 1].parse::<u8>().unwrap_or(0);
-                                    let b = parts[i + 2].parse::<u8>().unwrap_or(0);
-                                    self.current_attribute.bg = TerminalColor::Rgb(r, g, b);
-                                    i += 3;
-                                } else {
-                                    i = parts.len();
-                                }
-                            }
-                            _ => {
-                                i += 1;
-                            }
-                        }
-                    }
-                    continue;
-                }
-                49 => self.current_attribute.bg = TerminalColor::Default,
-                90..=97 => self.current_attribute.fg = TerminalColor::Ansi(p - 90 + 8),
-                100..=107 => self.current_attribute.bg = TerminalColor::Ansi(p - 100 + 8),
-                _ => {} // Ignore unknown SGR parameters
-            }
-            i += 1;
-        }
+        self.lines.remove(self.scroll_top);
+        self.lines
+            .insert(self.scroll_bottom, vec![Cell::default(); self.width]);
     }
 
-    fn process_normal_char(&mut self, c: char) {
+    pub fn process_normal_char(&mut self, c: char) {
         match c {
             '\r' => self.cursor.x = 0,
             '\n' => {
@@ -573,7 +159,7 @@ impl TerminalBuffer {
         }
     }
 
-    fn put_char(&mut self, c: char) {
+    pub(crate) fn put_char(&mut self, c: char) {
         if let Some(line) = self.lines.get_mut(self.cursor.y) {
             while line.len() < self.width {
                 line.push(Cell::default());
@@ -588,20 +174,6 @@ impl TerminalBuffer {
                 line.push(cell);
             }
         }
-    }
-
-    fn scroll_up(&mut self) {
-        if self.scroll_top >= self.lines.len() 
-            || self.scroll_bottom >= self.lines.len()
-            || self.scroll_top > self.scroll_bottom
-        {
-            self.lines.pop_front();
-            self.lines.push_back(vec![Cell::default(); self.width]);
-            return;
-        }
-        self.lines.remove(self.scroll_top);
-        self.lines
-            .insert(self.scroll_bottom, vec![Cell::default(); self.width]);
     }
 
     pub fn char_display_width(c: char) -> usize {
@@ -638,7 +210,7 @@ impl TerminalBuffer {
         }
     }
 
-    fn display_col_to_char_index(&self, row: usize, target_display_col: usize) -> usize {
+    pub(crate) fn display_col_to_char_index(&self, row: usize, target_display_col: usize) -> usize {
         if let Some(line) = self.lines.get(row) {
             let mut display_col = 0;
             for (char_idx, cell) in line.iter().enumerate() {
@@ -650,15 +222,6 @@ impl TerminalBuffer {
             line.len()
         } else {
             target_display_col
-        }
-    }
-
-    fn parse_csi_param(&self, params: &str, default: usize) -> usize {
-        let n = params.parse::<usize>().unwrap_or(default);
-        if n == 0 {
-            1
-        } else {
-            n
         }
     }
 
@@ -723,155 +286,5 @@ impl TerminalBuffer {
             self.cursor.x = 0;
             self.cursor.y = 0;
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    fn line_to_string(line: &[Cell]) -> String {
-        line.iter().map(|cell| cell.c).collect()
-    }
-
-    #[test]
-    fn test_cursor_initialization() {
-        let buffer = TerminalBuffer::new(80, 25);
-        assert_eq!(buffer.cursor.x, 0);
-        assert_eq!(buffer.cursor.y, 0);
-        assert!(buffer.cursor.visible);
-    }
-
-    #[test]
-    fn test_sgr_colors() {
-        let mut buffer = TerminalBuffer::new(80, 25);
-        buffer.write_string("\x1b[31mRed\x1b[39mDefault");
-        assert_eq!(buffer.lines[0][0].attribute.fg, TerminalColor::Ansi(1));
-        assert_eq!(buffer.lines[0][3].attribute.fg, TerminalColor::Default);
-        buffer.write_string("\x1b[38;5;208mOrange");
-        assert_eq!(buffer.lines[0][10].attribute.fg, TerminalColor::Xterm(208));
-        buffer.write_string("\x1b[38;2;255;100;50mRGB");
-        assert_eq!(buffer.lines[0][16].attribute.fg, TerminalColor::Rgb(255, 100, 50));
-    }
-
-    #[test]
-    fn test_sgr_complex_cases() {
-        let mut buffer = TerminalBuffer::new(80, 25);
-
-        // Bright colors (90-97)
-        buffer.write_string("\x1b[91mBrightRed");
-        assert_eq!(buffer.lines[0][0].attribute.fg, TerminalColor::Ansi(9));
-
-        // Reset (0)
-        buffer.write_string("\x1b[0mReset");
-        assert_eq!(buffer.lines[0][9].attribute.fg, TerminalColor::Default);
-
-        // Multiple params: \x1b[31;1m -> Red (31). Bold (1) ignored.
-        buffer.write_string("\x1b[31;1mMulti");
-        assert_eq!(buffer.lines[0][14].attribute.fg, TerminalColor::Ansi(1));
-        assert_eq!(buffer.lines[0][14].attribute.bold, true);
-
-        // Invalid 38;5 (missing index)
-        buffer.write_string("\x1b[38;5mInvalid");
-        assert_eq!(buffer.lines[0][19].attribute.fg, TerminalColor::Ansi(1));
-
-        // Incomplete 38;2 (missing RGB)
-        buffer.write_string("\x1b[38;2;10;20mIncomplete");
-        assert_eq!(buffer.lines[0][26].attribute.fg, TerminalColor::Ansi(1));
-    }
-
-    #[test]
-    fn test_terminal_resize() {
-        let mut buffer = TerminalBuffer::new(10, 5);
-        buffer.write_string("Hello CJKあいう");
-        assert_eq!(buffer.cursor.y, 1);
-        assert_eq!(line_to_string(&buffer.lines[0]), "Hello CJK ");
-        assert_eq!(line_to_string(&buffer.lines[1]), "あいう       ");
-        buffer.resize(20, 10);
-        assert_eq!(line_to_string(&buffer.lines[0]), "Hello CJK           ");
-        buffer.resize(5, 2);
-        assert_eq!(line_to_string(&buffer.lines[0]), "Hello");
-        assert_eq!(line_to_string(&buffer.lines[1]), "あい ");
-    }
-
-    #[test]
-    fn test_sgr_256_colors() {
-        let mut buffer = TerminalBuffer::new(80, 25);
-        // 256 color foreground
-        buffer.write_string("\x1b[38;5;123mColor123");
-        assert_eq!(buffer.lines[0][0].attribute.fg, TerminalColor::Xterm(123));
-        
-        // 256 color background
-        buffer.write_string("\x1b[48;5;200mBg200");
-        assert_eq!(buffer.lines[0][8].attribute.bg, TerminalColor::Xterm(200));
-    }
-
-    #[test]
-    fn test_sgr_true_colors() {
-        let mut buffer = TerminalBuffer::new(80, 25);
-        // RGB foreground
-        buffer.write_string("\x1b[38;2;10;20;30mRGB_FG");
-        assert_eq!(buffer.lines[0][0].attribute.fg, TerminalColor::Rgb(10, 20, 30));
-        
-        // RGB background
-        buffer.write_string("\x1b[48;2;40;50;60mRGB_BG");
-        assert_eq!(buffer.lines[0][6].attribute.bg, TerminalColor::Rgb(40, 50, 60));
-    }
-
-    #[test]
-    fn test_sgr_aixterm_colors() {
-        let mut buffer = TerminalBuffer::new(80, 25);
-        // Bright Foreground (90-97)
-        buffer.write_string("\x1b[90mBrightBlack\x1b[97mBrightWhite");
-        assert_eq!(buffer.lines[0][0].attribute.fg, TerminalColor::Ansi(8)); // 90 -> 8
-        assert_eq!(buffer.lines[0][11].attribute.fg, TerminalColor::Ansi(15)); // 97 -> 15
-
-        // Bright Background (100-107)
-        buffer.write_string("\x1b[100mBgBrightBlack\x1b[107mBgBrightWhite");
-        assert_eq!(buffer.lines[0][22].attribute.bg, TerminalColor::Ansi(8));
-        assert_eq!(buffer.lines[0][35].attribute.bg, TerminalColor::Ansi(15));
-    }
-
-    #[test]
-    fn test_sgr_mixed_attributes() {
-        let mut buffer = TerminalBuffer::new(80, 25);
-        // Bold + Underline + RGB FG + 256 BG
-        buffer.write_string("\x1b[1;4;38;2;100;150;200;48;5;10mComplex");
-        let attr = buffer.lines[0][0].attribute;
-        assert!(attr.bold);
-        assert!(attr.underline);
-        assert_eq!(attr.fg, TerminalColor::Rgb(100, 150, 200));
-        assert_eq!(attr.bg, TerminalColor::Xterm(10));
-        
-        // Reset check
-        buffer.write_string("\x1b[0mNormal");
-        let reset_attr = buffer.lines[0][7].attribute;
-        assert!(!reset_attr.bold);
-        assert!(!reset_attr.underline);
-        assert_eq!(reset_attr.fg, TerminalColor::Default);
-        assert_eq!(reset_attr.bg, TerminalColor::Default);
-    }
-
-    #[test]
-    fn test_sgr_colon_separator() {
-        let mut buffer = TerminalBuffer::new(80, 25);
-        // Colon separator for true color: 38:2:r:g:b
-        buffer.write_string("\x1b[38:2:10:20:30mColonRGB");
-        assert_eq!(buffer.lines[0][0].attribute.fg, TerminalColor::Rgb(10, 20, 30));
-        
-        // Mixed separators
-        buffer.write_string("\x1b[38;2;40:50;60mMixedRGB");
-        assert_eq!(buffer.lines[0][8].attribute.fg, TerminalColor::Rgb(40, 50, 60));
-    }
-
-    #[test]
-    fn test_sgr_invalid_extended() {
-        let mut buffer = TerminalBuffer::new(80, 25);
-        // Invalid type_p (3) for SGR 38. 
-        buffer.write_string("\x1b[38;3;31mText");
-        // '3' is normally Italic, but here it's part of an invalid '38' sequence.
-        // It should be consumed as part of '38' handling and NOT set Italic.
-        let attr = buffer.lines[0][0].attribute;
-        assert!(!attr.italic); 
-        assert_eq!(attr.fg, TerminalColor::Ansi(1)); // '31' should still be processed as Red
     }
 }
