@@ -1,11 +1,12 @@
 use crate::domain::terminal::{TerminalAttribute, TerminalColor, TerminalBuffer};
+use std::collections::HashMap;
 use windows::core::{w, PCWSTR};
 use windows::Win32::Foundation::{COLORREF, RECT, SIZE};
 use windows::Win32::Graphics::Gdi::{
-    CreateFontW, DeleteObject, ExtTextOutW, GetTextExtentPoint32W, GetTextMetricsW, InvertRect,
+    CreateFontIndirectW, DeleteObject, ExtTextOutW, GetTextExtentPoint32W, GetTextMetricsW, InvertRect,
     SelectObject, SetBkColor, SetTextColor, CLIP_DEFAULT_PRECIS, DEFAULT_CHARSET, DEFAULT_QUALITY,
-    ETO_OPAQUE, ETO_OPTIONS, FF_MODERN, FIXED_PITCH, FW_NORMAL, HDC, HFONT, HGDIOBJ,
-    OUT_DEFAULT_PRECIS, TEXTMETRICW,
+    ETO_OPAQUE, ETO_OPTIONS, FF_MODERN, FIXED_PITCH, FW_BOLD, FW_NORMAL, HDC, HFONT, HGDIOBJ,
+    LOGFONTW, OUT_DEFAULT_PRECIS, TEXTMETRICW, FONT_CHARSET, FONT_OUTPUT_PRECISION, FONT_CLIP_PRECISION, FONT_QUALITY
 };
 
 #[derive(Clone, Debug)]
@@ -19,51 +20,17 @@ pub struct TerminalMetrics {
 }
 
 /// Wrapper around a Windows `HFONT` handle that is treated as `Send` and `Sync`.
-///
-/// # 安全性 (Safety)
-///
-/// `HFONT` 自体は GDI オブジェクトを指す単なるハンドルであり、その値を
-/// スレッド間でコピー／ムーブすること自体は Windows の設計上許可されています。
-/// そのため、「ハンドル値を他スレッドに渡す」という点だけを見れば
-/// `Send` / `Sync` を実装してもただちに未定義動作にはなりません。
-///
-/// ただし、**GDI 操作にはスレッドアフィニティがある** ことに注意してください。
-///
-/// - `SelectObject` や `ExtTextOutW`、`GetTextMetricsW` などの GDI 関数は
-///   特定の `HDC`（デバイスコンテキスト）に対して動作し、その `HDC` は通常
-///   UI スレッド（メッセージループを持つスレッド）に紐づいています。
-/// - これらの GDI 関数はスレッドセーフではなく、UI スレッド以外から
-///   呼び出すと描画の破綻や未定義動作を引き起こす可能性があります。
-///
-/// 本ラッパー型はあくまで「`HFONT` ハンドル値をスレッド間で保持・共有する」こと
-/// のみを許可するものであり、**GDI 関数の呼び出しは必ず UI スレッドで行う**
-/// という前提に依存しています。
-///
-/// # ライフタイムと DeleteObject について
-///
-/// `SendHFONT` は `HFONT` のライフタイムや所有権を管理しません。
-/// フォントの生成 (`CreateFontW`) および破棄 (`DeleteObject`) は別途、
-/// UI スレッド側で一元管理されている前提です。
-///
-/// - 他スレッドがまだ `SendHFONT` を保持している可能性がある間は
-///   対応する `HFONT` に対して `DeleteObject` を呼び出してはいけません。
-/// - `DeleteObject` が呼ばれた後に、同じ `HFONT` を用いて `SelectObject` などの
-///   GDI 操作を行うことは未定義動作になります。
-///
-/// したがって、呼び出し側は以下を保証する必要があります:
-///
-/// 1. GDI 関数の呼び出し (`SelectObject`, `ExtTextOutW`, など) は UI スレッドからのみ行う。
-/// 2. `HFONT` の実際のライフタイム管理は UI スレッド側で行い、
-///    他スレッドがそのハンドルを保持している間は `DeleteObject` しない。
-///
-/// この型自体は上記制約を静的には強制しませんが、`Send` / `Sync` の `unsafe impl` は
-/// これらの不変条件が守られていることを前提としています。
 pub struct SendHFONT(pub HFONT);
 unsafe impl Send for SendHFONT {}
 unsafe impl Sync for SendHFONT {}
 
+const STYLE_BOLD: u32 = 1 << 0;
+const STYLE_ITALIC: u32 = 1 << 1;
+const STYLE_UNDERLINE: u32 = 1 << 2;
+const STYLE_STRIKEOUT: u32 = 1 << 3;
+
 pub struct TerminalRenderer {
-    font: Option<SendHFONT>,
+    fonts: HashMap<u32, SendHFONT>,
     metrics: Option<TerminalMetrics>,
 }
 
@@ -76,51 +43,60 @@ impl Default for TerminalRenderer {
 impl TerminalRenderer {
     pub fn new() -> Self {
         Self {
-            font: None,
+            fonts: HashMap::new(),
             metrics: None,
         }
     }
 
     pub fn clear_resources(&mut self) {
-        if let Some(send_h_font) = self.font.take() {
+        for (_, send_h_font) in self.fonts.drain() {
             unsafe {
                 let _ = DeleteObject(HGDIOBJ(send_h_font.0 .0));
             }
-            log::info!("TerminalRenderer: Cached font handle deleted");
         }
+        log::info!("TerminalRenderer: All cached font handles deleted");
     }
 
     pub fn get_metrics(&self) -> Option<&TerminalMetrics> {
         self.metrics.as_ref()
     }
 
-    fn ensure_font(&mut self, hdc: HDC) {
-        if self.font.is_none() {
-            unsafe {
-                let h_font = CreateFontW(
-                    16,
-                    0,
-                    0,
-                    0,
-                    FW_NORMAL.0 as i32,
-                    0,
-                    0,
-                    0,
-                    DEFAULT_CHARSET.0 as u32,
-                    OUT_DEFAULT_PRECIS.0 as u32,
-                    CLIP_DEFAULT_PRECIS.0 as u32,
-                    DEFAULT_QUALITY.0 as u32,
-                    (FIXED_PITCH.0 | FF_MODERN.0) as u32,
-                    w!("Consolas"),
-                );
+    fn get_font_for_style(&mut self, hdc: HDC, style_mask: u32) -> HFONT {
+        if let Some(font) = self.fonts.get(&style_mask) {
+            return font.0;
+        }
 
-                if h_font.0.is_null() {
-                    log::error!("TerminalRenderer: Failed to create font 'Consolas'");
-                    return;
-                }
+        unsafe {
+            let mut lf = LOGFONTW::default();
+            lf.lfHeight = 16;
+            lf.lfWeight = if (style_mask & STYLE_BOLD) != 0 {
+                FW_BOLD.0 as i32
+            } else {
+                FW_NORMAL.0 as i32
+            };
+            lf.lfItalic = if (style_mask & STYLE_ITALIC) != 0 { 1 } else { 0 };
+            lf.lfUnderline = if (style_mask & STYLE_UNDERLINE) != 0 { 1 } else { 0 };
+            lf.lfStrikeOut = if (style_mask & STYLE_STRIKEOUT) != 0 { 1 } else { 0 };
+            lf.lfCharSet = FONT_CHARSET(DEFAULT_CHARSET.0 as u8);
+            lf.lfOutPrecision = FONT_OUTPUT_PRECISION(OUT_DEFAULT_PRECIS.0 as u8);
+            lf.lfClipPrecision = FONT_CLIP_PRECISION(CLIP_DEFAULT_PRECIS.0 as u8);
+            lf.lfQuality = FONT_QUALITY(DEFAULT_QUALITY.0 as u8);
+            lf.lfPitchAndFamily = (FIXED_PITCH.0 | FF_MODERN.0) as u8;
 
-                self.font = Some(SendHFONT(h_font));
+            let face_name = w!("Consolas");
+            let len = std::cmp::min(face_name.len(), lf.lfFaceName.len() - 1);
+            for i in 0..len {
+                lf.lfFaceName[i] = face_name.as_wide()[i];
+            }
+            lf.lfFaceName[len] = 0;
 
+            let h_font = CreateFontIndirectW(&lf);
+            if h_font.0.is_null() {
+                log::error!("TerminalRenderer: Failed to create font for style mask {}", style_mask);
+                return HFONT::default();
+            }
+
+            if self.metrics.is_none() {
                 let old_font = SelectObject(hdc, HGDIOBJ(h_font.0));
                 let mut tm = TEXTMETRICW::default();
                 let _ = GetTextMetricsW(hdc, &mut tm);
@@ -133,20 +109,23 @@ impl TerminalRenderer {
                     char_height: tm.tmHeight,
                     base_width: size.cx,
                 });
-
-                log::info!(
-                    "TerminalRenderer: Font initialized: Consolas, Height={}, BaseWidth={}",
-                    tm.tmHeight,
-                    size.cx
-                );
                 let _ = SelectObject(hdc, old_font);
             }
+
+            self.fonts.insert(style_mask, SendHFONT(h_font));
+            h_font
         }
     }
 
-    fn color_to_colorref(&self, color: TerminalColor) -> COLORREF {
+    fn color_to_colorref(&self, color: TerminalColor, is_background: bool) -> COLORREF {
         match color {
-            TerminalColor::Default => COLORREF(0x00FFFFFF), // White
+            TerminalColor::Default => {
+                if is_background {
+                    COLORREF(0x00000000) // Black
+                } else {
+                    COLORREF(0x00FFFFFF) // White
+                }
+            }
             TerminalColor::Ansi(n) => self.ansi_to_colorref(n),
             TerminalColor::Xterm(n) => self.xterm_to_colorref(n),
             TerminalColor::Rgb(r, g, b) => COLORREF(r as u32 | ((g as u32) << 8) | ((b as u32) << 16)),
@@ -180,13 +159,16 @@ impl TerminalRenderer {
             0..=15 => self.ansi_to_colorref(n),
             16..=231 => {
                 let idx = n - 16;
-                let r = if (idx / 36) > 0 { 55 + 40 * (idx / 36) } else { 0 };
-                let g = if ((idx % 36) / 6) > 0 { 55 + 40 * ((idx % 36) / 6) } else { 0 };
-                let b = if (idx % 6) > 0 { 55 + 40 * (idx % 6) } else { 0 };
+                let r_idx = idx / 36;
+                let g_idx = (idx % 36) / 6;
+                let b_idx = idx % 6;
+                let r = if r_idx > 0 { r_idx * 40 + 55 } else { 0 };
+                let g = if g_idx > 0 { g_idx * 40 + 55 } else { 0 };
+                let b = if b_idx > 0 { b_idx * 40 + 55 } else { 0 };
                 COLORREF((r as u32) | ((g as u32) << 8) | ((b as u32) << 16))
             }
             232..=255 => {
-                let val = 8 + (n - 232) * 10;
+                let val = (n - 232) * 10 + 8;
                 COLORREF((val as u32) | ((val as u32) << 8) | ((val as u32) << 16))
             }
         }
@@ -199,20 +181,16 @@ impl TerminalRenderer {
         buffer: &TerminalBuffer,
         composition: Option<&CompositionData>,
     ) {
-        self.ensure_font(hdc);
-
-        let (font, metrics) = match (&self.font, &self.metrics) {
-            (Some(f), Some(m)) => (f.0, m),
-            _ => return,
+        let _ = self.get_font_for_style(hdc, 0);
+        
+        let metrics = match &self.metrics {
+            Some(m) => m,
+            None => return,
         };
 
         unsafe {
-            let old_font = SelectObject(hdc, HGDIOBJ(font.0));
             let char_height = metrics.char_height;
             let base_width = metrics.base_width;
-
-            // 背景色を黒に設定
-            SetBkColor(hdc, COLORREF(0x00000000));
 
             let mut current_y = 0;
             let (cursor_x, cursor_y) = buffer.get_cursor_pos();
@@ -222,11 +200,11 @@ impl TerminalRenderer {
                 let mut cell_idx = 0;
 
                 while cell_idx < line.len() {
-                    let start_color = line[cell_idx].attribute.fg;
+                    let start_attr = line[cell_idx].attribute;
                     let mut run_text = String::new();
                     let mut run_dx = Vec::new();
 
-                    while cell_idx < line.len() && line[cell_idx].attribute.fg == start_color {
+                    while cell_idx < line.len() && line[cell_idx].attribute == start_attr {
                         let cell = &line[cell_idx];
                         run_text.push(cell.c);
                         let w = TerminalBuffer::char_display_width(cell.c) as i32 * base_width;
@@ -246,7 +224,28 @@ impl TerminalRenderer {
                     };
 
                     if !wide_run.is_empty() {
-                        SetTextColor(hdc, self.color_to_colorref(start_color));
+                        let mut style_mask = 0;
+                        if start_attr.bold { style_mask |= STYLE_BOLD; }
+                        if start_attr.italic { style_mask |= STYLE_ITALIC; }
+                        if start_attr.underline { style_mask |= STYLE_UNDERLINE; }
+                        if start_attr.strikethrough { style_mask |= STYLE_STRIKEOUT; }
+
+                        let h_font = self.get_font_for_style(hdc, style_mask);
+                        let old_font = SelectObject(hdc, HGDIOBJ(h_font.0));
+
+                        let mut fg = if start_attr.inverse { start_attr.bg } else { start_attr.fg };
+                        let bg = if start_attr.inverse { start_attr.fg } else { start_attr.bg };
+
+                        if start_attr.dim {
+                             fg = match fg {
+                                 TerminalColor::Rgb(r, g, b) => TerminalColor::Rgb(r/2, g/2, b/2),
+                                 _ => fg,
+                             };
+                        }
+
+                        SetTextColor(hdc, self.color_to_colorref(fg, false));
+                        SetBkColor(hdc, self.color_to_colorref(bg, true));
+
                         let _ = ExtTextOutW(
                             hdc,
                             x_offset,
@@ -257,12 +256,13 @@ impl TerminalRenderer {
                             wide_run.len() as u32,
                             Some(run_dx.as_ptr()),
                         );
+                        
+                        let _ = SelectObject(hdc, old_font);
                     }
 
                     x_offset += run_pixel_width;
                 }
 
-                // 行の残りを背景色で塗りつぶす
                 if x_offset < client_rect.right {
                     let fill_rect = RECT {
                         left: x_offset,
@@ -270,6 +270,7 @@ impl TerminalRenderer {
                         right: client_rect.right,
                         bottom: current_y + char_height,
                     };
+                    SetBkColor(hdc, COLORREF(0x00000000));
                     let _ = ExtTextOutW(
                         hdc,
                         x_offset,
@@ -307,7 +308,6 @@ impl TerminalRenderer {
                 }
                 current_y += char_height;
             }
-            let _ = SelectObject(hdc, old_font);
         }
     }
 
@@ -338,6 +338,8 @@ impl TerminalRenderer {
         };
 
         unsafe {
+            SetBkColor(hdc, COLORREF(0x00000000));
+            SetTextColor(hdc, COLORREF(0x00FFFFFF));
             let _ = ExtTextOutW(
                 hdc,
                 x,
