@@ -1,4 +1,4 @@
-use crate::domain::terminal::{Color, TerminalBuffer};
+use crate::domain::terminal::{TerminalAttribute, TerminalColor, TerminalBuffer};
 use windows::core::{w, PCWSTR};
 use windows::Win32::Foundation::{COLORREF, RECT, SIZE};
 use windows::Win32::Graphics::Gdi::{
@@ -144,39 +144,51 @@ impl TerminalRenderer {
         }
     }
 
-    fn color_to_colorref(&self, color: Color) -> COLORREF {
+    fn color_to_colorref(&self, color: TerminalColor) -> COLORREF {
         match color {
-            Color::Default => COLORREF(0x00FFFFFF), // White
-            Color::Ansi(n) => match n {
-                0 => COLORREF(0x00000000),  // Black
-                1 => COLORREF(0x00000080),  // Red
-                2 => COLORREF(0x00008000),  // Green
-                3 => COLORREF(0x00008080),  // Yellow
-                4 => COLORREF(0x00800000),  // Blue
-                5 => COLORREF(0x00800080),  // Magenta
-                6 => COLORREF(0x00808000),  // Cyan
-                7 => COLORREF(0x00C0C0C0),  // White/Gray
-                8 => COLORREF(0x00808080),  // Bright Black (Gray)
-                9 => COLORREF(0x000000FF),  // Bright Red
-                10 => COLORREF(0x0000FF00), // Bright Green
-                11 => COLORREF(0x0000FFFF), // Bright Yellow
-                12 => COLORREF(0x00FF0000), // Bright Blue
-                13 => COLORREF(0x00FF00FF), // Bright Magenta
-                14 => COLORREF(0x00FFFF00), // Bright Cyan
-                15 => COLORREF(0x00FFFFFF), // Bright White
-                16..=231 => {
-                    let idx = n - 16;
-                    let r = if (idx / 36) > 0 { 55 + 40 * (idx / 36) } else { 0 };
-                    let g = if ((idx % 36) / 6) > 0 { 55 + 40 * ((idx % 36) / 6) } else { 0 };
-                    let b = if (idx % 6) > 0 { 55 + 40 * (idx % 6) } else { 0 };
-                    COLORREF((r as u32) | ((g as u32) << 8) | ((b as u32) << 16))
-                }
-                232..=255 => {
-                    let val = 8 + (n - 232) * 10;
-                    COLORREF((val as u32) | ((val as u32) << 8) | ((val as u32) << 16))
-                }
-            },
-            Color::Rgb(r, g, b) => COLORREF(r as u32 | ((g as u32) << 8) | ((b as u32) << 16)),
+            TerminalColor::Default => COLORREF(0x00FFFFFF), // White
+            TerminalColor::Ansi(n) => self.ansi_to_colorref(n),
+            TerminalColor::Xterm(n) => self.xterm_to_colorref(n),
+            TerminalColor::Rgb(r, g, b) => COLORREF(r as u32 | ((g as u32) << 8) | ((b as u32) << 16)),
+        }
+    }
+
+    fn ansi_to_colorref(&self, n: u8) -> COLORREF {
+        match n {
+            0 => COLORREF(0x00000000),  // Black
+            1 => COLORREF(0x00000080),  // Red
+            2 => COLORREF(0x00008000),  // Green
+            3 => COLORREF(0x00008080),  // Yellow
+            4 => COLORREF(0x00800000),  // Blue
+            5 => COLORREF(0x00800080),  // Magenta
+            6 => COLORREF(0x00808000),  // Cyan
+            7 => COLORREF(0x00C0C0C0),  // White/Gray
+            8 => COLORREF(0x00808080),  // Bright Black (Gray)
+            9 => COLORREF(0x000000FF),  // Bright Red
+            10 => COLORREF(0x0000FF00), // Bright Green
+            11 => COLORREF(0x0000FFFF), // Bright Yellow
+            12 => COLORREF(0x00FF0000), // Bright Blue
+            13 => COLORREF(0x00FF00FF), // Bright Magenta
+            14 => COLORREF(0x00FFFF00), // Bright Cyan
+            15 => COLORREF(0x00FFFFFF), // Bright White
+            _ => COLORREF(0x00FFFFFF),
+        }
+    }
+
+    fn xterm_to_colorref(&self, n: u8) -> COLORREF {
+        match n {
+            0..=15 => self.ansi_to_colorref(n),
+            16..=231 => {
+                let idx = n - 16;
+                let r = if (idx / 36) > 0 { 55 + 40 * (idx / 36) } else { 0 };
+                let g = if ((idx % 36) / 6) > 0 { 55 + 40 * ((idx % 36) / 6) } else { 0 };
+                let b = if (idx % 6) > 0 { 55 + 40 * (idx % 6) } else { 0 };
+                COLORREF((r as u32) | ((g as u32) << 8) | ((b as u32) << 16))
+            }
+            232..=255 => {
+                let val = 8 + (n - 232) * 10;
+                COLORREF((val as u32) | ((val as u32) << 8) | ((val as u32) << 16))
+            }
         }
     }
 
@@ -210,11 +222,11 @@ impl TerminalRenderer {
                 let mut cell_idx = 0;
 
                 while cell_idx < line.len() {
-                    let start_color = line[cell_idx].fg_color;
+                    let start_color = line[cell_idx].attribute.fg;
                     let mut run_text = String::new();
                     let mut run_dx = Vec::new();
 
-                    while cell_idx < line.len() && line[cell_idx].fg_color == start_color {
+                    while cell_idx < line.len() && line[cell_idx].attribute.fg == start_color {
                         let cell = &line[cell_idx];
                         run_text.push(cell.c);
                         let w = TerminalBuffer::char_display_width(cell.c) as i32 * base_width;
