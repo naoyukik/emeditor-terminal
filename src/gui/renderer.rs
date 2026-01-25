@@ -1,10 +1,11 @@
-use crate::domain::terminal::TerminalBuffer;
+use crate::domain::terminal::{Color, TerminalBuffer};
 use windows::core::{w, PCWSTR};
-use windows::Win32::Foundation::{RECT, SIZE};
+use windows::Win32::Foundation::{COLORREF, RECT, SIZE};
 use windows::Win32::Graphics::Gdi::{
     CreateFontW, DeleteObject, ExtTextOutW, GetTextExtentPoint32W, GetTextMetricsW, InvertRect,
-    SelectObject, CLIP_DEFAULT_PRECIS, DEFAULT_CHARSET, DEFAULT_QUALITY, ETO_OPAQUE, ETO_OPTIONS,
-    FF_MODERN, FIXED_PITCH, FW_NORMAL, HDC, HFONT, HGDIOBJ, OUT_DEFAULT_PRECIS, TEXTMETRICW,
+    SelectObject, SetBkColor, SetTextColor, CLIP_DEFAULT_PRECIS, DEFAULT_CHARSET, DEFAULT_QUALITY,
+    ETO_OPAQUE, ETO_OPTIONS, FF_MODERN, FIXED_PITCH, FW_NORMAL, HDC, HFONT, HGDIOBJ,
+    OUT_DEFAULT_PRECIS, TEXTMETRICW,
 };
 
 #[derive(Clone, Debug)]
@@ -17,46 +18,6 @@ pub struct TerminalMetrics {
     pub base_width: i32,
 }
 
-/// Wrapper around a Windows `HFONT` handle that is treated as `Send` and `Sync`.
-///
-/// # 安全性 (Safety)
-///
-/// `HFONT` 自体は GDI オブジェクトを指す単なるハンドルであり、その値を
-/// スレッド間でコピー／ムーブすること自体は Windows の設計上許可されています。
-/// そのため、「ハンドル値を他スレッドに渡す」という点だけを見れば
-/// `Send` / `Sync` を実装してもただちに未定義動作にはなりません。
-///
-/// ただし、**GDI 操作にはスレッドアフィニティがある** ことに注意してください。
-///
-/// - `SelectObject` や `ExtTextOutW`、`GetTextMetricsW` などの GDI 関数は
-///   特定の `HDC`（デバイスコンテキスト）に対して動作し、その `HDC` は通常
-///   UI スレッド（メッセージループを持つスレッド）に紐づいています。
-/// - これらの GDI 関数はスレッドセーフではなく、UI スレッド以外から
-///   呼び出すと描画の破綻や未定義動作を引き起こす可能性があります。
-///
-/// 本ラッパー型はあくまで「`HFONT` ハンドル値をスレッド間で保持・共有する」こと
-/// のみを許可するものであり、**GDI 関数の呼び出しは必ず UI スレッドで行う**
-/// という前提に依存しています。
-///
-/// # ライフタイムと DeleteObject について
-///
-/// `SendHFONT` は `HFONT` のライフタイムや所有権を管理しません。
-/// フォントの生成 (`CreateFontW`) および破棄 (`DeleteObject`) は別途、
-/// UI スレッド側で一元管理されている前提です。
-///
-/// - 他スレッドがまだ `SendHFONT` を保持している可能性がある間は
-///   対応する `HFONT` に対して `DeleteObject` を呼び出してはいけません。
-/// - `DeleteObject` が呼ばれた後に、同じ `HFONT` を用いて `SelectObject` などの
-///   GDI 操作を行うことは未定義動作になります。
-///
-/// したがって、呼び出し側は以下を保証する必要があります:
-///
-/// 1. GDI 関数の呼び出し (`SelectObject`, `ExtTextOutW`, など) は UI スレッドからのみ行う。
-/// 2. `HFONT` の実際のライフタイム管理は UI スレッド側で行い、
-///    他スレッドがそのハンドルを保持している間は `DeleteObject` しない。
-///
-/// この型自体は上記制約を静的には強制しませんが、`Send` / `Sync` の `unsafe impl` は
-/// これらの不変条件が守られていることを前提としています。
 pub struct SendHFONT(pub HFONT);
 unsafe impl Send for SendHFONT {}
 unsafe impl Sync for SendHFONT {}
@@ -143,6 +104,32 @@ impl TerminalRenderer {
         }
     }
 
+    fn color_to_colorref(&self, color: Color) -> COLORREF {
+        match color {
+            Color::Default => COLORREF(0x00FFFFFF), // White
+            Color::Ansi(n) => match n {
+                0 => COLORREF(0x00000000),  // Black
+                1 => COLORREF(0x00000080),  // Red
+                2 => COLORREF(0x00008000),  // Green
+                3 => COLORREF(0x00008080),  // Yellow
+                4 => COLORREF(0x00800000),  // Blue
+                5 => COLORREF(0x00800080),  // Magenta
+                6 => COLORREF(0x00808000),  // Cyan
+                7 => COLORREF(0x00C0C0C0),  // White/Gray
+                8 => COLORREF(0x00808080),  // Bright Black (Gray)
+                9 => COLORREF(0x000000FF),  // Bright Red
+                10 => COLORREF(0x0000FF00), // Bright Green
+                11 => COLORREF(0x0000FFFF), // Bright Yellow
+                12 => COLORREF(0x00FF0000), // Bright Blue
+                13 => COLORREF(0x00FF00FF), // Bright Magenta
+                14 => COLORREF(0x00FFFF00), // Bright Cyan
+                15 => COLORREF(0x00FFFFFF), // Bright White
+                _ => COLORREF(0x00C0C0C0),
+            },
+            Color::Rgb(r, g, b) => COLORREF(r as u32 | ((g as u32) << 8) | ((b as u32) << 16)),
+        }
+    }
+
     pub fn render(
         &mut self,
         hdc: HDC,
@@ -162,36 +149,74 @@ impl TerminalRenderer {
             let char_height = metrics.char_height;
             let base_width = metrics.base_width;
 
+            // 背景色を黒に設定
+            SetBkColor(hdc, COLORREF(0x00000000));
+
             let mut current_y = 0;
             let (cursor_x, cursor_y) = buffer.get_cursor_pos();
 
             for (idx, line) in buffer.get_lines().iter().enumerate() {
-                let wide_line: Vec<u16> = line.encode_utf16().collect();
-                let mut dx: Vec<i32> = Vec::with_capacity(wide_line.len());
-                for c in line.chars() {
-                    let width = TerminalBuffer::char_display_width(c) as i32 * base_width;
-                    dx.push(width);
-                    dx.extend(std::iter::repeat_n(0, c.len_utf16().saturating_sub(1)));
+                let mut x_offset = 0;
+                let mut cell_idx = 0;
+
+                while cell_idx < line.len() {
+                    let start_color = line[cell_idx].fg_color;
+                    let mut run_text = String::new();
+                    let mut run_dx = Vec::new();
+
+                    while cell_idx < line.len() && line[cell_idx].fg_color == start_color {
+                        let cell = &line[cell_idx];
+                        run_text.push(cell.c);
+                        let w = TerminalBuffer::char_display_width(cell.c) as i32 * base_width;
+                        run_dx.push(w);
+                        run_dx.extend(std::iter::repeat_n(0, cell.c.len_utf16().saturating_sub(1)));
+                        cell_idx += 1;
+                    }
+
+                    let wide_run: Vec<u16> = run_text.encode_utf16().collect();
+                    let run_pixel_width: i32 = run_dx.iter().sum();
+
+                    let run_rect = RECT {
+                        left: x_offset,
+                        top: current_y,
+                        right: x_offset + run_pixel_width,
+                        bottom: current_y + char_height,
+                    };
+
+                    SetTextColor(hdc, self.color_to_colorref(start_color));
+                    let _ = ExtTextOutW(
+                        hdc,
+                        x_offset,
+                        current_y,
+                        ETO_OPTIONS(ETO_OPAQUE.0),
+                        Some(&run_rect),
+                        PCWSTR(wide_run.as_ptr()),
+                        wide_run.len() as u32,
+                        Some(run_dx.as_ptr()),
+                    );
+
+                    x_offset += run_pixel_width;
                 }
 
-                let line_pixel_width: i32 = dx.iter().sum();
-                let bg_rect = RECT {
-                    left: 0,
-                    top: current_y,
-                    right: std::cmp::max(line_pixel_width, client_rect.right),
-                    bottom: current_y + char_height,
-                };
-
-                let _ = ExtTextOutW(
-                    hdc,
-                    0,
-                    current_y,
-                    ETO_OPTIONS(ETO_OPAQUE.0),
-                    Some(&bg_rect),
-                    PCWSTR(wide_line.as_ptr()),
-                    wide_line.len() as u32,
-                    Some(dx.as_ptr()),
-                );
+                // 行の残りを背景色で塗りつぶす
+                if x_offset < client_rect.right {
+                    let fill_rect = RECT {
+                        left: x_offset,
+                        top: current_y,
+                        right: client_rect.right,
+                        bottom: current_y + char_height,
+                    };
+                    let _ = ExtTextOutW(
+                        hdc,
+                        x_offset,
+                        current_y,
+                        ETO_OPTIONS(ETO_OPAQUE.0),
+                        Some(&fill_rect),
+                        PCWSTR::null(),
+                        0,
+                        None,
+                    );
+                }
 
                 if idx == cursor_y {
                     let display_cols = buffer.get_display_width_up_to(cursor_y, cursor_x);
@@ -263,7 +288,7 @@ impl TerminalRenderer {
             let pen = windows::Win32::Graphics::Gdi::CreatePen(
                 windows::Win32::Graphics::Gdi::PS_SOLID,
                 1,
-                windows::Win32::Foundation::COLORREF(0x00FF0000),
+                COLORREF(0x00FF0000),
             );
 
             if !pen.0.is_null() {

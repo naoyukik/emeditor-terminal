@@ -1,0 +1,8 @@
+{
+  "track_id": "19_fix_psreadline_prediction_20260125",
+  "type": "bug",
+  "status": "new",
+  "created_at": "2026-01-25T13:27:00Z",
+  "updated_at": "2026-01-25T13:27:00Z",
+  "description": "fix: PSReadLineの予測入力（Prediction）表示の改善"
+}
