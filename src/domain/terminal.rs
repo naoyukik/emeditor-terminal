@@ -418,6 +418,12 @@ impl TerminalBuffer {
             return;
         }
 
+        // ANSI/VT の仕様上、SGR の「主パラメータ」は ';' 区切りで、'38' / '48' のような
+        // 拡張カラー指定に続く「サブパラメータ」にのみ ':' 区切りが使われます。
+        // この実装では、互換性と実用性を優先して ';' と ':' の両方を同列に区切り文字とし、
+        // `\x1b[31:32m` のような非標準だが実際に出力されうるシーケンスも受け入れます。
+        // より厳密な仕様準拠のパースが必要になった場合は、ここを「主パラメータは ';' で分割し、
+        // '38' / '48' などの後続のみ ':' で再分割する」実装に差し替えてください。
         let parts: Vec<&str> = params.split(|c| c == ';' || c == ':').collect();
         let mut i = 0;
         while i < parts.len() {
@@ -440,42 +446,73 @@ impl TerminalBuffer {
                 29 => self.current_attribute.strikethrough = false,
                 30..=37 => self.current_attribute.fg = TerminalColor::Ansi(p - 30),
                 38 => {
-                    if i + 1 < parts.len() {
-                        let type_p = parts[i + 1].parse::<u8>().unwrap_or(0);
-                        if type_p == 5 && i + 2 < parts.len() {
-                            let color_idx = parts[i + 2].parse::<u8>().unwrap_or(0);
-                            self.current_attribute.fg = TerminalColor::Xterm(color_idx);
-                            i += 3;
-                            continue;
-                        } else if type_p == 2 && i + 4 < parts.len() {
-                            let r = parts[i + 2].parse::<u8>().unwrap_or(0);
-                            let g = parts[i + 3].parse::<u8>().unwrap_or(0);
-                            let b = parts[i + 4].parse::<u8>().unwrap_or(0);
-                            self.current_attribute.fg = TerminalColor::Rgb(r, g, b);
-                            i += 5;
-                            continue;
+                    i += 1; // Consume '38'
+                    if i < parts.len() {
+                        let type_p = parts[i].parse::<u8>().unwrap_or(0);
+                        match type_p {
+                            5 => {
+                                i += 1; // Consume '5'
+                                if i < parts.len() {
+                                    let color_idx = parts[i].parse::<u8>().unwrap_or(0);
+                                    self.current_attribute.fg = TerminalColor::Xterm(color_idx);
+                                    i += 1;
+                                }
+                            }
+                            2 => {
+                                i += 1; // Consume '2'
+                                if i + 2 < parts.len() {
+                                    let r = parts[i].parse::<u8>().unwrap_or(0);
+                                    let g = parts[i + 1].parse::<u8>().unwrap_or(0);
+                                    let b = parts[i + 2].parse::<u8>().unwrap_or(0);
+                                    self.current_attribute.fg = TerminalColor::Rgb(r, g, b);
+                                    i += 3;
+                                } else {
+                                    i = parts.len();
+                                }
+                            }
+                            _ => {
+                                // Unknown type, '38' is already consumed.
+                                // 'type_p' will be handled by next iteration if we don't i+=1.
+                                // We decide to consume type_p as well to avoid misinterpreting it as SGR command.
+                                i += 1;
+                            }
                         }
                     }
+                    continue; // Skip i += 1 at the end
                 }
                 39 => self.current_attribute.fg = TerminalColor::Default,
                 40..=47 => self.current_attribute.bg = TerminalColor::Ansi(p - 40),
                 48 => {
-                    if i + 1 < parts.len() {
-                        let type_p = parts[i + 1].parse::<u8>().unwrap_or(0);
-                        if type_p == 5 && i + 2 < parts.len() {
-                            let color_idx = parts[i + 2].parse::<u8>().unwrap_or(0);
-                            self.current_attribute.bg = TerminalColor::Xterm(color_idx);
-                            i += 3;
-                            continue;
-                        } else if type_p == 2 && i + 4 < parts.len() {
-                            let r = parts[i + 2].parse::<u8>().unwrap_or(0);
-                            let g = parts[i + 3].parse::<u8>().unwrap_or(0);
-                            let b = parts[i + 4].parse::<u8>().unwrap_or(0);
-                            self.current_attribute.bg = TerminalColor::Rgb(r, g, b);
-                            i += 5;
-                            continue;
+                    i += 1; // Consume '48'
+                    if i < parts.len() {
+                        let type_p = parts[i].parse::<u8>().unwrap_or(0);
+                        match type_p {
+                            5 => {
+                                i += 1; // Consume '5'
+                                if i < parts.len() {
+                                    let color_idx = parts[i].parse::<u8>().unwrap_or(0);
+                                    self.current_attribute.bg = TerminalColor::Xterm(color_idx);
+                                    i += 1;
+                                }
+                            }
+                            2 => {
+                                i += 1; // Consume '2'
+                                if i + 2 < parts.len() {
+                                    let r = parts[i].parse::<u8>().unwrap_or(0);
+                                    let g = parts[i + 1].parse::<u8>().unwrap_or(0);
+                                    let b = parts[i + 2].parse::<u8>().unwrap_or(0);
+                                    self.current_attribute.bg = TerminalColor::Rgb(r, g, b);
+                                    i += 3;
+                                } else {
+                                    i = parts.len();
+                                }
+                            }
+                            _ => {
+                                i += 1;
+                            }
                         }
                     }
+                    continue;
                 }
                 49 => self.current_attribute.bg = TerminalColor::Default,
                 90..=97 => self.current_attribute.fg = TerminalColor::Ansi(p - 90 + 8),
@@ -824,5 +861,17 @@ mod tests {
         // Mixed separators
         buffer.write_string("\x1b[38;2;40:50;60mMixedRGB");
         assert_eq!(buffer.lines[0][8].attribute.fg, TerminalColor::Rgb(40, 50, 60));
+    }
+
+    #[test]
+    fn test_sgr_invalid_extended() {
+        let mut buffer = TerminalBuffer::new(80, 25);
+        // Invalid type_p (3) for SGR 38. 
+        buffer.write_string("\x1b[38;3;31mText");
+        // '3' is normally Italic, but here it's part of an invalid '38' sequence.
+        // It should be consumed as part of '38' handling and NOT set Italic.
+        let attr = buffer.lines[0][0].attribute;
+        assert!(!attr.italic); 
+        assert_eq!(attr.fg, TerminalColor::Ansi(1)); // '31' should still be processed as Red
     }
 }

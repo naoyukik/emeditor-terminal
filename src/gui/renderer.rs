@@ -20,6 +20,27 @@ pub struct TerminalMetrics {
 }
 
 /// Wrapper around a Windows `HFONT` handle that is treated as `Send` and `Sync`.
+///
+/// この型は Win32 GDI のフォントハンドル `HFONT` をラップし、Rust の型システム上は
+/// `Send` / `Sync` として扱えるようにするためのものです。これは **ハンドル値を別スレッドに
+/// 移動・共有できる** ことを許可するだけであり、GDI オブジェクト自体のスレッド安全性を
+/// 高めるものではありません。
+///
+/// # Safety
+///
+/// - `HFONT` を含む GDI オブジェクトは、一般に「作成・選択・描画・破棄」といった GDI 関数の
+///   呼び出しを UI スレッド（メッセージループを持つスレッド）から行うことが前提です。
+///   `SendHFONT` 自体はスレッド間で移動可能ですが、**GDI 関数の呼び出しは UI スレッドに
+///   制限される** という前提を守る必要があります。
+/// - `SendHFONT` は `HFONT` の所有権を表す単純なラッパーであり、`DeleteObject` による解放は
+///   呼び出し側の責務です。`HFONT` を最後に使用したスレッド / コンテキストにおいて、
+///   必ず `DeleteObject` を一度だけ呼び出してください。
+/// - `Send` / `Sync` を付与していても、複数スレッドから同じ `HFONT` を同時に GDI API に渡すことは
+///   想定していません。実際に GDI に対してフォントを選択したり描画に使用したりする操作は、
+///   適切に同期された単一の UI スレッドで行ってください。
+/// - この型を利用するコード（例: `TerminalRenderer::fonts` など）は、上記の制約を前提として設計されている
+///   必要があります。もし将来的にスレッドモデルや GDI の利用方法を変更する場合は、
+///   ここで述べた前提条件が依然として満たされているか再検証してください。
 pub struct SendHFONT(pub HFONT);
 unsafe impl Send for SendHFONT {}
 unsafe impl Sync for SendHFONT {}
@@ -92,7 +113,31 @@ impl TerminalRenderer {
 
             let h_font = CreateFontIndirectW(&lf);
             if h_font.0.is_null() {
-                log::error!("TerminalRenderer: Failed to create font for style mask {}", style_mask);
+                log::error!(
+                    "TerminalRenderer: Failed to create font for style mask {}",
+                    style_mask
+                );
+
+                // すでにデフォルトスタイル(0)のフォントがキャッシュされていれば、それにフォールバックする
+                if let Some(default_font) = self.fonts.get(&0) {
+                    log::warn!(
+                        "TerminalRenderer: Falling back to cached default font (style mask 0)"
+                    );
+                    return default_font.0;
+                }
+
+                // スタイル付きフォント生成に失敗した場合は、style_mask = 0 のフォント生成を試みる
+                if style_mask != 0 {
+                    log::warn!(
+                        "TerminalRenderer: Retrying font creation with style mask 0 as fallback"
+                    );
+                    return self.get_font_for_style(hdc, 0);
+                }
+
+                // style_mask = 0 でも生成に失敗した場合は、最後の手段としてデフォルトハンドルを返す
+                log::error!(
+                    "TerminalRenderer: Failed to create even the default font (style mask 0)"
+                );
                 return HFONT::default();
             }
 
@@ -233,18 +278,25 @@ impl TerminalRenderer {
                         let h_font = self.get_font_for_style(hdc, style_mask);
                         let old_font = SelectObject(hdc, HGDIOBJ(h_font.0));
 
-                        let mut fg = if start_attr.inverse { start_attr.bg } else { start_attr.fg };
+                        let fg = if start_attr.inverse { start_attr.bg } else { start_attr.fg };
                         let bg = if start_attr.inverse { start_attr.fg } else { start_attr.bg };
 
+                        let mut fg_colorref = self.color_to_colorref(fg, false);
+                        let bg_colorref = self.color_to_colorref(bg, true);
+
+                        // Dim属性が有効な場合は、COLORREFのRGB成分を用いて輝度を低減する
                         if start_attr.dim {
-                             fg = match fg {
-                                 TerminalColor::Rgb(r, g, b) => TerminalColor::Rgb(r/2, g/2, b/2),
-                                 _ => fg,
-                             };
+                            let raw = fg_colorref.0 as u32;
+                            // COLORREFは通常0x00BBGGRR形式
+                            let r = (raw & 0x000000FF) as u8 / 2;
+                            let g = ((raw & 0x0000FF00) >> 8) as u8 / 2;
+                            let b = ((raw & 0x00FF0000) >> 16) as u8 / 2;
+                            let dim_raw = ((b as u32) << 16) | ((g as u32) << 8) | (r as u32);
+                            fg_colorref = COLORREF(dim_raw);
                         }
 
-                        SetTextColor(hdc, self.color_to_colorref(fg, false));
-                        SetBkColor(hdc, self.color_to_colorref(bg, true));
+                        SetTextColor(hdc, fg_colorref);
+                        SetBkColor(hdc, bg_colorref);
 
                         let _ = ExtTextOutW(
                             hdc,
