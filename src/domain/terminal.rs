@@ -7,7 +7,7 @@ pub enum Color {
     Rgb(u8, u8, u8),
 }
 
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, PartialEq, Debug)]
 pub struct Cell {
     pub c: char,
     pub fg_color: Color,
@@ -190,13 +190,15 @@ impl TerminalBuffer {
                                     if type_p == 5 && i + 2 < parts.len() {
                                         let color_idx = parts[i + 2].parse::<u8>().unwrap_or(0);
                                         self.current_fg_color = Color::Ansi(color_idx);
-                                        i += 2;
+                                        i += 3;
+                                        continue;
                                     } else if type_p == 2 && i + 4 < parts.len() {
                                         let r = parts[i + 2].parse::<u8>().unwrap_or(0);
                                         let g = parts[i + 3].parse::<u8>().unwrap_or(0);
                                         let b = parts[i + 4].parse::<u8>().unwrap_or(0);
                                         self.current_fg_color = Color::Rgb(r, g, b);
-                                        i += 4;
+                                        i += 5;
+                                        continue;
                                     }
                                 }
                             }
@@ -647,6 +649,31 @@ mod tests {
         assert_eq!(buffer.lines[0][10].fg_color, Color::Ansi(208));
         buffer.write_string("\x1b[38;2;255;100;50mRGB");
         assert_eq!(buffer.lines[0][16].fg_color, Color::Rgb(255, 100, 50));
+    }
+
+    #[test]
+    fn test_sgr_complex_cases() {
+        let mut buffer = TerminalBuffer::new(80, 25);
+
+        // Bright colors (90-97)
+        buffer.write_string("\x1b[91mBrightRed");
+        assert_eq!(buffer.lines[0][0].fg_color, Color::Ansi(9));
+
+        // Reset (0)
+        buffer.write_string("\x1b[0mReset");
+        assert_eq!(buffer.lines[0][9].fg_color, Color::Default);
+
+        // Multiple params: \x1b[31;1m -> Red (31). Bold (1) ignored.
+        buffer.write_string("\x1b[31;1mMulti");
+        assert_eq!(buffer.lines[0][14].fg_color, Color::Ansi(1));
+
+        // Invalid 38;5 (missing index)
+        buffer.write_string("\x1b[38;5mInvalid");
+        assert_eq!(buffer.lines[0][19].fg_color, Color::Ansi(1));
+
+        // Incomplete 38;2 (missing RGB)
+        buffer.write_string("\x1b[38;2;10;20mIncomplete");
+        assert_eq!(buffer.lines[0][26].fg_color, Color::Ansi(1));
     }
 
     #[test]
