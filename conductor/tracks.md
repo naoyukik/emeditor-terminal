@@ -16,3 +16,8 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 - [x] **Track: feat: カーソル位置の保存/復元 (DECSC/DECRC) の実装 (Issue #12)**
 *Link: [./archive/12_cursor_save_restore_20260124/](./archive/12_cursor_save_restore_20260124/)*
+
+---
+
+- [x] **Track: fix: PSReadLineの予測入力（Prediction）表示の改善**
+*Link: [./archive/19_fix_psreadline_prediction_20260125/](./archive/19_fix_psreadline_prediction_20260125/)*
