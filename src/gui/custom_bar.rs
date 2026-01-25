@@ -14,7 +14,7 @@ use windows::Win32::UI::WindowsAndMessaging::{
 };
 const ISC_SHOWUICOMPOSITIONWINDOW: u32 = 0x80000000;
 use crate::domain::terminal::TerminalBuffer;
-use crate::domain::parser::AnsiParser;
+use crate::application::TerminalService;
 use crate::gui::renderer::{CompositionData, TerminalRenderer};
 use crate::infra::conpty::ConPTY;
 use std::cell::RefCell;
@@ -93,9 +93,7 @@ unsafe impl Send for SendHWND {}
 unsafe impl Sync for SendHWND {}
 
 struct TerminalData {
-    buffer: TerminalBuffer,
-    parser: AnsiParser,
-    conpty: Option<ConPTY>,
+    service: TerminalService,
     renderer: TerminalRenderer,
     window_handle: Option<SendHWND>,
     composition: Option<CompositionData>,
@@ -105,9 +103,7 @@ fn get_terminal_data() -> Arc<Mutex<TerminalData>> {
     TERMINAL_DATA
         .get_or_init(|| {
             Arc::new(Mutex::new(TerminalData {
-                buffer: TerminalBuffer::new(80, 25),
-                parser: AnsiParser::new(),
-                conpty: None,
+                service: TerminalService::new(80, 25),
                 renderer: TerminalRenderer::new(),
                 window_handle: None,
                 composition: None,
@@ -122,8 +118,8 @@ fn update_ime_window_position(hwnd: HWND) {
     let data = data_arc.lock().unwrap();
 
     if let Some(metrics) = data.renderer.get_metrics() {
-        let (cursor_x, cursor_y) = data.buffer.get_cursor_pos();
-        let display_cols = data.buffer.get_display_width_up_to(cursor_y, cursor_x);
+        let (cursor_x, cursor_y) = data.service.buffer.get_cursor_pos();
+        let display_cols = data.service.buffer.get_display_width_up_to(cursor_y, cursor_x);
 
         let pixel_x = display_cols as i32 * metrics.base_width;
         let pixel_y = cursor_y as i32 * metrics.char_height;
@@ -291,10 +287,9 @@ pub fn open_custom_bar(hwnd_editor: HWND) -> bool {
                         let output_handle = conpty.get_output_handle();
                         {
                             let mut data = data_arc.lock().unwrap();
-                            data.conpty = Some(conpty);
+                            data.service.conpty = Some(conpty);
                             // Sync buffer size with ConPTY
-                            data.buffer
-                                .resize(initial_cols as usize, initial_rows as usize);
+                            data.service.resize(initial_cols as usize, initial_rows as usize);
                         }
 
                         let output_handle_raw = output_handle.0 .0 as usize;
@@ -331,8 +326,7 @@ pub fn open_custom_bar(hwnd_editor: HWND) -> bool {
 
                                 {
                                     let mut data = data_arc.lock().unwrap();
-                                    let TerminalData { ref mut parser, ref mut buffer, .. } = *data;
-                                    parser.parse(&output, buffer);
+                                    data.service.process_output(&output);
                                 }
 
                                 // Trigger repaint via PostMessage (thread-safe)
@@ -508,7 +502,7 @@ fn write_to_conpty(handle: HANDLE, data: &[u8]) -> Result<(), windows::core::Err
 pub fn send_input(text: &str) {
     let data_arc = get_terminal_data();
     let data = data_arc.lock().unwrap();
-    if let Some(conpty) = &data.conpty {
+    if let Some(conpty) = &data.service.conpty {
         let utf8_bytes = text.as_bytes();
         let mut bytes_written = 0;
         unsafe {
@@ -533,7 +527,7 @@ pub fn cleanup_terminal() {
     log::info!("cleanup_terminal: Starting cleanup");
     let data_arc = get_terminal_data();
     let mut data = data_arc.lock().unwrap();
-    if let Some(_conpty) = data.conpty.take() {
+    if let Some(_conpty) = data.service.conpty.take() {
         log::info!("ConPTY instance found, will be dropped and cleaned up");
         // Drop happens automatically
     } else {
@@ -561,7 +555,7 @@ fn send_key_to_conpty(vk_code: u16) -> bool {
         let handle = {
             let data_arc = get_terminal_data();
             let data = data_arc.lock().unwrap();
-            data.conpty.as_ref().map(|c| c.get_input_handle().0)
+            data.service.conpty.as_ref().map(|c| c.get_input_handle().0)
         };
 
         if let Some(handle) = handle {
@@ -679,13 +673,13 @@ extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM
                     windows::Win32::UI::WindowsAndMessaging::GetClientRect(hwnd, &mut client_rect);
 
                 let TerminalData {
-                    ref buffer,
+                    ref service,
                     ref mut renderer,
                     ref composition,
                     ..
                 } = *data;
 
-                renderer.render(hdc, &client_rect, buffer, composition.as_ref());
+                renderer.render(hdc, &client_rect, &service.buffer, composition.as_ref());
 
                 let _ = EndPaint(hwnd, &ps);
             }
@@ -762,7 +756,7 @@ extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM
                 let handle = {
                     let data_arc = get_terminal_data();
                     let data = data_arc.lock().unwrap();
-                    data.conpty.as_ref().map(|c| c.get_input_handle().0)
+                    data.service.conpty.as_ref().map(|c| c.get_input_handle().0)
                 };
 
                 if let Some(handle) = handle {
@@ -819,7 +813,7 @@ extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM
                 let handle = {
                     let data_arc = get_terminal_data();
                     let data = data_arc.lock().unwrap();
-                    data.conpty.as_ref().map(|c| c.get_input_handle().0)
+                    data.service.conpty.as_ref().map(|c| c.get_input_handle().0)
                 };
                 if let Some(handle) = handle {
                     if let Err(e) = write_to_conpty(handle, vt_sequence) {
@@ -844,7 +838,7 @@ extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM
                 let handle = {
                     let data_arc = get_terminal_data();
                     let data = data_arc.lock().unwrap();
-                    data.conpty.as_ref().map(|c| c.get_input_handle().0)
+                    data.service.conpty.as_ref().map(|c| c.get_input_handle().0)
                 };
                 if let Some(handle) = handle {
                     if let Err(e) = write_to_conpty(handle, &seq) {
@@ -931,7 +925,7 @@ extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM
             let data_arc = get_terminal_data();
             let data = data_arc.lock().unwrap();
 
-            if let Some(conpty) = &data.conpty {
+            if let Some(conpty) = &data.service.conpty {
                 let s = String::from_utf16_lossy(&[char_code]);
                 let utf8_bytes = s.as_bytes();
                 let mut bytes_written = 0;
@@ -974,18 +968,7 @@ extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM
 
             log::info!("Resizing ConPTY to cols={}, rows={}", cols, rows);
 
-            if let Some(conpty) = &data.conpty {
-                match conpty.resize(cols, rows) {
-                    Ok(_) => {
-                        log::info!("ConPTY resized successfully to {}x{}", cols, rows);
-                        // Update the buffer size while preserving content
-                        data.buffer.resize(cols as usize, rows as usize);
-                    }
-                    Err(e) => {
-                        log::error!("Failed to resize ConPTY: {}", e);
-                    }
-                }
-            }
+            data.service.resize(cols as usize, rows as usize);
             LRESULT(0)
         }
         WM_DESTROY => {
@@ -999,7 +982,7 @@ extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM
             data.window_handle = None;
             data.renderer.clear_resources();
 
-            if let Some(_conpty) = data.conpty.take() {
+            if let Some(_conpty) = data.service.conpty.take() {
                 log::info!("ConPTY will be dropped and cleaned up");
             }
             LRESULT(0)

@@ -9,6 +9,14 @@
 - [x] Task: 既存テストの移行と動作確認
 - [x] Task: Conductor - ユーザー手動検証 'フェーズ 0: リファクタリング' (Protocol in workflow.md)
 
+## フェーズ 0.5: アーキテクチャ強化 (Application Layer)
+GUI層とドメイン層の結合度を下げるため、アプリケーション層を導入する。
+
+- [x] Task: `src/application/mod.rs` の作成と `TerminalService` の定義（`service.rs` へ分離）
+- [x] Task: `TerminalService` への `TerminalBuffer`, `AnsiParser`, `ConPTY` の集約
+- [x] Task: `src/gui/custom_bar.rs` のリファクタリング（`TerminalData` を `TerminalService` のラッパーに変更）
+- [x] Task: Conductor - ユーザー手動検証 'フェーズ 0.5: アーキテクチャ強化' (Protocol in workflow.md)
+
 ## フェーズ 1: ドメイン層の拡張 (TerminalBuffer)
 ヒストリー保持とビューポート制御のロジックを `TerminalBuffer` に実装する。
 

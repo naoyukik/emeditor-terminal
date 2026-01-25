@@ -9,6 +9,7 @@ use windows::Win32::System::SystemServices::{DLL_PROCESS_ATTACH, DLL_PROCESS_DET
 mod domain;
 mod gui;
 mod infra;
+mod application;
 
 use gui::custom_bar;
 

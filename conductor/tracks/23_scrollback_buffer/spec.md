@@ -9,6 +9,10 @@ EmEditor ターミナルの利便性を向上させるため、過去の出力�
     - `TerminalBuffer` 内の入力解析ロジック（`write_string`, `handle_csi`, `handle_sgr` 等）を `src/domain/parser.rs` (新規) へ移動する。
     - `Parser` 構造体を定義し、入力ストリームの状態（不完全なシーケンス等）を管理させる。
     - `TerminalBuffer` は純粋な状態保持と、Parser からの指示による描画操作（文字配置、カーソル移動等）に専念する。
+- **Application 層の導入**
+    - `src/application/` モジュールを新設し、`TerminalService` を実装する。
+    - `TerminalService` は `TerminalBuffer`, `AnsiParser`, `ConPTY` を統括し、GUI 層（`custom_bar.rs`）からの入力を処理する。
+    - GUI 層はドメインロジックから分離され、描画とOSイベント処理に専念する。
 
 ## 機能要件
 - **ヒストリーバッファの導入**
