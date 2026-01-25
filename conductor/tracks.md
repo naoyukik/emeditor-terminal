@@ -21,8 +21,3 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 - [x] **Track: fix: PSReadLineの予測入力（Prediction）表示の改善**
 *Link: [./archive/19_fix_psreadline_prediction_20260125/](./archive/19_fix_psreadline_prediction_20260125/)*
-
----
-
-- [x] **Track: PR #40 レビュー指摘事項の修正（SGR無限ループ、Dim色、ドキュメント）**
-*Link: [./tracks/36_pr_review_fixes_20260125/](./tracks/36_pr_review_fixes_20260125/)*
