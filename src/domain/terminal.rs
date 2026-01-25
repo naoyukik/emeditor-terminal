@@ -75,6 +75,11 @@ pub struct TerminalBuffer {
     pub(crate) scroll_top: usize,    // 0-based, inclusive
     pub(crate) scroll_bottom: usize, // 0-based, inclusive
     pub(crate) saved_cursor: Option<(usize, usize)>,
+
+    // Scrollback support
+    pub(crate) history: VecDeque<Vec<Cell>>,
+    pub(crate) viewport_offset: usize, // 0 = at bottom (normal view), >0 = scrolled up
+    pub(crate) scrollback_limit: usize,
 }
 
 impl TerminalBuffer {
@@ -92,21 +97,78 @@ impl TerminalBuffer {
             scroll_top: 0,
             scroll_bottom: height.saturating_sub(1),
             saved_cursor: None,
+            history: VecDeque::new(),
+            viewport_offset: 0,
+            scrollback_limit: 10000, // Default 10,000 lines
         }
     }
 
     pub(crate) fn scroll_up(&mut self) {
-        if self.scroll_top >= self.lines.len() 
+        // If scroll region is invalid or full screen
+        if self.scroll_top >= self.lines.len()
             || self.scroll_bottom >= self.lines.len()
             || self.scroll_top > self.scroll_bottom
         {
-            self.lines.pop_front();
+            if let Some(line) = self.lines.pop_front() {
+                self.push_to_history(line);
+            }
             self.lines.push_back(vec![Cell::default(); self.width]);
             return;
         }
-        self.lines.remove(self.scroll_top);
+
+        // If top of scroll region is 0, the line being removed goes to history
+        if self.scroll_top == 0 {
+            if let Some(line) = self.lines.remove(0) {
+                self.push_to_history(line);
+            }
+        } else {
+            // Otherwise it's just deleted (middle of screen scroll)
+            self.lines.remove(self.scroll_top);
+        }
+
         self.lines
             .insert(self.scroll_bottom, vec![Cell::default(); self.width]);
+    }
+
+    fn push_to_history(&mut self, line: Vec<Cell>) {
+        if self.scrollback_limit == 0 {
+            return;
+        }
+        if self.history.len() >= self.scrollback_limit {
+            self.history.pop_front();
+        }
+        self.history.push_back(line);
+
+        // Maintain viewport position relative to content if scrolled up
+        if self.viewport_offset > 0 {
+            self.viewport_offset += 1;
+            if self.viewport_offset > self.history.len() {
+                self.viewport_offset = self.history.len();
+            }
+        }
+    }
+
+    pub fn scroll_to(&mut self, offset: usize) {
+        let max_scroll = self.history.len();
+        self.viewport_offset = std::cmp::min(offset, max_scroll);
+    }
+
+    pub fn scroll_lines(&mut self, delta: isize) {
+        let current = self.viewport_offset as isize;
+        let new_offset = current + delta;
+        let max_scroll = self.history.len() as isize;
+
+        if new_offset < 0 {
+            self.viewport_offset = 0;
+        } else if new_offset > max_scroll {
+            self.viewport_offset = max_scroll as usize;
+        } else {
+            self.viewport_offset = new_offset as usize;
+        }
+    }
+
+    pub fn reset_viewport(&mut self) {
+        self.viewport_offset = 0;
     }
 
     pub fn process_normal_char(&mut self, c: char) {
@@ -225,6 +287,28 @@ impl TerminalBuffer {
         }
     }
 
+    pub fn get_line_at_visual_row(&self, visual_row: usize) -> Option<&Vec<Cell>> {
+        // visual_row: 0 is top of screen, height-1 is bottom
+
+        // Distance from the very last line of the active buffer
+        let dist_from_bottom = (self.height - 1 - visual_row) + self.viewport_offset;
+
+        if dist_from_bottom < self.lines.len() {
+            // It's in the active buffer
+            let idx = self.lines.len() - 1 - dist_from_bottom;
+            self.lines.get(idx)
+        } else {
+            // It's in history
+            let dist_in_history = dist_from_bottom - self.lines.len();
+            if dist_in_history < self.history.len() {
+                let idx = self.history.len() - 1 - dist_in_history;
+                self.history.get(idx)
+            } else {
+                None
+            }
+        }
+    }
+
     pub fn get_lines(&self) -> &VecDeque<Vec<Cell>> {
         &self.lines
     }
@@ -286,5 +370,86 @@ impl TerminalBuffer {
             self.cursor.x = 0;
             self.cursor.y = 0;
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    fn line_to_string(line: &[Cell]) -> String {
+        line.iter().map(|cell| cell.c).collect()
+    }
+
+    #[test]
+    fn test_cursor_initialization() {
+        let buffer = TerminalBuffer::new(80, 25);
+        assert_eq!(buffer.cursor.x, 0);
+        assert_eq!(buffer.cursor.y, 0);
+        assert!(buffer.cursor.visible);
+    }
+
+    #[test]
+    fn test_scrollback_history() {
+        let mut buffer = TerminalBuffer::new(10, 3);
+        buffer.scrollback_limit = 5;
+
+        // Line 1
+        buffer.put_char('1');
+        buffer.process_normal_char('\n');
+        // Line 2
+        buffer.put_char('2');
+        buffer.process_normal_char('\n');
+        // Line 3
+        buffer.put_char('3');
+        buffer.process_normal_char('\n');
+        // Line 4 (now line 1 is in history)
+        buffer.put_char('4');
+
+        assert_eq!(buffer.history.len(), 1);
+        assert_eq!(line_to_string(&buffer.history[0]).trim(), "1");
+        assert_eq!(line_to_string(&buffer.lines[0]).trim(), "2");
+
+        // Fill more to overflow limit
+        for i in 5..=10 {
+            buffer.process_normal_char('\n');
+            buffer.put_char(std::char::from_digit(i as u32, 16).unwrap_or('X'));
+        }
+
+        // History limit is 5.
+        assert_eq!(buffer.history.len(), 5);
+        // Last line in buffer is 'a' (10).
+        // Lines in buffer: ['8', '9', 'a']
+        // History should contain: ['3', '4', '5', '6', '7']
+        assert_eq!(line_to_string(&buffer.history[4]).trim(), "7");
+        assert_eq!(line_to_string(&buffer.lines[0]).trim(), "8");
+    }
+
+    #[test]
+    fn test_viewport_logic() {
+        let mut buffer = TerminalBuffer::new(10, 3);
+        buffer.put_char('A');
+        buffer.process_normal_char('\n');
+        buffer.put_char('B');
+        buffer.process_normal_char('\n');
+        buffer.put_char('C');
+        buffer.process_normal_char('\n'); // 'A' goes to history
+        buffer.put_char('D');
+
+        // History: ["A"], Lines: ["B", "C", "D"]
+
+        // Normal view (offset 0)
+        assert_eq!(line_to_string(buffer.get_line_at_visual_row(0).unwrap()).trim(), "B");
+        assert_eq!(line_to_string(buffer.get_line_at_visual_row(2).unwrap()).trim(), "D");
+
+        // Scroll up 1 (offset 1) -> Should show A, B, C
+        buffer.scroll_lines(1);
+        assert_eq!(buffer.viewport_offset, 1);
+        assert_eq!(line_to_string(buffer.get_line_at_visual_row(0).unwrap()).trim(), "A");
+        assert_eq!(line_to_string(buffer.get_line_at_visual_row(2).unwrap()).trim(), "C");
+
+        // Scroll back down
+        buffer.scroll_lines(-1);
+        assert_eq!(buffer.viewport_offset, 0);
+        assert_eq!(line_to_string(buffer.get_line_at_visual_row(0).unwrap()).trim(), "B");
     }
 }

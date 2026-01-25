@@ -20,12 +20,12 @@ GUI層とドメイン層の結合度を下げるため、アプリケーショ�
 ## フェーズ 1: ドメイン層の拡張 (TerminalBuffer)
 ヒストリー保持とビューポート制御のロジックを `TerminalBuffer` に実装する。
 
-- [ ] Task: `TerminalBuffer` 構造体へのフィールド追加 (`history`, `viewport_offset`, `scrollback_limit`)
-- [ ] Task: `scroll_up` メソッドの修正（押し出された行を `history` へ移動）
-- [ ] Task: ビューポート制御メソッドの実装 (`scroll_to`, `get_visible_lines`, `reset_viewport`)
-- [ ] Task: 入力時オートスクロール・出力時追従ロジックの実装
-- [ ] Task: ユニットテストの追加と既存テストの修正
-- [ ] Task: Conductor - ユーザー手動検証 'フェーズ 1: ドメイン層の拡張' (Protocol in workflow.md)
+- [x] Task: `TerminalBuffer` 構造体へのフィールド追加 (`history`, `viewport_offset`, `scrollback_limit`)
+- [x] Task: `scroll_up` メソッドの修正（押し出された行を `history` へ移動）
+- [x] Task: ビューポート制御メソッドの実装 (`scroll_to`, `get_visible_lines`, `reset_viewport`)
+- [x] Task: 入力時オートスクロール・出力時追従ロジックの実装
+- [x] Task: ユニットテストの追加と既存テストの修正
+- [x] Task: Conductor - ユーザー手動検証 'フェーズ 1: ドメイン層の拡張' (Protocol in workflow.md)
 
 ## フェーズ 2: GUI層の拡張 (Scrollbar & Message Handling)
 Win32 スクロールバーの制御とメッセージ処理を `custom_bar.rs` に実装する。
