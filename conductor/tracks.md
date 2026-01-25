@@ -21,8 +21,3 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 - [x] **Track: fix: PSReadLineの予測入力（Prediction）表示の改善**
 *Link: [./archive/19_fix_psreadline_prediction_20260125/](./archive/19_fix_psreadline_prediction_20260125/)*
-
----
-
-- [x] **Track: 拡張SGRシーケンス（256色、TrueColor、太字、斜体、下線等）の完全サポート**
-*Link: [./tracks/36_full_support_extended_sgr_20260125/](./tracks/36_full_support_extended_sgr_20260125/)*
