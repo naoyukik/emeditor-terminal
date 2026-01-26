@@ -62,7 +62,10 @@ const SIF_DISABLENOSCROLL: u32 = 0x0008;
 const SIF_TRACKPOS: u32 = 0x0010;
 const SIF_ALL: u32 = SIF_RANGE | SIF_PAGE | SIF_POS | SIF_TRACKPOS;
 
-const SBM_SETSCROLLINFO: u32 = 0x00E9;
+#[link(name = "user32")]
+extern "system" {
+    fn SetScrollInfo(hwnd: HWND, nbar: i32, lpsi: *const SCROLLINFO, redraw: BOOL) -> i32;
+}
 
 #[repr(C)]
 #[allow(non_snake_case)]
@@ -164,7 +167,7 @@ fn update_scroll_info(hwnd: HWND) {
     // viewport_offset is 0 at bottom.
     let n_pos = history_count - viewport_offset;
 
-    let mut si = SCROLLINFO {
+    let si = SCROLLINFO {
         cbSize: size_of::<SCROLLINFO>() as u32,
         fMask: SIF_ALL | SIF_DISABLENOSCROLL,
         nMin: 0,
@@ -175,7 +178,7 @@ fn update_scroll_info(hwnd: HWND) {
     };
 
     unsafe {
-        SendMessageW(hwnd, SBM_SETSCROLLINFO, WPARAM(SB_VERT as usize), LPARAM(&mut si as *mut _ as isize));
+        SetScrollInfo(hwnd, SB_VERT, &si, BOOL(1));
     }
 }
 
@@ -1102,23 +1105,25 @@ extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM
             let height = ((lparam.0 >> 16) & 0xFFFF) as i32;
             log::info!("WM_SIZE: width={}, height={}", width, height);
 
-            let data_arc = get_terminal_data();
-            let mut data = data_arc.lock().unwrap();
+            {
+                let data_arc = get_terminal_data();
+                let mut data = data_arc.lock().unwrap();
 
-            // Use cached metrics if available, otherwise approximation
-            let (char_width, char_height) = if let Some(metrics) = data.renderer.get_metrics() {
-                (metrics.base_width, metrics.char_height)
-            } else {
-                (8, 16) // Fallback approximation
-            };
+                // Use cached metrics if available, otherwise approximation
+                let (char_width, char_height) = if let Some(metrics) = data.renderer.get_metrics() {
+                    (metrics.base_width, metrics.char_height)
+                } else {
+                    (8, 16) // Fallback approximation
+                };
 
-            // Convert pixel dimensions to console character dimensions
-            let cols = (width / char_width).max(1) as i16;
-            let rows = (height / char_height).max(1) as i16;
+                // Convert pixel dimensions to console character dimensions
+                let cols = (width / char_width).max(1) as i16;
+                let rows = (height / char_height).max(1) as i16;
 
-            log::info!("Resizing ConPTY to cols={}, rows={}", cols, rows);
+                log::info!("Resizing ConPTY to cols={}, rows={}", cols, rows);
 
-            data.service.resize(cols as usize, rows as usize);
+                data.service.resize(cols as usize, rows as usize);
+            }
 
             update_scroll_info(hwnd);
             LRESULT(0)

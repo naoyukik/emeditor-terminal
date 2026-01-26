@@ -239,80 +239,84 @@ impl TerminalRenderer {
 
             let mut current_y = 0;
             let (cursor_x, cursor_y) = buffer.get_cursor_pos();
+            let viewport_offset = buffer.viewport_offset;
 
-            for (idx, line) in buffer.get_lines().iter().enumerate() {
+            for visual_row in 0..buffer.height {
                 let mut x_offset = 0;
-                let mut cell_idx = 0;
 
-                while cell_idx < line.len() {
-                    let start_attr = line[cell_idx].attribute;
-                    let mut run_text = String::new();
-                    let mut run_dx = Vec::new();
+                if let Some(line) = buffer.get_line_at_visual_row(visual_row) {
+                    let mut cell_idx = 0;
 
-                    while cell_idx < line.len() && line[cell_idx].attribute == start_attr {
-                        let cell = &line[cell_idx];
-                        run_text.push(cell.c);
-                        let w = TerminalBuffer::char_display_width(cell.c) as i32 * base_width;
-                        run_dx.push(w);
-                        run_dx.extend(std::iter::repeat_n(0, cell.c.len_utf16().saturating_sub(1)));
-                        cell_idx += 1;
-                    }
+                    while cell_idx < line.len() {
+                        let start_attr = line[cell_idx].attribute;
+                        let mut run_text = String::new();
+                        let mut run_dx = Vec::new();
 
-                    let wide_run: Vec<u16> = run_text.encode_utf16().collect();
-                    let run_pixel_width: i32 = run_dx.iter().sum();
-
-                    let run_rect = RECT {
-                        left: x_offset,
-                        top: current_y,
-                        right: x_offset + run_pixel_width,
-                        bottom: current_y + char_height,
-                    };
-
-                    if !wide_run.is_empty() {
-                        let mut style_mask = 0;
-                        if start_attr.bold { style_mask |= STYLE_BOLD; }
-                        if start_attr.italic { style_mask |= STYLE_ITALIC; }
-                        if start_attr.underline { style_mask |= STYLE_UNDERLINE; }
-                        if start_attr.strikethrough { style_mask |= STYLE_STRIKEOUT; }
-
-                        let h_font = self.get_font_for_style(hdc, style_mask);
-                        let old_font = SelectObject(hdc, HGDIOBJ(h_font.0));
-
-                        let fg = if start_attr.inverse { start_attr.bg } else { start_attr.fg };
-                        let bg = if start_attr.inverse { start_attr.fg } else { start_attr.bg };
-
-                        let mut fg_colorref = self.color_to_colorref(fg, false);
-                        let bg_colorref = self.color_to_colorref(bg, true);
-
-                        // Dim属性が有効な場合は、COLORREFのRGB成分を用いて輝度を低減する
-                        if start_attr.dim {
-                            let raw = fg_colorref.0 as u32;
-                            // COLORREFは通常0x00BBGGRR形式
-                            let r = (raw & 0x000000FF) as u8 / 2;
-                            let g = ((raw & 0x0000FF00) >> 8) as u8 / 2;
-                            let b = ((raw & 0x00FF0000) >> 16) as u8 / 2;
-                            let dim_raw = ((b as u32) << 16) | ((g as u32) << 8) | (r as u32);
-                            fg_colorref = COLORREF(dim_raw);
+                        while cell_idx < line.len() && line[cell_idx].attribute == start_attr {
+                            let cell = &line[cell_idx];
+                            run_text.push(cell.c);
+                            let w = TerminalBuffer::char_display_width(cell.c) as i32 * base_width;
+                            run_dx.push(w);
+                            run_dx.extend(std::iter::repeat_n(0, cell.c.len_utf16().saturating_sub(1)));
+                            cell_idx += 1;
                         }
 
-                        SetTextColor(hdc, fg_colorref);
-                        SetBkColor(hdc, bg_colorref);
+                        let wide_run: Vec<u16> = run_text.encode_utf16().collect();
+                        let run_pixel_width: i32 = run_dx.iter().sum();
 
-                        let _ = ExtTextOutW(
-                            hdc,
-                            x_offset,
-                            current_y,
-                            ETO_OPTIONS(ETO_OPAQUE.0),
-                            Some(&run_rect),
-                            PCWSTR(wide_run.as_ptr()),
-                            wide_run.len() as u32,
-                            Some(run_dx.as_ptr()),
-                        );
-                        
-                        let _ = SelectObject(hdc, old_font);
+                        let run_rect = RECT {
+                            left: x_offset,
+                            top: current_y,
+                            right: x_offset + run_pixel_width,
+                            bottom: current_y + char_height,
+                        };
+
+                        if !wide_run.is_empty() {
+                            let mut style_mask = 0;
+                            if start_attr.bold { style_mask |= STYLE_BOLD; }
+                            if start_attr.italic { style_mask |= STYLE_ITALIC; }
+                            if start_attr.underline { style_mask |= STYLE_UNDERLINE; }
+                            if start_attr.strikethrough { style_mask |= STYLE_STRIKEOUT; }
+
+                            let h_font = self.get_font_for_style(hdc, style_mask);
+                            let old_font = SelectObject(hdc, HGDIOBJ(h_font.0));
+
+                            let fg = if start_attr.inverse { start_attr.bg } else { start_attr.fg };
+                            let bg = if start_attr.inverse { start_attr.fg } else { start_attr.bg };
+
+                            let mut fg_colorref = self.color_to_colorref(fg, false);
+                            let bg_colorref = self.color_to_colorref(bg, true);
+
+                            // Dim属性が有効な場合は、COLORREFのRGB成分を用いて輝度を低減する
+                            if start_attr.dim {
+                                let raw = fg_colorref.0 as u32;
+                                // COLORREFは通常0x00BBGGRR形式
+                                let r = (raw & 0x000000FF) as u8 / 2;
+                                let g = ((raw & 0x0000FF00) >> 8) as u8 / 2;
+                                let b = ((raw & 0x00FF0000) >> 16) as u8 / 2;
+                                let dim_raw = ((b as u32) << 16) | ((g as u32) << 8) | (r as u32);
+                                fg_colorref = COLORREF(dim_raw);
+                            }
+
+                            SetTextColor(hdc, fg_colorref);
+                            SetBkColor(hdc, bg_colorref);
+
+                            let _ = ExtTextOutW(
+                                hdc,
+                                x_offset,
+                                current_y,
+                                ETO_OPTIONS(ETO_OPAQUE.0),
+                                Some(&run_rect),
+                                PCWSTR(wide_run.as_ptr()),
+                                wide_run.len() as u32,
+                                Some(run_dx.as_ptr()),
+                            );
+
+                            let _ = SelectObject(hdc, old_font);
+                        }
+
+                        x_offset += run_pixel_width;
                     }
-
-                    x_offset += run_pixel_width;
                 }
 
                 if x_offset < client_rect.right {
@@ -335,7 +339,7 @@ impl TerminalRenderer {
                     );
                 }
 
-                if idx == cursor_y {
+                if viewport_offset == 0 && visual_row == cursor_y {
                     let display_cols = buffer.get_display_width_up_to(cursor_y, cursor_x);
                     let cursor_pixel_x = display_cols as i32 * base_width;
 
