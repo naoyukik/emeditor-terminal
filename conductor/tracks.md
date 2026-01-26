@@ -24,5 +24,5 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 ---
 
-- [~] **Track: スクロールバック・バッファ（履歴バッファ）の実装**
-- *Link: [./tracks/23_scrollback_buffer/](./tracks/23_scrollback_buffer/)*
+- [x] **Track: スクロールバック・バッファ（履歴バッファ）の実装**
+*Link: [./archive/23_scrollback_buffer/](./archive/23_scrollback_buffer/)*
