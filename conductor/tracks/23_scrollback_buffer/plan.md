@@ -30,11 +30,11 @@ GUI層とドメイン層の結合度を下げるため、アプリケーショ�
 ## フェーズ 2: GUI層の拡張 (Scrollbar & Message Handling)
 Win32 スクロールバーの制御とメッセージ処理を `custom_bar.rs` に実装する。
 
-- [ ] Task: `SCROLLINFO` の更新ロジック実装（バッファサイズに基づくリアルタイム同期）
-- [ ] Task: `WM_VSCROLL` メッセージハンドラの追加（スクロールバー操作の処理）
-- [ ] Task: `WM_MOUSEWHEEL` メッセージハンドラの追加（マウスホイール操作の処理）
-- [ ] Task: `WM_KEYDOWN` へのオートスクロールトリガー追加
-- [ ] Task: Conductor - ユーザー手動検証 'フェーズ 2: GUI層の拡張' (Protocol in workflow.md)
+- [x] Task: `SCROLLINFO` の更新ロジック実装（バッファサイズに基づくリアルタイム同期）
+- [x] Task: `WM_VSCROLL` メッセージハンドラの追加（スクロールバー操作の処理）
+- [x] Task: `WM_MOUSEWHEEL` メッセージハンドラの追加（マウスホイール操作の処理）
+- [x] Task: `WM_KEYDOWN` へのオートスクロールトリガー追加
+- [x] Task: Conductor - ユーザー手動検証 'フェーズ 2: GUI層の拡張' (Protocol in workflow.md)
 
 ## フェーズ 3: レンダリングの調整 (Renderer)
 ビューポートに基づいて描画内容を切り替えるよう `TerminalRenderer` を修正する。

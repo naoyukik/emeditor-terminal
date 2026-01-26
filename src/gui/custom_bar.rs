@@ -10,7 +10,7 @@ use windows::Win32::UI::WindowsAndMessaging::{
     WM_CHAR, WM_DESTROY, WM_GETDLGCODE, WM_IME_COMPOSITION, WM_IME_ENDCOMPOSITION,
     WM_IME_SETCONTEXT, WM_IME_STARTCOMPOSITION, WM_KEYDOWN, WM_KEYUP, WM_KILLFOCUS, WM_LBUTTONDOWN,
     WM_PAINT, WM_SETFOCUS, WM_SIZE, WM_SYSCHAR, WM_SYSCOMMAND, WM_SYSKEYDOWN, WM_SYSKEYUP,
-    WNDCLASSW, WS_CHILD, WS_VISIBLE, WS_CLIPCHILDREN, WS_CLIPSIBLINGS,
+    WNDCLASSW, WS_CHILD, WS_VISIBLE, WS_CLIPCHILDREN, WS_CLIPSIBLINGS, WM_VSCROLL, WM_MOUSEWHEEL,
 };
 const ISC_SHOWUICOMPOSITIONWINDOW: u32 = 0x80000000;
 use crate::domain::terminal::TerminalBuffer;
@@ -43,6 +43,38 @@ const EE_CUSTOM_BAR_OPEN: u32 = EE_FIRST + 73;
 // Custom message for repaint from background thread
 const WM_APP: u32 = 0x8000;
 const WM_APP_REPAINT: u32 = WM_APP + 1;
+
+// Scroll Bar Constants (Self-defined to avoid dependency issues)
+const SB_VERT: i32 = 1;
+const SB_LINEUP: i32 = 0;
+const SB_LINEDOWN: i32 = 1;
+const SB_PAGEUP: i32 = 2;
+const SB_PAGEDOWN: i32 = 3;
+const SB_THUMBPOSITION: i32 = 4;
+const SB_THUMBTRACK: i32 = 5;
+const SB_TOP: i32 = 6;
+const SB_BOTTOM: i32 = 7;
+
+const SIF_RANGE: u32 = 0x0001;
+const SIF_PAGE: u32 = 0x0002;
+const SIF_POS: u32 = 0x0004;
+const SIF_DISABLENOSCROLL: u32 = 0x0008;
+const SIF_TRACKPOS: u32 = 0x0010;
+const SIF_ALL: u32 = SIF_RANGE | SIF_PAGE | SIF_POS | SIF_TRACKPOS;
+
+const SBM_SETSCROLLINFO: u32 = 0x00E9;
+
+#[repr(C)]
+#[allow(non_snake_case)]
+struct SCROLLINFO {
+    cbSize: u32,
+    fMask: u32,
+    nMin: i32,
+    nMax: i32,
+    nPage: u32,
+    nPos: i32,
+    nTrackPos: i32,
+}
 
 // Custom Bar Positions
 // const CUSTOM_BAR_LEFT: i32 = 0;
@@ -110,6 +142,41 @@ fn get_terminal_data() -> Arc<Mutex<TerminalData>> {
             }))
         })
         .clone()
+}
+
+fn update_scroll_info(hwnd: HWND) {
+    let data_arc = get_terminal_data();
+    let data = data_arc.lock().unwrap();
+
+    let history_count = data.service.get_history_count() as i32;
+    let viewport_offset = data.service.get_viewport_offset() as i32;
+    let height = data.service.buffer.height as i32;
+
+    // nMax calculation for Win32 scrollbar
+    // The scrollable range is nMin to nMax - nPage + 1
+    // We want the scrollable range to be [0, history_count]
+    // So: nMax - nPage + 1 = history_count
+    // nMax = history_count + nPage - 1
+    let page_size = height;
+    let n_max = history_count + page_size - 1;
+
+    // Position: 0 (top of history) to history_count (bottom)
+    // viewport_offset is 0 at bottom.
+    let n_pos = history_count - viewport_offset;
+
+    let mut si = SCROLLINFO {
+        cbSize: size_of::<SCROLLINFO>() as u32,
+        fMask: SIF_ALL | SIF_DISABLENOSCROLL,
+        nMin: 0,
+        nMax: n_max,
+        nPage: page_size as u32,
+        nPos: n_pos,
+        nTrackPos: 0,
+    };
+
+    unsafe {
+        SendMessageW(hwnd, SBM_SETSCROLLINFO, WPARAM(SB_VERT as usize), LPARAM(&mut si as *mut _ as isize));
+    }
 }
 
 // Helper to update IME window position
@@ -660,6 +727,77 @@ fn uninstall_keyboard_hook() {
 
 extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
     match msg {
+        WM_VSCROLL => {
+            let request = wparam.0 & 0xFFFF;
+            let mut delta = 0isize;
+            let mut absolute_pos: Option<usize> = None;
+
+            let data_arc = get_terminal_data();
+
+            match request as i32 {
+                SB_LINEUP => delta = 1,
+                SB_LINEDOWN => delta = -1,
+                SB_PAGEUP => {
+                    let data = data_arc.lock().unwrap();
+                    delta = data.service.buffer.height as isize;
+                },
+                SB_PAGEDOWN => {
+                    let data = data_arc.lock().unwrap();
+                    delta = -(data.service.buffer.height as isize);
+                },
+                SB_THUMBTRACK | SB_THUMBPOSITION => {
+                    let pos = (wparam.0 >> 16) & 0xFFFF;
+
+                    // nPos = history_count - viewport_offset
+                    // viewport_offset = history_count - nPos
+                    let data = data_arc.lock().unwrap();
+                    let history_count = data.service.get_history_count();
+                    let target_pos = pos as usize;
+
+                    // Allow scroll beyond history count (active buffer)?
+                    // No, our scroll bar maps 0..history_count.
+                    if target_pos <= history_count {
+                        absolute_pos = Some(history_count - target_pos);
+                    } else {
+                        absolute_pos = Some(0);
+                    }
+                },
+                SB_TOP => {
+                    let data = data_arc.lock().unwrap();
+                    absolute_pos = Some(data.service.get_history_count());
+                },
+                SB_BOTTOM => absolute_pos = Some(0),
+                _ => {}
+            }
+
+            {
+                let mut data = data_arc.lock().unwrap();
+                if let Some(pos) = absolute_pos {
+                    data.service.scroll_to(pos);
+                } else if delta != 0 {
+                    data.service.scroll_lines(delta);
+                }
+            }
+
+            update_scroll_info(hwnd);
+            unsafe { InvalidateRect(hwnd, None, BOOL(0)); }
+            LRESULT(0)
+        }
+        WM_MOUSEWHEEL => {
+            let z_delta = (wparam.0 >> 16) as i16;
+            // 3 lines per notch
+            let lines = (z_delta as f32 / 120.0 * 3.0) as isize;
+
+            if lines != 0 {
+                let data_arc = get_terminal_data();
+                let mut data = data_arc.lock().unwrap();
+                data.service.scroll_lines(lines);
+            }
+
+            update_scroll_info(hwnd);
+            unsafe { InvalidateRect(hwnd, None, BOOL(0)); }
+            LRESULT(0)
+        }
         WM_PAINT => {
             unsafe {
                 let mut ps = PAINTSTRUCT::default();
@@ -729,6 +867,17 @@ extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM
         }
         WM_KEYDOWN => {
             let vk_code = wparam.0 as u16;
+
+            // Reset viewport on key press
+            {
+                let data_arc = get_terminal_data();
+                let mut data = data_arc.lock().unwrap();
+                data.service.reset_viewport();
+            }
+            // Update scrollbar and screen immediately to reflect the jump
+            update_scroll_info(hwnd);
+            unsafe { InvalidateRect(hwnd, None, BOOL(0)); }
+
             log::debug!("WM_KEYDOWN received: 0x{:04X}", vk_code);
 
             // Check modifier key states
@@ -942,6 +1091,7 @@ extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM
         }
         msg if msg == WM_APP_REPAINT => {
             // Handle repaint request from background thread
+            update_scroll_info(hwnd);
             unsafe {
                 let _ = InvalidateRect(hwnd, None, BOOL(0));
             }
@@ -969,6 +1119,8 @@ extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM
             log::info!("Resizing ConPTY to cols={}, rows={}", cols, rows);
 
             data.service.resize(cols as usize, rows as usize);
+
+            update_scroll_info(hwnd);
             LRESULT(0)
         }
         WM_DESTROY => {
