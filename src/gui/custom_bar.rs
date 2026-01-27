@@ -595,13 +595,24 @@ fn send_key_to_conpty(vk_code: u16) -> bool {
 
     if let Some(vt_sequence) = vk_to_vt_sequence(vk_code, ctrl_pressed, shift_pressed, alt_pressed)
     {
-        let data_arc = get_terminal_data();
-        let data = data_arc.lock().unwrap();
-        log::debug!(
-            "Keyboard hook: Sending VT sequence for vk_code 0x{:04X}",
-            vk_code
-        );
-        let _ = data.service.send_input(vt_sequence);
+        {
+            let data_arc = get_terminal_data();
+            let mut data = data_arc.lock().unwrap();
+            log::debug!(
+                "Keyboard hook: Sending VT sequence for vk_code 0x{:04X}",
+                vk_code
+            );
+            data.service.reset_viewport();
+            let _ = data.service.send_input(vt_sequence);
+        }
+
+        TERMINAL_HWND.with(|h| {
+            if let Some(hwnd) = *h.borrow() {
+                update_scroll_info(hwnd);
+                unsafe { let _ = InvalidateRect(hwnd, None, BOOL(0)); }
+            }
+        });
+
         return true;
     }
     false
@@ -1013,10 +1024,16 @@ extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM
                 return LRESULT(0);
             }
 
-            let data_arc = get_terminal_data();
-            let data = data_arc.lock().unwrap();
-            let s = String::from_utf16_lossy(&[char_code]);
-            let _ = data.service.send_input(s.as_bytes());
+            {
+                let data_arc = get_terminal_data();
+                let mut data = data_arc.lock().unwrap();
+                data.service.reset_viewport();
+                let s = String::from_utf16_lossy(&[char_code]);
+                let _ = data.service.send_input(s.as_bytes());
+            }
+            update_scroll_info(hwnd);
+            unsafe { let _ = InvalidateRect(hwnd, None, BOOL(0)); }
+
             LRESULT(0)
         }
         msg if msg == WM_APP_REPAINT => {
