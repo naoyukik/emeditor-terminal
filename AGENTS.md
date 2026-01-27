@@ -5,9 +5,10 @@ https://github.com/naoyukik/emeditor-terminal
 
 ## プロジェクト・ガイドライン
 本プロジェクトの開発においては、以下のドキュメントに記載されたルールを厳守すること。
+なお、`conductor/` ディレクトリ全体がプロジェクトのガイドライン、設計資料、および開発プロセスを包含している。
 
 - **コーディング・アーキテクチャ規約**: [`conductor/code_styleguides/rust_win32.md`](conductor/code_styleguides/rust_win32.md)
-  - レイヤードアーキテクチャ、DDD命名規則、テスト戦略など。
+  - レイヤードアーキテクチャ、Repositoryパターン、DIの導入、DDD命名規則、テスト戦略など。
 - **Git 操作ガイドライン**: [`conductor/git.md`](conductor/git.md)
   - **重要**: `git add .` および `git add -A` の使用は固く禁ずる。ファイルは必ず個別に指定すること。
   - コミットメッセージの形式（Conventional Commits + チケット番号）。
