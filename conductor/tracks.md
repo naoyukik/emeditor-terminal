@@ -21,3 +21,13 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 - [x] **Track: fix: PSReadLineの予測入力（Prediction）表示の改善**
 *Link: [./archive/19_fix_psreadline_prediction_20260125/](./archive/19_fix_psreadline_prediction_20260125/)*
+
+---
+
+- [x] **Track: スクロールバック・バッファ（履歴バッファ）の実装**
+*Link: [./archive/23_scrollback_buffer/](./archive/23_scrollback_buffer/)*
+
+---
+
+- [~] **Track: PR #42 Review Fixes (IME復元, リファクタリング)**
+*Link: [./tracks/pr_review_42_scrollback_fixes/](./tracks/pr_review_42_scrollback_fixes/)*

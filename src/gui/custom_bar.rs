@@ -10,10 +10,10 @@ use windows::Win32::UI::WindowsAndMessaging::{
     WM_CHAR, WM_DESTROY, WM_GETDLGCODE, WM_IME_COMPOSITION, WM_IME_ENDCOMPOSITION,
     WM_IME_SETCONTEXT, WM_IME_STARTCOMPOSITION, WM_KEYDOWN, WM_KEYUP, WM_KILLFOCUS, WM_LBUTTONDOWN,
     WM_PAINT, WM_SETFOCUS, WM_SIZE, WM_SYSCHAR, WM_SYSCOMMAND, WM_SYSKEYDOWN, WM_SYSKEYUP,
-    WNDCLASSW, WS_CHILD, WS_CLIPCHILDREN, WS_CLIPSIBLINGS, WS_VISIBLE,
+    WNDCLASSW, WS_CHILD, WS_VISIBLE, WS_CLIPCHILDREN, WS_CLIPSIBLINGS, WM_VSCROLL, WM_MOUSEWHEEL,
 };
 const ISC_SHOWUICOMPOSITIONWINDOW: u32 = 0x80000000;
-use crate::domain::terminal::TerminalBuffer;
+use crate::application::TerminalService;
 use crate::gui::renderer::{CompositionData, TerminalRenderer};
 use crate::infra::conpty::ConPTY;
 use std::cell::RefCell;
@@ -22,7 +22,7 @@ use std::mem::size_of;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
 use std::thread;
-use windows::Win32::Storage::FileSystem::{ReadFile, WriteFile};
+use windows::Win32::Storage::FileSystem::ReadFile;
 use windows::Win32::UI::Input::Ime::{
     ImmGetCompositionStringW, ImmGetContext, ImmReleaseContext, ImmSetCompositionWindow, CFS_POINT,
     COMPOSITIONFORM, GCS_COMPSTR, GCS_RESULTSTR,
@@ -42,6 +42,41 @@ const EE_CUSTOM_BAR_OPEN: u32 = EE_FIRST + 73;
 // Custom message for repaint from background thread
 const WM_APP: u32 = 0x8000;
 const WM_APP_REPAINT: u32 = WM_APP + 1;
+
+// Scroll Bar Constants (Self-defined to avoid dependency issues)
+const SB_VERT: i32 = 1;
+const SB_LINEUP: i32 = 0;
+const SB_LINEDOWN: i32 = 1;
+const SB_PAGEUP: i32 = 2;
+const SB_PAGEDOWN: i32 = 3;
+const SB_THUMBPOSITION: i32 = 4;
+const SB_THUMBTRACK: i32 = 5;
+const SB_TOP: i32 = 6;
+const SB_BOTTOM: i32 = 7;
+
+const SIF_RANGE: u32 = 0x0001;
+const SIF_PAGE: u32 = 0x0002;
+const SIF_POS: u32 = 0x0004;
+const SIF_DISABLENOSCROLL: u32 = 0x0008;
+const SIF_TRACKPOS: u32 = 0x0010;
+const SIF_ALL: u32 = SIF_RANGE | SIF_PAGE | SIF_POS | SIF_TRACKPOS;
+
+#[link(name = "user32")]
+extern "system" {
+    fn SetScrollInfo(hwnd: HWND, nbar: i32, lpsi: *const SCROLLINFO, redraw: BOOL) -> i32;
+}
+
+#[repr(C)]
+#[allow(non_snake_case)]
+struct SCROLLINFO {
+    cbSize: u32,
+    fMask: u32,
+    nMin: i32,
+    nMax: i32,
+    nPage: u32,
+    nPos: i32,
+    nTrackPos: i32,
+}
 
 // Custom Bar Positions
 // const CUSTOM_BAR_LEFT: i32 = 0;
@@ -92,8 +127,7 @@ unsafe impl Send for SendHWND {}
 unsafe impl Sync for SendHWND {}
 
 struct TerminalData {
-    buffer: TerminalBuffer,
-    conpty: Option<ConPTY>,
+    service: TerminalService,
     renderer: TerminalRenderer,
     window_handle: Option<SendHWND>,
     composition: Option<CompositionData>,
@@ -103,8 +137,7 @@ fn get_terminal_data() -> Arc<Mutex<TerminalData>> {
     TERMINAL_DATA
         .get_or_init(|| {
             Arc::new(Mutex::new(TerminalData {
-                buffer: TerminalBuffer::new(80, 25),
-                conpty: None,
+                service: TerminalService::new(80, 25),
                 renderer: TerminalRenderer::new(),
                 window_handle: None,
                 composition: None,
@@ -113,14 +146,49 @@ fn get_terminal_data() -> Arc<Mutex<TerminalData>> {
         .clone()
 }
 
+fn update_scroll_info(hwnd: HWND) {
+    let data_arc = get_terminal_data();
+    let data = data_arc.lock().unwrap();
+
+    let history_count = data.service.get_history_count() as i32;
+    let viewport_offset = data.service.get_viewport_offset() as i32;
+    let height = data.service.buffer.height as i32;
+
+    // nMax calculation for Win32 scrollbar
+    // The scrollable range is nMin to nMax - nPage + 1
+    // We want the scrollable range to be [0, history_count]
+    // So: nMax - nPage + 1 = history_count
+    // nMax = history_count + nPage - 1
+    let page_size = height;
+    let n_max = history_count + page_size - 1;
+
+    // Position: 0 (top of history) to history_count (bottom)
+    // viewport_offset is 0 at bottom.
+    let n_pos = history_count - viewport_offset;
+
+    let si = SCROLLINFO {
+        cbSize: size_of::<SCROLLINFO>() as u32,
+        fMask: SIF_ALL | SIF_DISABLENOSCROLL,
+        nMin: 0,
+        nMax: n_max,
+        nPage: page_size as u32,
+        nPos: n_pos,
+        nTrackPos: 0,
+    };
+
+    unsafe {
+        SetScrollInfo(hwnd, SB_VERT, &si, BOOL(1));
+    }
+}
+
 // Helper to update IME window position
 fn update_ime_window_position(hwnd: HWND) {
     let data_arc = get_terminal_data();
     let data = data_arc.lock().unwrap();
 
     if let Some(metrics) = data.renderer.get_metrics() {
-        let (cursor_x, cursor_y) = data.buffer.get_cursor_pos();
-        let display_cols = data.buffer.get_display_width_up_to(cursor_y, cursor_x);
+        let (cursor_x, cursor_y) = data.service.buffer.get_cursor_pos();
+        let display_cols = data.service.buffer.get_display_width_up_to(cursor_y, cursor_x);
 
         let pixel_x = display_cols as i32 * metrics.base_width;
         let pixel_y = cursor_y as i32 * metrics.char_height;
@@ -286,15 +354,14 @@ pub fn open_custom_bar(hwnd_editor: HWND) -> bool {
 
                         let data_arc = get_terminal_data();
                         let output_handle = conpty.get_output_handle();
+                        let output_handle_raw = output_handle.0 .0 as usize;
                         {
                             let mut data = data_arc.lock().unwrap();
-                            data.conpty = Some(conpty);
+                            data.service.set_conpty(conpty);
                             // Sync buffer size with ConPTY
-                            data.buffer
-                                .resize(initial_cols as usize, initial_rows as usize);
+                            data.service.resize(initial_cols as usize, initial_rows as usize);
                         }
 
-                        let output_handle_raw = output_handle.0 .0 as usize;
                         let hwnd_client_ptr = hwnd_client.0 as usize;
 
                         thread::spawn(move || {
@@ -328,7 +395,7 @@ pub fn open_custom_bar(hwnd_editor: HWND) -> bool {
 
                                 {
                                     let mut data = data_arc.lock().unwrap();
-                                    data.buffer.write_string(&output);
+                                    data.service.process_output(&output);
                                 }
 
                                 // Trigger repaint via PostMessage (thread-safe)
@@ -490,46 +557,20 @@ fn vk_to_vt_sequence(
     }
 }
 
-// Helper function to write data to ConPTY input pipe
-fn write_to_conpty(handle: HANDLE, data: &[u8]) -> Result<(), windows::core::Error> {
-    let mut bytes_written = 0;
-    unsafe {
-        WriteFile(handle, Some(data), Some(&mut bytes_written), None)?;
-    }
-    log::debug!("Wrote {} bytes to ConPTY: {:?}", bytes_written, data);
-    Ok(())
-}
-
 #[allow(dead_code)]
 pub fn send_input(text: &str) {
     let data_arc = get_terminal_data();
     let data = data_arc.lock().unwrap();
-    if let Some(conpty) = &data.conpty {
-        let utf8_bytes = text.as_bytes();
-        let mut bytes_written = 0;
-        unsafe {
-            let _ = WriteFile(
-                conpty.get_input_handle().0,
-                Some(utf8_bytes),
-                Some(&mut bytes_written),
-                None,
-            );
-            // 改行を送る
-            let _ = WriteFile(
-                conpty.get_input_handle().0,
-                Some(b"\r"),
-                Some(&mut bytes_written),
-                None,
-            );
-        }
-    }
+    let _ = data.service.send_input(text.as_bytes());
+    // 改行を送る
+    let _ = data.service.send_input(b"\r");
 }
 
 pub fn cleanup_terminal() {
     log::info!("cleanup_terminal: Starting cleanup");
     let data_arc = get_terminal_data();
     let mut data = data_arc.lock().unwrap();
-    if let Some(_conpty) = data.conpty.take() {
+    if let Some(_conpty) = data.service.take_conpty() {
         log::info!("ConPTY instance found, will be dropped and cleaned up");
         // Drop happens automatically
     } else {
@@ -554,24 +595,25 @@ fn send_key_to_conpty(vk_code: u16) -> bool {
 
     if let Some(vt_sequence) = vk_to_vt_sequence(vk_code, ctrl_pressed, shift_pressed, alt_pressed)
     {
-        let handle = {
+        {
             let data_arc = get_terminal_data();
-            let data = data_arc.lock().unwrap();
-            data.conpty.as_ref().map(|c| c.get_input_handle().0)
-        };
-
-        if let Some(handle) = handle {
+            let mut data = data_arc.lock().unwrap();
             log::debug!(
                 "Keyboard hook: Sending VT sequence for vk_code 0x{:04X}",
                 vk_code
             );
-            if let Err(e) = write_to_conpty(handle, vt_sequence) {
-                log::error!("Keyboard hook: Failed to write VT sequence: {}", e);
-            }
-            return true;
-        } else {
-            log::warn!("Keyboard hook: No ConPTY available");
+            data.service.reset_viewport();
+            let _ = data.service.send_input(vt_sequence);
         }
+
+        TERMINAL_HWND.with(|h| {
+            if let Some(hwnd) = *h.borrow() {
+                update_scroll_info(hwnd);
+                unsafe { let _ = InvalidateRect(hwnd, None, BOOL(0)); }
+            }
+        });
+
+        return true;
     }
     false
 }
@@ -662,6 +704,77 @@ fn uninstall_keyboard_hook() {
 
 extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
     match msg {
+        WM_VSCROLL => {
+            let request = wparam.0 & 0xFFFF;
+            let mut delta = 0isize;
+            let mut absolute_pos: Option<usize> = None;
+
+            let data_arc = get_terminal_data();
+
+            match request as i32 {
+                SB_LINEUP => delta = 1,
+                SB_LINEDOWN => delta = -1,
+                SB_PAGEUP => {
+                    let data = data_arc.lock().unwrap();
+                    delta = data.service.buffer.height as isize;
+                },
+                SB_PAGEDOWN => {
+                    let data = data_arc.lock().unwrap();
+                    delta = -(data.service.buffer.height as isize);
+                },
+                SB_THUMBTRACK | SB_THUMBPOSITION => {
+                    let pos = (wparam.0 >> 16) & 0xFFFF;
+
+                    // nPos = history_count - viewport_offset
+                    // viewport_offset = history_count - nPos
+                    let data = data_arc.lock().unwrap();
+                    let history_count = data.service.get_history_count();
+                    let target_pos = pos as usize;
+
+                    // Allow scroll beyond history count (active buffer)?
+                    // No, our scroll bar maps 0..history_count.
+                    if target_pos <= history_count {
+                        absolute_pos = Some(history_count - target_pos);
+                    } else {
+                        absolute_pos = Some(0);
+                    }
+                },
+                SB_TOP => {
+                    let data = data_arc.lock().unwrap();
+                    absolute_pos = Some(data.service.get_history_count());
+                },
+                SB_BOTTOM => absolute_pos = Some(0),
+                _ => {}
+            }
+
+            {
+                let mut data = data_arc.lock().unwrap();
+                if let Some(pos) = absolute_pos {
+                    data.service.scroll_to(pos);
+                } else if delta != 0 {
+                    data.service.scroll_lines(delta);
+                }
+            }
+
+            update_scroll_info(hwnd);
+            unsafe { let _ = InvalidateRect(hwnd, None, BOOL(0)); }
+            LRESULT(0)
+        }
+        WM_MOUSEWHEEL => {
+            let z_delta = (wparam.0 >> 16) as i16;
+            // 3 lines per notch
+            let lines = (z_delta as f32 / 120.0 * 3.0) as isize;
+
+            if lines != 0 {
+                let data_arc = get_terminal_data();
+                let mut data = data_arc.lock().unwrap();
+                data.service.scroll_lines(lines);
+            }
+
+            update_scroll_info(hwnd);
+            unsafe { let _ = InvalidateRect(hwnd, None, BOOL(0)); }
+            LRESULT(0)
+        }
         WM_PAINT => {
             unsafe {
                 let mut ps = PAINTSTRUCT::default();
@@ -675,13 +788,13 @@ extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM
                     windows::Win32::UI::WindowsAndMessaging::GetClientRect(hwnd, &mut client_rect);
 
                 let TerminalData {
-                    ref buffer,
+                    ref service,
                     ref mut renderer,
                     ref composition,
                     ..
                 } = *data;
 
-                renderer.render(hdc, &client_rect, buffer, composition.as_ref());
+                renderer.render(hdc, &client_rect, &service.buffer, composition.as_ref());
 
                 let _ = EndPaint(hwnd, &ps);
             }
@@ -731,6 +844,17 @@ extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM
         }
         WM_KEYDOWN => {
             let vk_code = wparam.0 as u16;
+
+            // Reset viewport on key press (Snap on Input - Windows Terminal style)
+            {
+                let data_arc = get_terminal_data();
+                let mut data = data_arc.lock().unwrap();
+                data.service.reset_viewport();
+            }
+            // Update scrollbar and screen immediately to reflect the jump
+            update_scroll_info(hwnd);
+            unsafe { let _ = InvalidateRect(hwnd, None, BOOL(0)); }
+
             log::debug!("WM_KEYDOWN received: 0x{:04X}", vk_code);
 
             // Check modifier key states
@@ -755,19 +879,9 @@ extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM
                     vt_sequence
                 );
 
-                let handle = {
-                    let data_arc = get_terminal_data();
-                    let data = data_arc.lock().unwrap();
-                    data.conpty.as_ref().map(|c| c.get_input_handle().0)
-                };
-
-                if let Some(handle) = handle {
-                    if let Err(e) = write_to_conpty(handle, vt_sequence) {
-                        log::error!("Failed to write VT sequence: {}", e);
-                    }
-                } else {
-                    log::warn!("No ConPTY available");
-                }
+                let data_arc = get_terminal_data();
+                let data = data_arc.lock().unwrap();
+                let _ = data.service.send_input(vt_sequence);
 
                 LRESULT(0)
             } else {
@@ -812,16 +926,9 @@ extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM
                     "WM_SYSKEYDOWN: Sending VT sequence for Alt combination: {:?}",
                     vt_sequence
                 );
-                let handle = {
-                    let data_arc = get_terminal_data();
-                    let data = data_arc.lock().unwrap();
-                    data.conpty.as_ref().map(|c| c.get_input_handle().0)
-                };
-                if let Some(handle) = handle {
-                    if let Err(e) = write_to_conpty(handle, vt_sequence) {
-                        log::error!("WM_SYSKEYDOWN: Failed to write VT sequence: {}", e);
-                    }
-                }
+                let data_arc = get_terminal_data();
+                let data = data_arc.lock().unwrap();
+                let _ = data.service.send_input(vt_sequence);
                 return LRESULT(0);
             }
 
@@ -837,16 +944,9 @@ extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM
                     char_to_send as char
                 );
                 let seq = [0x1bu8, char_to_send];
-                let handle = {
-                    let data_arc = get_terminal_data();
-                    let data = data_arc.lock().unwrap();
-                    data.conpty.as_ref().map(|c| c.get_input_handle().0)
-                };
-                if let Some(handle) = handle {
-                    if let Err(e) = write_to_conpty(handle, &seq) {
-                        log::error!("WM_SYSKEYDOWN: Failed to write Meta sequence: {}", e);
-                    }
-                }
+                let data_arc = get_terminal_data();
+                let data = data_arc.lock().unwrap();
+                let _ = data.service.send_input(&seq);
                 return LRESULT(0);
             }
 
@@ -924,26 +1024,21 @@ extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM
                 return LRESULT(0);
             }
 
-            let data_arc = get_terminal_data();
-            let data = data_arc.lock().unwrap();
-
-            if let Some(conpty) = &data.conpty {
+            {
+                let data_arc = get_terminal_data();
+                let mut data = data_arc.lock().unwrap();
+                data.service.reset_viewport();
                 let s = String::from_utf16_lossy(&[char_code]);
-                let utf8_bytes = s.as_bytes();
-                let mut bytes_written = 0;
-                unsafe {
-                    let _ = WriteFile(
-                        conpty.get_input_handle().0,
-                        Some(utf8_bytes),
-                        Some(&mut bytes_written),
-                        None,
-                    );
-                }
+                let _ = data.service.send_input(s.as_bytes());
             }
+            update_scroll_info(hwnd);
+            unsafe { let _ = InvalidateRect(hwnd, None, BOOL(0)); }
+
             LRESULT(0)
         }
         msg if msg == WM_APP_REPAINT => {
             // Handle repaint request from background thread
+            update_scroll_info(hwnd);
             unsafe {
                 let _ = InvalidateRect(hwnd, None, BOOL(0));
             }
@@ -954,51 +1049,27 @@ extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM
             let height = ((lparam.0 >> 16) & 0xFFFF) as i32;
             log::info!("WM_SIZE: width={}, height={}", width, height);
 
-            let data_arc = get_terminal_data();
-            let mut data = data_arc.lock().unwrap();
+            {
+                let data_arc = get_terminal_data();
+                let mut data = data_arc.lock().unwrap();
 
-            // Use cached metrics if available, otherwise approximation
-            let (char_width, char_height) = if let Some(metrics) = data.renderer.get_metrics() {
-                (metrics.base_width, metrics.char_height)
-            } else {
-                (8, 16) // Fallback approximation
-            };
+                // Use cached metrics if available, otherwise approximation
+                let (char_width, char_height) = if let Some(metrics) = data.renderer.get_metrics() {
+                    (metrics.base_width, metrics.char_height)
+                } else {
+                    (8, 16) // Fallback approximation
+                };
 
-            // Convert pixel dimensions to console character dimensions
-            let cols = (width / char_width).max(1) as i16;
-            let rows = (height / char_height).max(1) as i16;
+                // Convert pixel dimensions to console character dimensions
+                let cols = (width / char_width).max(1) as i16;
+                let rows = (height / char_height).max(1) as i16;
 
-            log::info!("Resizing ConPTY to cols={}, rows={}", cols, rows);
+                log::info!("Resizing ConPTY to cols={}, rows={}", cols, rows);
 
-            if let Some(conpty) = &data.conpty {
-                match conpty.resize(cols, rows) {
-                    Ok(_) => {
-                        log::info!("ConPTY resized successfully to {}x{}", cols, rows);
-                        // Update the buffer size while preserving content
-                        data.buffer.resize(cols as usize, rows as usize);
-                    }
-                    Err(e) => {
-                        log::error!("Failed to resize ConPTY: {}", e);
-                    }
-                }
+                data.service.resize(cols as usize, rows as usize);
             }
-            LRESULT(0)
-        }
-        WM_DESTROY => {
-            log::info!("WM_DESTROY: Cleaning up terminal resources");
-            uninstall_keyboard_hook();
 
-            // Clean up ConPTY and renderer resources
-            let data_arc = get_terminal_data();
-            let mut data = data_arc.lock().unwrap();
-
-            data.window_handle = None;
-            data.renderer.clear_resources();
-
-            if let Some(_conpty) = data.conpty.take() {
-                log::info!("ConPTY will be dropped and cleaned up");
-                // Drop happens automatically when _conpty goes out of scope
-            }
+            update_scroll_info(hwnd);
             LRESULT(0)
         }
         WM_IME_SETCONTEXT => {
@@ -1014,6 +1085,15 @@ extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM
         }
         WM_IME_STARTCOMPOSITION => {
             log::debug!("WM_IME_STARTCOMPOSITION");
+            // Snap on Input for IME
+            {
+                let data_arc = get_terminal_data();
+                let mut data = data_arc.lock().unwrap();
+                data.service.reset_viewport();
+            }
+            update_scroll_info(hwnd);
+            unsafe { let _ = InvalidateRect(hwnd, None, BOOL(0)); }
+
             LRESULT(0)
         }
         WM_IME_COMPOSITION => {
@@ -1041,16 +1121,7 @@ extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM
                             // Send result string to ConPTY
                             let data_arc = get_terminal_data();
                             let mut data = data_arc.lock().unwrap();
-                            if let Some(conpty) = &data.conpty {
-                                let utf8_bytes = result_str.as_bytes();
-                                let mut bytes_written = 0;
-                                let _ = WriteFile(
-                                    conpty.get_input_handle().0,
-                                    Some(utf8_bytes),
-                                    Some(&mut bytes_written),
-                                    None,
-                                );
-                            }
+                            let _ = data.service.send_input(result_str.as_bytes());
 
                             // Clear composition data on commit
                             data.composition = None;
@@ -1117,6 +1188,22 @@ extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM
             data.composition = None;
             unsafe {
                 let _ = InvalidateRect(hwnd, None, BOOL(0));
+            }
+            LRESULT(0)
+        }
+        WM_DESTROY => {
+            log::info!("WM_DESTROY: Cleaning up terminal resources");
+            uninstall_keyboard_hook();
+
+            // Clean up ConPTY and renderer resources
+            let data_arc = get_terminal_data();
+            let mut data = data_arc.lock().unwrap();
+
+            data.window_handle = None;
+            data.renderer.clear_resources();
+
+            if let Some(_conpty) = data.service.take_conpty() {
+                log::info!("ConPTY will be dropped and cleaned up");
             }
             LRESULT(0)
         }
