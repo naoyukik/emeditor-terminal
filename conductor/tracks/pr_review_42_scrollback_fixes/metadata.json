@@ -1,0 +1,8 @@
+{
+  "track_id": "pr_review_42_scrollback_fixes",
+  "type": "bug",
+  "status": "new",
+  "created_at": "2026-01-26T22:00:00Z",
+  "updated_at": "2026-01-26T22:00:00Z",
+  "description": "PR #42 (スクロールバック実装) に対するレビュー指摘事項の修正（IME復元、UX改善、カプセル化）"
+}

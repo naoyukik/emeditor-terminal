@@ -10,7 +10,15 @@ impl AnsiParser {
             incomplete_sequence: String::new(),
         }
     }
+}
 
+impl Default for AnsiParser {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl AnsiParser {
     pub fn parse(&mut self, s: &str, buffer: &mut TerminalBuffer) {
         let input = if !self.incomplete_sequence.is_empty() {
             let mut combined = std::mem::take(&mut self.incomplete_sequence);

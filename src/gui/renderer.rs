@@ -1,4 +1,4 @@
-use crate::domain::terminal::{TerminalAttribute, TerminalColor, TerminalBuffer};
+use crate::domain::terminal::{TerminalColor, TerminalBuffer};
 use std::collections::HashMap;
 use windows::core::{w, PCWSTR};
 use windows::Win32::Foundation::{COLORREF, RECT, SIZE};

@@ -13,7 +13,6 @@ use windows::Win32::UI::WindowsAndMessaging::{
     WNDCLASSW, WS_CHILD, WS_VISIBLE, WS_CLIPCHILDREN, WS_CLIPSIBLINGS, WM_VSCROLL, WM_MOUSEWHEEL,
 };
 const ISC_SHOWUICOMPOSITIONWINDOW: u32 = 0x80000000;
-use crate::domain::terminal::TerminalBuffer;
 use crate::application::TerminalService;
 use crate::gui::renderer::{CompositionData, TerminalRenderer};
 use crate::infra::conpty::ConPTY;
@@ -23,7 +22,7 @@ use std::mem::size_of;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
 use std::thread;
-use windows::Win32::Storage::FileSystem::{ReadFile, WriteFile};
+use windows::Win32::Storage::FileSystem::ReadFile;
 use windows::Win32::UI::Input::Ime::{
     ImmGetCompositionStringW, ImmGetContext, ImmReleaseContext, ImmSetCompositionWindow, CFS_POINT,
     COMPOSITIONFORM, GCS_COMPSTR, GCS_RESULTSTR,
@@ -355,14 +354,14 @@ pub fn open_custom_bar(hwnd_editor: HWND) -> bool {
 
                         let data_arc = get_terminal_data();
                         let output_handle = conpty.get_output_handle();
+                        let output_handle_raw = output_handle.0 .0 as usize;
                         {
                             let mut data = data_arc.lock().unwrap();
-                            data.service.conpty = Some(conpty);
+                            data.service.set_conpty(conpty);
                             // Sync buffer size with ConPTY
                             data.service.resize(initial_cols as usize, initial_rows as usize);
                         }
 
-                        let output_handle_raw = output_handle.0 .0 as usize;
                         let hwnd_client_ptr = hwnd_client.0 as usize;
 
                         thread::spawn(move || {
@@ -558,46 +557,20 @@ fn vk_to_vt_sequence(
     }
 }
 
-// Helper function to write data to ConPTY input pipe
-fn write_to_conpty(handle: HANDLE, data: &[u8]) -> Result<(), windows::core::Error> {
-    let mut bytes_written = 0;
-    unsafe {
-        WriteFile(handle, Some(data), Some(&mut bytes_written), None)?;
-    }
-    log::debug!("Wrote {} bytes to ConPTY: {:?}", bytes_written, data);
-    Ok(())
-}
-
 #[allow(dead_code)]
 pub fn send_input(text: &str) {
     let data_arc = get_terminal_data();
     let data = data_arc.lock().unwrap();
-    if let Some(conpty) = &data.service.conpty {
-        let utf8_bytes = text.as_bytes();
-        let mut bytes_written = 0;
-        unsafe {
-            let _ = WriteFile(
-                conpty.get_input_handle().0,
-                Some(utf8_bytes),
-                Some(&mut bytes_written),
-                None,
-            );
-            // 改行を送る
-            let _ = WriteFile(
-                conpty.get_input_handle().0,
-                Some(b"\r"),
-                Some(&mut bytes_written),
-                None,
-            );
-        }
-    }
+    let _ = data.service.send_input(text.as_bytes());
+    // 改行を送る
+    let _ = data.service.send_input(b"\r");
 }
 
 pub fn cleanup_terminal() {
     log::info!("cleanup_terminal: Starting cleanup");
     let data_arc = get_terminal_data();
     let mut data = data_arc.lock().unwrap();
-    if let Some(_conpty) = data.service.conpty.take() {
+    if let Some(_conpty) = data.service.take_conpty() {
         log::info!("ConPTY instance found, will be dropped and cleaned up");
         // Drop happens automatically
     } else {
@@ -622,24 +595,14 @@ fn send_key_to_conpty(vk_code: u16) -> bool {
 
     if let Some(vt_sequence) = vk_to_vt_sequence(vk_code, ctrl_pressed, shift_pressed, alt_pressed)
     {
-        let handle = {
-            let data_arc = get_terminal_data();
-            let data = data_arc.lock().unwrap();
-            data.service.conpty.as_ref().map(|c| c.get_input_handle().0)
-        };
-
-        if let Some(handle) = handle {
-            log::debug!(
-                "Keyboard hook: Sending VT sequence for vk_code 0x{:04X}",
-                vk_code
-            );
-            if let Err(e) = write_to_conpty(handle, vt_sequence) {
-                log::error!("Keyboard hook: Failed to write VT sequence: {}", e);
-            }
-            return true;
-        } else {
-            log::warn!("Keyboard hook: No ConPTY available");
-        }
+        let data_arc = get_terminal_data();
+        let data = data_arc.lock().unwrap();
+        log::debug!(
+            "Keyboard hook: Sending VT sequence for vk_code 0x{:04X}",
+            vk_code
+        );
+        let _ = data.service.send_input(vt_sequence);
+        return true;
     }
     false
 }
@@ -783,7 +746,7 @@ extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM
             }
 
             update_scroll_info(hwnd);
-            unsafe { InvalidateRect(hwnd, None, BOOL(0)); }
+            unsafe { let _ = InvalidateRect(hwnd, None, BOOL(0)); }
             LRESULT(0)
         }
         WM_MOUSEWHEEL => {
@@ -798,7 +761,7 @@ extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM
             }
 
             update_scroll_info(hwnd);
-            unsafe { InvalidateRect(hwnd, None, BOOL(0)); }
+            unsafe { let _ = InvalidateRect(hwnd, None, BOOL(0)); }
             LRESULT(0)
         }
         WM_PAINT => {
@@ -871,7 +834,7 @@ extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM
         WM_KEYDOWN => {
             let vk_code = wparam.0 as u16;
 
-            // Reset viewport on key press
+            // Reset viewport on key press (Snap on Input - Windows Terminal style)
             {
                 let data_arc = get_terminal_data();
                 let mut data = data_arc.lock().unwrap();
@@ -879,7 +842,7 @@ extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM
             }
             // Update scrollbar and screen immediately to reflect the jump
             update_scroll_info(hwnd);
-            unsafe { InvalidateRect(hwnd, None, BOOL(0)); }
+            unsafe { let _ = InvalidateRect(hwnd, None, BOOL(0)); }
 
             log::debug!("WM_KEYDOWN received: 0x{:04X}", vk_code);
 
@@ -905,19 +868,9 @@ extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM
                     vt_sequence
                 );
 
-                let handle = {
-                    let data_arc = get_terminal_data();
-                    let data = data_arc.lock().unwrap();
-                    data.service.conpty.as_ref().map(|c| c.get_input_handle().0)
-                };
-
-                if let Some(handle) = handle {
-                    if let Err(e) = write_to_conpty(handle, vt_sequence) {
-                        log::error!("Failed to write VT sequence: {}", e);
-                    }
-                } else {
-                    log::warn!("No ConPTY available");
-                }
+                let data_arc = get_terminal_data();
+                let data = data_arc.lock().unwrap();
+                let _ = data.service.send_input(vt_sequence);
 
                 LRESULT(0)
             } else {
@@ -962,16 +915,9 @@ extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM
                     "WM_SYSKEYDOWN: Sending VT sequence for Alt combination: {:?}",
                     vt_sequence
                 );
-                let handle = {
-                    let data_arc = get_terminal_data();
-                    let data = data_arc.lock().unwrap();
-                    data.service.conpty.as_ref().map(|c| c.get_input_handle().0)
-                };
-                if let Some(handle) = handle {
-                    if let Err(e) = write_to_conpty(handle, vt_sequence) {
-                        log::error!("WM_SYSKEYDOWN: Failed to write VT sequence: {}", e);
-                    }
-                }
+                let data_arc = get_terminal_data();
+                let data = data_arc.lock().unwrap();
+                let _ = data.service.send_input(vt_sequence);
                 return LRESULT(0);
             }
 
@@ -987,16 +933,9 @@ extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM
                     char_to_send as char
                 );
                 let seq = [0x1bu8, char_to_send];
-                let handle = {
-                    let data_arc = get_terminal_data();
-                    let data = data_arc.lock().unwrap();
-                    data.service.conpty.as_ref().map(|c| c.get_input_handle().0)
-                };
-                if let Some(handle) = handle {
-                    if let Err(e) = write_to_conpty(handle, &seq) {
-                        log::error!("WM_SYSKEYDOWN: Failed to write Meta sequence: {}", e);
-                    }
-                }
+                let data_arc = get_terminal_data();
+                let data = data_arc.lock().unwrap();
+                let _ = data.service.send_input(&seq);
                 return LRESULT(0);
             }
 
@@ -1076,20 +1015,8 @@ extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM
 
             let data_arc = get_terminal_data();
             let data = data_arc.lock().unwrap();
-
-            if let Some(conpty) = &data.service.conpty {
-                let s = String::from_utf16_lossy(&[char_code]);
-                let utf8_bytes = s.as_bytes();
-                let mut bytes_written = 0;
-                unsafe {
-                    let _ = WriteFile(
-                        conpty.get_input_handle().0,
-                        Some(utf8_bytes),
-                        Some(&mut bytes_written),
-                        None,
-                    );
-                }
-            }
+            let s = String::from_utf16_lossy(&[char_code]);
+            let _ = data.service.send_input(s.as_bytes());
             LRESULT(0)
         }
         msg if msg == WM_APP_REPAINT => {
@@ -1128,6 +1055,125 @@ extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM
             update_scroll_info(hwnd);
             LRESULT(0)
         }
+        WM_IME_SETCONTEXT => {
+            log::debug!(
+                "WM_IME_SETCONTEXT: wparam={:?}, lparam={:?}",
+                wparam,
+                lparam
+            );
+            // We want to draw the composition string ourselves, so we clear the ISC_SHOWUICOMPOSITIONWINDOW flag
+            let mut lparam = lparam;
+            lparam.0 &= !(ISC_SHOWUICOMPOSITIONWINDOW as isize);
+            unsafe { DefWindowProcW(hwnd, msg, wparam, lparam) }
+        }
+        WM_IME_STARTCOMPOSITION => {
+            log::debug!("WM_IME_STARTCOMPOSITION");
+            // Snap on Input for IME
+            {
+                let data_arc = get_terminal_data();
+                let mut data = data_arc.lock().unwrap();
+                data.service.reset_viewport();
+            }
+            update_scroll_info(hwnd);
+            unsafe { let _ = InvalidateRect(hwnd, None, BOOL(0)); }
+
+            LRESULT(0)
+        }
+        WM_IME_COMPOSITION => {
+            log::debug!("WM_IME_COMPOSITION: lparam={:?}", lparam);
+            let mut handled = false;
+
+            // Handle Result String (Committed)
+            if (lparam.0 as u32 & GCS_RESULTSTR.0) != 0 {
+                unsafe {
+                    let himc = ImmGetContext(hwnd);
+                    if !himc.0.is_null() {
+                        let len_bytes = ImmGetCompositionStringW(himc, GCS_RESULTSTR, None, 0);
+                        if len_bytes >= 0 {
+                            let len_u16 = (len_bytes as usize) / size_of::<u16>();
+                            let mut buffer = vec![0u16; len_u16];
+                            let _ = ImmGetCompositionStringW(
+                                himc,
+                                GCS_RESULTSTR,
+                                Some(buffer.as_mut_ptr() as *mut c_void),
+                                len_bytes as u32,
+                            );
+                            let result_str = String::from_utf16_lossy(&buffer);
+                            log::info!("IME Result: '{}'", result_str);
+
+                            // Send result string to ConPTY
+                            let data_arc = get_terminal_data();
+                            let mut data = data_arc.lock().unwrap();
+                            let _ = data.service.send_input(result_str.as_bytes());
+
+                            // Clear composition data on commit
+                            data.composition = None;
+
+                            let _ = InvalidateRect(hwnd, None, BOOL(0));
+                            handled = true;
+                        }
+                        let _ = ImmReleaseContext(hwnd, himc);
+                    }
+                }
+            }
+
+            // Handle Composition String (In-progress)
+            if (lparam.0 as u32 & GCS_COMPSTR.0) != 0 {
+                update_ime_window_position(hwnd);
+                unsafe {
+                    let himc = ImmGetContext(hwnd);
+                    if !himc.0.is_null() {
+                        // Get size first
+                        let len_bytes = ImmGetCompositionStringW(himc, GCS_COMPSTR, None, 0);
+                        if len_bytes >= 0 {
+                            let len_u16 = (len_bytes as usize) / size_of::<u16>();
+                            let mut buffer = vec![0u16; len_u16];
+
+                            // Get content
+                            let _ = ImmGetCompositionStringW(
+                                himc,
+                                GCS_COMPSTR,
+                                Some(buffer.as_mut_ptr() as *mut c_void),
+                                len_bytes as u32,
+                            );
+
+                            let comp_str = String::from_utf16_lossy(&buffer);
+                            log::info!("IME Composition: '{}' (len={})", comp_str, len_u16);
+
+                            let data_arc = get_terminal_data();
+                            let mut data = data_arc.lock().unwrap();
+
+                            if comp_str.is_empty() {
+                                data.composition = None;
+                            } else {
+                                data.composition = Some(CompositionData { text: comp_str });
+                            }
+
+                            let _ = InvalidateRect(hwnd, None, BOOL(0));
+                            handled = true;
+                        }
+                        let _ = ImmReleaseContext(hwnd, himc);
+                    }
+                }
+            }
+
+            if !handled {
+                unsafe { DefWindowProcW(hwnd, msg, wparam, lparam) }
+            } else {
+                LRESULT(0)
+            }
+        }
+        WM_IME_ENDCOMPOSITION => {
+            log::debug!("WM_IME_ENDCOMPOSITION");
+            // Ensure composition is cleared when IME ends
+            let data_arc = get_terminal_data();
+            let mut data = data_arc.lock().unwrap();
+            data.composition = None;
+            unsafe {
+                let _ = InvalidateRect(hwnd, None, BOOL(0));
+            }
+            LRESULT(0)
+        }
         WM_DESTROY => {
             log::info!("WM_DESTROY: Cleaning up terminal resources");
             uninstall_keyboard_hook();
@@ -1139,7 +1185,7 @@ extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM
             data.window_handle = None;
             data.renderer.clear_resources();
 
-            if let Some(_conpty) = data.service.conpty.take() {
+            if let Some(_conpty) = data.service.take_conpty() {
                 log::info!("ConPTY will be dropped and cleaned up");
             }
             LRESULT(0)
