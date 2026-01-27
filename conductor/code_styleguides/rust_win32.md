@@ -12,6 +12,11 @@
     - 型 (Struct, Enum, Trait): `PascalCase`
     - 定数: `SCREAMING_SNAKE_CASE`
     - **例外**: Win32 API の FFI 境界 (`DllMain`, `OnCommand` 等) のみ、EmEditor SDK に合わせて `PascalCase` または `CamelCase` を許容する。ただし、それらは `lib.rs` 内に限定し、内部ロジックには持ち込まない。
+    - **ファイル名と構造体**: 主要な構造体 (Struct) を定義するファイルは、その構造体名を `snake_case` に変換したものをファイル名とすること。（例: `struct TerminalService` → `terminal_service.rs`）
+- **DDD / ユビキタス言語の推奨**:
+    - 単なる `x`, `tmp`, `data` などの無機質な名前は避け、ドメインにおける意味（例: `cursor_position_x`, `temporary_input_buffer`）を反映させること。
+    - **bool型**: `is_visible`, `has_focus`, `can_scroll` のように、状態（State）や能力（Capability）を明確にする述語形式とする。
+    - プロジェクト内で用語を統一する（例: `Viewport` と `Window` を混同しない）。
 
 ### 1.2 単一責任の原則 (SRP) & ファイルサイズ
 - **1ファイル 300行制限**: 1つのファイルが300行を超えたら、設計の見直しを検討せよ。
@@ -22,18 +27,26 @@
 レイヤードアーキテクチャを採用する。依存の方向は常に **外側 → 内側** でなければならない。
 
 ```
-┌─────────────────────────────────────┐
-│  GUI / Infrastructure (外側)        │
-│    ↓ (依存)                         │
-│  Application                        │
-│    ↓ (依存)                         │
-│  Domain (内側・純粋)                │
-└─────────────────────────────────────┘
+┌─────────────┐
+│     GUI     │
+└──────┬──────┘
+       │ (依存)
+       ↓
+┌─────────────┐     ┌────────────────┐
+│ Application │     │ Infrastructure │
+└──────┬──────┘     └───────┬────────┘
+       │ (依存)             │ (依存)
+       ↓                    ↓
+┌────────────────────────────────────┐
+│               Domain               │
+│      (Entities, Repository Traits) │
+└────────────────────────────────────┘
 ```
 
 ### Layer 1: Domain (`src/domain/`)
 - **純粋性**: **`windows` クレートへの依存を極力排除する。**
 - **責務**: ターミナルの状態（バッファ、カーソル、履歴）、ANSI パース結果のデータ表現。
+- **インターフェース定義**: 外部リソース（設定、永続化など）へのアクセスは、ここで `Trait`（Repository Interface）として定義する。実装には依存しない。
 - **テスト**: ユニットテストで 100% の動作を保証する。ここに UI ロジックを持ち込んではならない。
 
 ### Layer 2: Application (`src/application/`)
@@ -41,10 +54,13 @@
 - **具体例**:
     - `handle_user_input(input: char)`: GUI 層から文字入力を受け取り、それを Domain 層のバッファに反映し、必要に応じて Infrastructure 層 (ConPTY) へ送信する。
     - `resize_terminal(cols, rows)`: ウィンドウのリサイズイベントを Domain 層（バッファ再構成）と Infrastructure 層 (ConPTY リサイズ) に伝播させる。
+- **DI (Dependency Injection)**: 必要な Repository の実装をコンストラクタ等で受け取り、Domain ロジックに渡す。
 - **ルール**: `TerminalService` は、具体的な描画方法 (GDI) を知ってはならない。
 
 ### Layer 3: Infrastructure (`src/infra/`)
 - **責務**: OS (Windows API) や外部システム (ConPTY) との具体的な対話。
+- **実装**: Domain 層で定義された Repository Trait を実装する。
+    - 例: `Win32ClipboardRepository`, `ConptyInputRepository`
 - **ルール**: Win32 API の生の操作はここに閉じ込める。Domain 層が使いやすい安全なラッパーを提供する。
 
 ### Layer 4: GUI (`src/gui/`)
