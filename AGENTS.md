@@ -15,8 +15,8 @@ https://github.com/naoyukik/emeditor-terminal
 - **Issue 作成ガイドライン**: [`conductor/github_issue.md`](conductor/github_issue.md)
 
 ## 開発参考資料
-- EmEditor Plugin SDK: [`sdk/`](sdk/)
-  - EmEditorのサンプルコードやプラグインの開発に関するドキュメント。
+- EmEditor Plugin SDK: [EmEditor Plugin SDK 公式ドキュメント](https://www.emeditor.com/sdk/)
+  - EmEditor のサンプルコードやプラグインの開発に関するドキュメント。
 - Learn Microsoft: `learn microsoft` MCP Serverによってドキュメントを検索可能。
   - Windows APIや関連技術の公式ドキュメント。
 

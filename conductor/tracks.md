@@ -29,5 +29,5 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 ---
 
-- [~] **Track: PR #42 Review Fixes (IME復元, リファクタリング)**
-*Link: [./tracks/pr_review_42_scrollback_fixes/](./tracks/pr_review_42_scrollback_fixes/)*
+- [ ] **Track: PR #54 Review Fixes (Guidelines)**
+*Link: [./tracks/pr_review_54_guidelines/](./tracks/pr_review_54_guidelines/)*
