@@ -90,9 +90,14 @@ impl KeyTranslator for VtSequenceTranslator {
 
         // Alt + Letter/Number (Meta key)
         if alt && !ctrl {
-            if (0x30..=0x39).contains(&vk_code) || (0x41..=0x5A).contains(&vk_code) {
+            if (0x30..=0x39).contains(&vk_code) {
+                // VK_0..VK_9 は 0x30..0x39 であり、結果として ASCII '0'..'9' と一致する。
+                // 偶然の一致に依存しているように見えないよう、明示的に ASCII 数字へ変換する。
+                let char_to_send = b'0' + (vk_code - 0x30) as u8;
+                return Some(vec![0x1B, char_to_send]);
+            } else if (0x41..=0x5A).contains(&vk_code) {
                 let mut char_to_send = vk_code as u8;
-                if (0x41..=0x5A).contains(&vk_code) && !shift {
+                if !shift {
                     char_to_send = (vk_code + 0x20) as u8; // To lowercase
                 }
                 return Some(vec![0x1B, char_to_send]);
