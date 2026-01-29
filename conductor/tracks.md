@@ -34,5 +34,5 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 ---
 
-- [x] **Track: refactor: custom_bar.rs からキーボード入力ロジックを抽出**
-*Link: [./archive/45_refactor_input_logic_20260129/](./archive/45_refactor_input_logic_20260129/)*
+- [x] **Track: PR #55 Review Fixes: Improve input logic safety, coverage, and maintainability**
+*Link: [./tracks/pr_review_55_refactor_input/](./tracks/pr_review_55_refactor_input/)*
