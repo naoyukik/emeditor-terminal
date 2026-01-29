@@ -31,3 +31,8 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 - [ ] **Track: PR #54 Review Fixes (Guidelines)**
 *Link: [./tracks/pr_review_54_guidelines/](./tracks/pr_review_54_guidelines/)*
+
+---
+
+- [x] **Track: refactor: custom_bar.rs からキーボード入力ロジックを抽出**
+*Link: [./archive/45_refactor_input_logic_20260129/](./archive/45_refactor_input_logic_20260129/)*
