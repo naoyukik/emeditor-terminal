@@ -35,4 +35,4 @@ This file tracks all major tracks for the project. Each track has its own detail
 ---
 
 - [x] **Track: PR #55 Review Fixes: Improve input logic safety, coverage, and maintainability**
-*Link: [./tracks/pr_review_55_refactor_input/](./tracks/pr_review_55_refactor_input/)*
+*Link: [./archive/pr_review_55_refactor_input/](./archive/pr_review_55_refactor_input/)*
