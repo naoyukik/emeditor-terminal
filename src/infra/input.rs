@@ -26,10 +26,6 @@ impl KeyboardHook {
 
     /// キーボードフックをインストールする
     pub fn install(&self) {
-        TARGET_HWND.with(|h| {
-            *h.borrow_mut() = Some(self.target_hwnd);
-        });
-
         KEYBOARD_HOOK.with(|hook| {
             let mut hook_ref = hook.borrow_mut();
             if hook_ref.is_none() {
@@ -44,6 +40,10 @@ impl KeyboardHook {
                         Ok(hhook) => {
                             log::info!("Keyboard hook installed successfully (Infra)");
                             *hook_ref = Some(hhook);
+                            // フックが成功した場合のみターゲットウィンドウを設定
+                            TARGET_HWND.with(|h| {
+                                *h.borrow_mut() = Some(self.target_hwnd);
+                            });
                         }
                         Err(e) => {
                             log::error!("Failed to install keyboard hook (Infra): {}", e);
