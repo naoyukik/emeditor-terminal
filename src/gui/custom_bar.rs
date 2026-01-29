@@ -16,8 +16,7 @@ const ISC_SHOWUICOMPOSITIONWINDOW: u32 = 0x80000000;
 use crate::application::TerminalService;
 use crate::gui::renderer::{CompositionData, TerminalRenderer};
 use crate::infra::conpty::ConPTY;
-use crate::domain::input::{KeyTranslator, VtSequenceTranslator, InputKey, Modifiers};
-use crate::infra::input::{KeyboardHook, WM_APP_KEYINPUT};
+use crate::infra::input::KeyboardHook;
 use std::cell::RefCell;
 use std::ffi::c_void;
 use std::mem::size_of;
@@ -30,8 +29,8 @@ use windows::Win32::UI::Input::Ime::{
     COMPOSITIONFORM, GCS_COMPSTR, GCS_RESULTSTR,
 };
 use windows::Win32::UI::Input::KeyboardAndMouse::{
-    GetKeyState, SetFocus, VK_CONTROL, VK_ESCAPE, VK_F4,
-    VK_MENU, VK_SHIFT, VK_SPACE, VK_TAB,
+    SetFocus, VK_ESCAPE, VK_F4,
+    VK_MENU, VK_SPACE, VK_TAB,
 };
 
 // Constants from EmEditor SDK
@@ -111,7 +110,7 @@ thread_local! {
 /// On Windows, many operations on `HWND` (such as `PostMessageW`) are documented
 /// as cross-thread safe, but some operations must only be performed on the thread
 /// that created/owns the window (for example, most UI updates and message loops).
-struct SendHWND(HWND);
+pub struct SendHWND(pub HWND);
 
 /// SAFETY:
 /// - The `HWND` handle value itself may be moved across threads.
@@ -126,14 +125,14 @@ unsafe impl Send for SendHWND {}
 ///   and only perform cross-thread-safe operations from other threads.
 unsafe impl Sync for SendHWND {}
 
-struct TerminalData {
-    service: TerminalService,
-    renderer: TerminalRenderer,
-    window_handle: Option<SendHWND>,
-    composition: Option<CompositionData>,
+pub struct TerminalData {
+    pub service: TerminalService,
+    pub renderer: TerminalRenderer,
+    pub window_handle: Option<SendHWND>,
+    pub composition: Option<CompositionData>,
 }
 
-fn get_terminal_data() -> Arc<Mutex<TerminalData>> {
+pub fn get_terminal_data() -> Arc<Mutex<TerminalData>> {
     TERMINAL_DATA
         .get_or_init(|| {
             Arc::new(Mutex::new(TerminalData {
@@ -224,7 +223,7 @@ fn update_ime_window_position(hwnd: HWND) {
 }
 
 // Helper to check if IME is composing
-fn is_ime_composing(hwnd: HWND) -> bool {
+pub fn is_ime_composing(hwnd: HWND) -> bool {
     unsafe {
         let himc = ImmGetContext(hwnd);
         if himc.0.is_null() {
@@ -427,7 +426,7 @@ pub fn open_custom_bar(hwnd_editor: HWND) -> bool {
 // vk_to_vt_sequence removed
 
 /// 繧ｷ繧ｹ繝Β繧ｷ繝ｧ繝ｼ繝医き繝ヨlt+Tab 遲会ｼ峨〒縺ゅｋ縺九ｒ蛻､螳壹☆繧
-fn is_system_shortcut(vk_code: u16, alt_pressed: bool) -> bool {
+pub fn is_system_shortcut(vk_code: u16, alt_pressed: bool) -> bool {
     alt_pressed
         && (vk_code == VK_F4.0
             || vk_code == VK_TAB.0
@@ -482,53 +481,6 @@ fn uninstall_keyboard_hook() {
 
 extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
     match msg {
-        WM_APP_KEYINPUT => {
-            let vk_code = wparam.0 as u16;
-            // lparam には WH_KEYBOARD フックからのフラグ情報（リピートカウントやスキャンコード等）が含まれるが、
-            // 修飾キー状態の判定にはより信頼性の高い GetKeyState を使用しているため、ここでは参照していない。
-
-            // Check if IME is composing. If so, let Windows/IME handle the key.
-            if is_ime_composing(hwnd) {
-                log::debug!("WM_APP_KEYINPUT: IME is composing, skipping custom handling for vk_code 0x{:04X}", vk_code);
-                return LRESULT(0);
-            }
-
-            let ctrl_pressed = unsafe { GetKeyState(VK_CONTROL.0 as i32) } < 0;
-            let shift_pressed = unsafe { GetKeyState(VK_SHIFT.0 as i32) } < 0;
-            let alt_pressed = unsafe { GetKeyState(VK_MENU.0 as i32) } < 0;
-
-            // Skip system shortcuts to allow Windows/EmEditor to handle them
-            if is_system_shortcut(vk_code, alt_pressed) {
-                 return LRESULT(0);
-            }
-
-            let translator = VtSequenceTranslator::new();
-            let input_key = InputKey::new(
-                vk_code,
-                Modifiers {
-                    ctrl: ctrl_pressed,
-                    shift: shift_pressed,
-                    alt: alt_pressed,
-                },
-            );
-
-            if let Some(seq) = translator.translate(input_key) {
-                log::info!("WM_APP_KEYINPUT: Translated vk_code 0x{:04X} to sequence", vk_code);
-                let data_arc = get_terminal_data();
-                let mut data = data_arc.lock().unwrap();
-                data.service.reset_viewport();
-                let _ = data.service.send_input(&seq);
-
-                // Update scrollbar and repaint
-                // We need to do this because we are updating the buffer
-                drop(data); // Release lock before calling update_scroll_info which locks again
-                update_scroll_info(hwnd);
-                unsafe { let _ = InvalidateRect(hwnd, None, BOOL(0)); }
-
-                return LRESULT(1); // Consumed
-            }
-            LRESULT(0)
-        }
         WM_VSCROLL => {
             let request = wparam.0 & 0xFFFF;
             let mut delta = 0isize;
