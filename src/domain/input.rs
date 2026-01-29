@@ -184,6 +184,14 @@ mod tests {
     }
 
     #[test]
+    fn test_ctrl_alt_combinations() {
+        let translator = VtSequenceTranslator::new();
+        // Ctrl+Alt+A -> Should be None (or distinct if supported)
+        let key_ctrl_alt_a = InputKey::new(0x41, Modifiers { ctrl: true, shift: false, alt: true });
+        assert_eq!(translator.translate(key_ctrl_alt_a), None);
+    }
+
+    #[test]
     fn test_meta_keys() {
         let translator = VtSequenceTranslator::new();
         // Alt+A -> ESC + a
@@ -193,6 +201,26 @@ mod tests {
         // Alt+Shift+A -> ESC + A
         let key_alt_shift_a = InputKey::new(0x41, Modifiers { ctrl: false, shift: true, alt: true });
         assert_eq!(translator.translate(key_alt_shift_a), Some(vec![0x1B, b'A']));
+
+        // Alt+1 -> ESC + 1
+        let key_alt_1 = InputKey::new(0x31, Modifiers { ctrl: false, shift: false, alt: true });
+        assert_eq!(translator.translate(key_alt_1), Some(vec![0x1B, b'1']));
+    }
+
+    #[test]
+    fn test_function_keys() {
+        let translator = VtSequenceTranslator::new();
+        // F1 -> \x1bOP
+        let f1 = InputKey::new(0x70, Modifiers::none());
+        assert_eq!(translator.translate(f1), Some(b"\x1bOP".to_vec()));
+
+        // F5 -> \x1b[15~
+        let f5 = InputKey::new(0x74, Modifiers::none());
+        assert_eq!(translator.translate(f5), Some(b"\x1b[15~".to_vec()));
+
+        // F12 -> \x1b[24~
+        let f12 = InputKey::new(0x7B, Modifiers::none());
+        assert_eq!(translator.translate(f12), Some(b"\x1b[24~".to_vec()));
     }
 
     #[test]
@@ -206,9 +234,29 @@ mod tests {
         let ctrl_up = InputKey::new(0x26, Modifiers { ctrl: true, shift: false, alt: false });
         assert_eq!(translator.translate(ctrl_up), Some(b"\x1b[1;5A".to_vec()));
 
+        // Alt+Up Arrow
+        let alt_up = InputKey::new(0x26, Modifiers { ctrl: false, shift: false, alt: true });
+        assert_eq!(translator.translate(alt_up), Some(b"\x1b[1;3A".to_vec()));
+
         // Backspace
         let backspace = InputKey::new(0x08, Modifiers::none());
         assert_eq!(translator.translate(backspace), Some(vec![0x7f]));
+
+        // Enter
+        let enter = InputKey::new(0x0D, Modifiers::none());
+        assert_eq!(translator.translate(enter), Some(vec![0x0D]));
+
+        // Tab
+        let tab = InputKey::new(0x09, Modifiers::none());
+        assert_eq!(translator.translate(tab), Some(vec![0x09]));
+
+        // Escape
+        let esc = InputKey::new(0x1B, Modifiers::none());
+        assert_eq!(translator.translate(esc), Some(vec![0x1B]));
+
+        // Page Up
+        let pgup = InputKey::new(0x21, Modifiers::none());
+        assert_eq!(translator.translate(pgup), Some(b"\x1b[5~".to_vec()));
 
         // Space
         let space = InputKey::new(0x20, Modifiers::none());
