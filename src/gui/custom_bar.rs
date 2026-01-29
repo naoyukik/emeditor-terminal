@@ -426,6 +426,15 @@ pub fn open_custom_bar(hwnd_editor: HWND) -> bool {
 
 // vk_to_vt_sequence removed
 
+/// 繧ｷ繧ｹ繝Β繧ｷ繝ｧ繝ｼ繝医き繝ヨlt+Tab 遲会ｼ峨〒縺ゅｋ縺九ｒ蛻､螳壹☆繧
+fn is_system_shortcut(vk_code: u16, alt_pressed: bool) -> bool {
+    alt_pressed
+        && (vk_code == VK_F4.0
+            || vk_code == VK_TAB.0
+            || vk_code == VK_SPACE.0
+            || vk_code == VK_ESCAPE.0)
+}
+
 #[allow(dead_code)]
 pub fn send_input(text: &str) {
     let data_arc = get_terminal_data();
@@ -475,7 +484,8 @@ extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM
     match msg {
         WM_APP_KEYINPUT => {
             let vk_code = wparam.0 as u16;
-            // let lparam = lparam.0; // flags if needed
+            // lparam には WH_KEYBOARD フックからのフラグ情報（リピートカウントやスキャンコード等）が含まれるが、
+            // 修飾キー状態の判定にはより信頼性の高い GetKeyState を使用しているため、ここでは参照していない。
 
             // Check if IME is composing. If so, let Windows/IME handle the key.
             if is_ime_composing(hwnd) {
@@ -487,14 +497,8 @@ extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM
             let shift_pressed = unsafe { GetKeyState(VK_SHIFT.0 as i32) } < 0;
             let alt_pressed = unsafe { GetKeyState(VK_MENU.0 as i32) } < 0;
 
-            // Skip system shortcuts if needed (though Infra hook might pass everything)
-            if alt_pressed
-                && (vk_code == VK_F4.0
-                    || vk_code == VK_TAB.0
-                    || vk_code == VK_SPACE.0
-                    || vk_code == VK_ESCAPE.0)
-            {
-                 // Do nothing
+            // Skip system shortcuts to allow Windows/EmEditor to handle them
+            if is_system_shortcut(vk_code, alt_pressed) {
                  return LRESULT(0);
             }
 
@@ -678,11 +682,7 @@ extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM
             log::debug!("WM_SYSKEYDOWN received: 0x{:04X}", vk_code);
 
             // Exclusion list for system shortcuts that should be handled by Windows/EmEditor
-            if vk_code == VK_TAB.0
-                || vk_code == VK_F4.0
-                || vk_code == VK_SPACE.0
-                || vk_code == VK_ESCAPE.0
-            {
+            if is_system_shortcut(vk_code, true) {
                 return unsafe { DefWindowProcW(hwnd, msg, wparam, lparam) };
             }
 
