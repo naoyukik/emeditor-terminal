@@ -29,10 +29,15 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 ---
 
-- [ ] **Track: PR #54 Review Fixes (Guidelines)**
-*Link: [./tracks/pr_review_54_guidelines/](./tracks/pr_review_54_guidelines/)*
+- [x] **Track: PR #54 Review Fixes (Guidelines)**
+*Link: [./archive/pr_review_54_guidelines_20260130/](./archive/pr_review_54_guidelines_20260130/)*
 
 ---
 
 - [x] **Track: PR #55 Review Fixes: Improve input logic safety, coverage, and maintainability**
 *Link: [./archive/pr_review_55_refactor_input/](./archive/pr_review_55_refactor_input/)*
+
+---
+
+- [~] **Track: refactor: ドメインモデルの物理的な分離とディレクトリ構造の整備 (#56)**
+*Link: [./tracks/56_refactor_domain_model_input_20260130/](./tracks/56_refactor_domain_model_input_20260130/)*
