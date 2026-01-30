@@ -4,9 +4,9 @@ use windows::Win32::Graphics::Gdi::{
     BeginPaint, EndPaint, InvalidateRect, COLOR_WINDOW, HBRUSH, PAINTSTRUCT,
 };
 use windows::Win32::UI::WindowsAndMessaging::{
-    CallNextHookEx, CreateCaret, CreateWindowExW, DefWindowProcW, DestroyCaret, LoadCursorW,
-    PostMessageW, RegisterClassW, SendMessageW, SetCaretPos, SetWindowsHookExW,
-    UnhookWindowsHookEx, CS_HREDRAW, CS_VREDRAW, DLGC_WANTALLKEYS, HHOOK, IDC_ARROW, WH_KEYBOARD,
+    CreateCaret, CreateWindowExW, DefWindowProcW, DestroyCaret, LoadCursorW,
+    PostMessageW, RegisterClassW, SendMessageW, SetCaretPos,
+    CS_HREDRAW, CS_VREDRAW, DLGC_WANTALLKEYS, IDC_ARROW,
     WM_CHAR, WM_DESTROY, WM_GETDLGCODE, WM_IME_COMPOSITION, WM_IME_ENDCOMPOSITION,
     WM_IME_SETCONTEXT, WM_IME_STARTCOMPOSITION, WM_KEYDOWN, WM_KEYUP, WM_KILLFOCUS, WM_LBUTTONDOWN,
     WM_PAINT, WM_SETFOCUS, WM_SIZE, WM_SYSCHAR, WM_SYSCOMMAND, WM_SYSKEYDOWN, WM_SYSKEYUP,
@@ -16,6 +16,7 @@ const ISC_SHOWUICOMPOSITIONWINDOW: u32 = 0x80000000;
 use crate::application::TerminalService;
 use crate::gui::renderer::{CompositionData, TerminalRenderer};
 use crate::infra::conpty::ConPTY;
+use crate::infra::input::KeyboardHook;
 use std::cell::RefCell;
 use std::ffi::c_void;
 use std::mem::size_of;
@@ -28,10 +29,8 @@ use windows::Win32::UI::Input::Ime::{
     COMPOSITIONFORM, GCS_COMPSTR, GCS_RESULTSTR,
 };
 use windows::Win32::UI::Input::KeyboardAndMouse::{
-    GetKeyState, SetFocus, VK_BACK, VK_CONTROL, VK_DELETE, VK_DOWN, VK_END, VK_ESCAPE, VK_F1,
-    VK_F10, VK_F11, VK_F12, VK_F2, VK_F3, VK_F4, VK_F5, VK_F6, VK_F7, VK_F8, VK_F9, VK_HOME,
-    VK_INSERT, VK_LEFT, VK_MENU, VK_NEXT, VK_PRIOR, VK_RETURN, VK_RIGHT, VK_SHIFT, VK_SPACE,
-    VK_TAB, VK_UP,
+    SetFocus, VK_ESCAPE, VK_F4,
+    VK_MENU, VK_SPACE, VK_TAB,
 };
 
 // Constants from EmEditor SDK
@@ -99,9 +98,9 @@ const CLASS_NAME: PCWSTR = w!("EmEditorTerminalClass");
 
 static TERMINAL_DATA: OnceLock<Arc<Mutex<TerminalData>>> = OnceLock::new();
 
-// Keyboard hook for capturing Backspace
+// Keyboard hook wrapper
 thread_local! {
-    static KEYBOARD_HOOK: RefCell<Option<HHOOK>> = const { RefCell::new(None) };
+    static KEYBOARD_HOOK_WRAPPER: RefCell<Option<KeyboardHook>> = const { RefCell::new(None) };
     static TERMINAL_HWND: RefCell<Option<HWND>> = const { RefCell::new(None) };
 }
 
@@ -111,7 +110,7 @@ thread_local! {
 /// On Windows, many operations on `HWND` (such as `PostMessageW`) are documented
 /// as cross-thread safe, but some operations must only be performed on the thread
 /// that created/owns the window (for example, most UI updates and message loops).
-struct SendHWND(HWND);
+pub struct SendHWND(pub HWND);
 
 /// SAFETY:
 /// - The `HWND` handle value itself may be moved across threads.
@@ -126,14 +125,14 @@ unsafe impl Send for SendHWND {}
 ///   and only perform cross-thread-safe operations from other threads.
 unsafe impl Sync for SendHWND {}
 
-struct TerminalData {
-    service: TerminalService,
-    renderer: TerminalRenderer,
-    window_handle: Option<SendHWND>,
-    composition: Option<CompositionData>,
+pub struct TerminalData {
+    pub service: TerminalService,
+    pub renderer: TerminalRenderer,
+    pub window_handle: Option<SendHWND>,
+    pub composition: Option<CompositionData>,
 }
 
-fn get_terminal_data() -> Arc<Mutex<TerminalData>> {
+pub fn get_terminal_data() -> Arc<Mutex<TerminalData>> {
     TERMINAL_DATA
         .get_or_init(|| {
             Arc::new(Mutex::new(TerminalData {
@@ -224,7 +223,7 @@ fn update_ime_window_position(hwnd: HWND) {
 }
 
 // Helper to check if IME is composing
-fn is_ime_composing(hwnd: HWND) -> bool {
+pub fn is_ime_composing(hwnd: HWND) -> bool {
     unsafe {
         let himc = ImmGetContext(hwnd);
         if himc.0.is_null() {
@@ -424,137 +423,15 @@ pub fn open_custom_bar(hwnd_editor: HWND) -> bool {
     }
 }
 
-// Convert virtual key code to VT sequence
-fn vk_to_vt_sequence(
-    vk_code: u16,
-    ctrl_pressed: bool,
-    shift_pressed: bool,
-    alt_pressed: bool,
-) -> Option<&'static [u8]> {
-    // Handle Ctrl+ combinations first
-    if ctrl_pressed && !alt_pressed {
-        if let 0x41..=0x5A = vk_code {
-            // Ctrl+A through Ctrl+Z
-            // Return control character (A=1, B=2, ..., Z=26)
-            let ctrl_char = (vk_code - 0x40) as u8;
-            return match ctrl_char {
-                1 => Some(b"\x01"),  // Ctrl+A
-                2 => Some(b"\x02"),  // Ctrl+B
-                3 => Some(b"\x03"),  // Ctrl+C
-                4 => Some(b"\x04"),  // Ctrl+D
-                5 => Some(b"\x05"),  // Ctrl+E
-                6 => Some(b"\x06"),  // Ctrl+F
-                7 => Some(b"\x07"),  // Ctrl+G
-                8 => Some(b"\x08"),  // Ctrl+H (same as Backspace)
-                9 => Some(b"\x09"),  // Ctrl+I (same as Tab)
-                10 => Some(b"\x0a"), // Ctrl+J
-                11 => Some(b"\x0b"), // Ctrl+K
-                12 => Some(b"\x0c"), // Ctrl+L
-                13 => Some(b"\x0d"), // Ctrl+M (same as Enter)
-                14 => Some(b"\x0e"), // Ctrl+N
-                15 => Some(b"\x0f"), // Ctrl+O
-                16 => Some(b"\x10"), // Ctrl+P
-                17 => Some(b"\x11"), // Ctrl+Q
-                18 => Some(b"\x12"), // Ctrl+R
-                19 => Some(b"\x13"), // Ctrl+S
-                20 => Some(b"\x14"), // Ctrl+T
-                21 => Some(b"\x15"), // Ctrl+U
-                22 => Some(b"\x16"), // Ctrl+V
-                23 => Some(b"\x17"), // Ctrl+W
-                24 => Some(b"\x18"), // Ctrl+X
-                25 => Some(b"\x19"), // Ctrl+Y
-                26 => Some(b"\x1a"), // Ctrl+Z
-                _ => None,
-            };
-        }
-    }
+// vk_to_vt_sequence removed
 
-    // Special keys with modifiers
-    match vk_code {
-        k if k == VK_UP.0 => {
-            if ctrl_pressed {
-                Some(b"\x1b[1;5A")
-            } else if shift_pressed {
-                Some(b"\x1b[1;2A")
-            } else if alt_pressed {
-                Some(b"\x1b[1;3A")
-            } else {
-                Some(b"\x1b[A")
-            }
-        }
-        k if k == VK_DOWN.0 => {
-            if ctrl_pressed {
-                Some(b"\x1b[1;5B")
-            } else if shift_pressed {
-                Some(b"\x1b[1;2B")
-            } else if alt_pressed {
-                Some(b"\x1b[1;3B")
-            } else {
-                Some(b"\x1b[B")
-            }
-        }
-        k if k == VK_RIGHT.0 => {
-            if ctrl_pressed {
-                Some(b"\x1b[1;5C")
-            } else if shift_pressed {
-                Some(b"\x1b[1;2C")
-            } else if alt_pressed {
-                Some(b"\x1b[1;3C")
-            } else {
-                Some(b"\x1b[C")
-            }
-        }
-        k if k == VK_LEFT.0 => {
-            if ctrl_pressed {
-                Some(b"\x1b[1;5D")
-            } else if shift_pressed {
-                Some(b"\x1b[1;2D")
-            } else if alt_pressed {
-                Some(b"\x1b[1;3D")
-            } else {
-                Some(b"\x1b[D")
-            }
-        }
-        k if k == VK_HOME.0 => {
-            if ctrl_pressed {
-                Some(b"\x1b[1;5H")
-            } else if shift_pressed {
-                Some(b"\x1b[1;2H")
-            } else {
-                Some(b"\x1b[H")
-            }
-        }
-        k if k == VK_END.0 => {
-            if ctrl_pressed {
-                Some(b"\x1b[1;5F")
-            } else if shift_pressed {
-                Some(b"\x1b[1;2F")
-            } else {
-                Some(b"\x1b[F")
-            }
-        }
-        k if k == VK_DELETE.0 => Some(b"\x1b[3~"),
-        k if k == VK_INSERT.0 => Some(b"\x1b[2~"),
-        k if k == VK_PRIOR.0 => Some(b"\x1b[5~"), // Page Up
-        k if k == VK_NEXT.0 => Some(b"\x1b[6~"),  // Page Down
-        k if k == VK_BACK.0 => Some(b"\x7f"),     // Backspace (DEL)
-        k if k == VK_RETURN.0 => Some(b"\r"),     // Enter
-        k if k == VK_TAB.0 => Some(b"\t"),        // Tab
-        k if k == VK_ESCAPE.0 => Some(b"\x1b"),   // Escape
-        k if k == VK_F1.0 => Some(b"\x1bOP"),
-        k if k == VK_F2.0 => Some(b"\x1bOQ"),
-        k if k == VK_F3.0 => Some(b"\x1bOR"),
-        k if k == VK_F4.0 => Some(b"\x1bOS"),
-        k if k == VK_F5.0 => Some(b"\x1b[15~"),
-        k if k == VK_F6.0 => Some(b"\x1b[17~"),
-        k if k == VK_F7.0 => Some(b"\x1b[18~"),
-        k if k == VK_F8.0 => Some(b"\x1b[19~"),
-        k if k == VK_F9.0 => Some(b"\x1b[20~"),
-        k if k == VK_F10.0 => Some(b"\x1b[21~"),
-        k if k == VK_F11.0 => Some(b"\x1b[23~"),
-        k if k == VK_F12.0 => Some(b"\x1b[24~"),
-        _ => None,
-    }
+/// 繧ｷ繧ｹ繝Β繧ｷ繝ｧ繝ｼ繝医き繝ヨlt+Tab 遲会ｼ峨〒縺ゅｋ縺九ｒ蛻､螳壹☆繧
+pub fn is_system_shortcut(vk_code: u16, alt_pressed: bool) -> bool {
+    alt_pressed
+        && (vk_code == VK_F4.0
+            || vk_code == VK_TAB.0
+            || vk_code == VK_SPACE.0
+            || vk_code == VK_ESCAPE.0)
 }
 
 #[allow(dead_code)]
@@ -578,126 +455,26 @@ pub fn cleanup_terminal() {
     }
 }
 
-fn send_key_to_conpty(vk_code: u16) -> bool {
-    let ctrl_pressed = unsafe { GetKeyState(VK_CONTROL.0 as i32) } < 0;
-    let shift_pressed = unsafe { GetKeyState(VK_SHIFT.0 as i32) } < 0;
-    let alt_pressed = unsafe { GetKeyState(VK_MENU.0 as i32) } < 0;
+// Old functions removed: vk_to_vt_sequence, send_key_to_conpty, keyboard_hook_proc
 
-    // Skip system shortcuts in hook to allow Windows/EmEditor to handle them
-    if alt_pressed
-        && (vk_code == VK_F4.0
-            || vk_code == VK_TAB.0
-            || vk_code == VK_SPACE.0
-            || vk_code == VK_ESCAPE.0)
-    {
-        return false;
-    }
-
-    if let Some(vt_sequence) = vk_to_vt_sequence(vk_code, ctrl_pressed, shift_pressed, alt_pressed)
-    {
-        {
-            let data_arc = get_terminal_data();
-            let mut data = data_arc.lock().unwrap();
-            log::debug!(
-                "Keyboard hook: Sending VT sequence for vk_code 0x{:04X}",
-                vk_code
-            );
-            data.service.reset_viewport();
-            let _ = data.service.send_input(vt_sequence);
-        }
-
-        TERMINAL_HWND.with(|h| {
-            if let Some(hwnd) = *h.borrow() {
-                update_scroll_info(hwnd);
-                unsafe { let _ = InvalidateRect(hwnd, None, BOOL(0)); }
-            }
-        });
-
-        return true;
-    }
-    false
-}
-
-extern "system" fn keyboard_hook_proc(code: i32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
-    if code >= 0 {
-        let vk_code = wparam.0 as u16;
-        let key_up = (lparam.0 >> 31) & 1; // bit 31 = transition state (1 = key up)
-
-        // Only process key down events
-        if key_up == 0 {
-            // Check for IME composition first
-            let is_composing = TERMINAL_HWND.with(|h| {
-                if let Some(hwnd) = *h.borrow() {
-                    is_ime_composing(hwnd)
-                } else {
-                    false
-                }
-            });
-
-            if !is_composing {
-                // Check if this is a key we want to handle (Arrow keys, Ctrl+Keys, etc.)
-                // We use the same logic as vk_to_vt_sequence.
-                // If it returns true, we consumed the key logically and sent it to ConPty.
-                // Note: For WH_KEYBOARD hooks, the return value is effectively ignored by the system,
-                // and we still call CallNextHookEx below to continue the hook chain.
-                // Returning 1 here only indicates internally that we consumed the key; it does NOT
-                // block EmEditor/Windows from processing the event when using WH_KEYBOARD.
-                if send_key_to_conpty(vk_code) {
-                    log::debug!("Keyboard hook: Consumed vk_code 0x{:04X}", vk_code);
-                    return LRESULT(1);
-                }
-            } else {
-                log::debug!(
-                    "Keyboard hook: IME composing, skipping hook for vk_code 0x{:04X}",
-                    vk_code
-                );
-            }
-        }
-    }
-
-    KEYBOARD_HOOK.with(|hook| {
-        let hook_ref = hook.borrow();
-        if let Some(hhook) = *hook_ref {
-            unsafe { CallNextHookEx(hhook, code, wparam, lparam) }
-        } else {
-            unsafe { CallNextHookEx(None, code, wparam, lparam) }
-        }
-    })
-}
-
-fn install_keyboard_hook() {
-    KEYBOARD_HOOK.with(|hook| {
+fn install_keyboard_hook(hwnd: HWND) {
+    KEYBOARD_HOOK_WRAPPER.with(|hook| {
         let mut hook_ref = hook.borrow_mut();
         if hook_ref.is_none() {
-            unsafe {
-                let h = SetWindowsHookExW(
-                    WH_KEYBOARD,
-                    Some(keyboard_hook_proc),
-                    None,
-                    windows::Win32::System::Threading::GetCurrentThreadId(),
-                );
-                match h {
-                    Ok(hhook) => {
-                        log::info!("Keyboard hook installed successfully");
-                        *hook_ref = Some(hhook);
-                    }
-                    Err(e) => {
-                        log::error!("Failed to install keyboard hook: {}", e);
-                    }
-                }
-            }
+            let hook_instance = KeyboardHook::new(hwnd);
+            hook_instance.install();
+            *hook_ref = Some(hook_instance);
+            log::info!("Keyboard hook wrapper installed via infra layer");
         }
     });
 }
 
 fn uninstall_keyboard_hook() {
-    KEYBOARD_HOOK.with(|hook| {
+    KEYBOARD_HOOK_WRAPPER.with(|hook| {
         let mut hook_ref = hook.borrow_mut();
-        if let Some(hhook) = hook_ref.take() {
-            unsafe {
-                let _ = UnhookWindowsHookEx(hhook);
-                log::info!("Keyboard hook uninstalled");
-            }
+        if let Some(h) = hook_ref.take() {
+            h.uninstall(); // Explicit uninstall, though Drop would handle it
+            log::info!("Keyboard hook wrapper uninstalled via infra layer");
         }
     });
 }
@@ -831,7 +608,7 @@ extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM
                 // We don't call ShowCaret(hwnd) because we draw our own cursor overlay
             }
 
-            install_keyboard_hook();
+            install_keyboard_hook(hwnd);
             LRESULT(0)
         }
         WM_KILLFOCUS => {
@@ -844,113 +621,31 @@ extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM
         }
         WM_KEYDOWN => {
             let vk_code = wparam.0 as u16;
-
-            // Reset viewport on key press (Snap on Input - Windows Terminal style)
-            {
-                let data_arc = get_terminal_data();
-                let mut data = data_arc.lock().unwrap();
-                data.service.reset_viewport();
-            }
-            // Update scrollbar and screen immediately to reflect the jump
-            update_scroll_info(hwnd);
-            unsafe { let _ = InvalidateRect(hwnd, None, BOOL(0)); }
-
             log::debug!("WM_KEYDOWN received: 0x{:04X}", vk_code);
 
-            // Check modifier key states
-            let ctrl_pressed = unsafe { GetKeyState(VK_CONTROL.0 as i32) } < 0;
-            let shift_pressed = unsafe { GetKeyState(VK_SHIFT.0 as i32) } < 0;
-            let alt_pressed = unsafe { GetKeyState(VK_MENU.0 as i32) } < 0;
+            // Note: Key processing is primarily handled by WM_APP_KEYINPUT (via Hook)
+            // or WM_CHAR (for standard text).
+            // We pass to DefWindowProcW to ensure standard behaviors (like generating WM_CHAR) are preserved.
 
-            log::debug!(
-                "Modifiers - Ctrl: {}, Shift: {}, Alt: {}",
-                ctrl_pressed,
-                shift_pressed,
-                alt_pressed
-            );
-
-            // Try to convert to VT sequence
-            if let Some(vt_sequence) =
-                vk_to_vt_sequence(vk_code, ctrl_pressed, shift_pressed, alt_pressed)
-            {
-                log::info!(
-                    "WM_KEYDOWN: Sending VT sequence for vk_code 0x{:04X}: {:?}",
-                    vk_code,
-                    vt_sequence
-                );
-
-                let data_arc = get_terminal_data();
-                let data = data_arc.lock().unwrap();
-                let _ = data.service.send_input(vt_sequence);
-
-                LRESULT(0)
-            } else {
-                // Not a special key, let WM_CHAR handle it
-                log::debug!(
-                    "WM_KEYDOWN: No VT sequence for vk_code 0x{:04X}, passing to DefWindowProc",
-                    vk_code
-                );
-                unsafe { DefWindowProcW(hwnd, msg, wparam, lparam) }
-            }
+            unsafe { DefWindowProcW(hwnd, msg, wparam, lparam) }
         }
         WM_SYSKEYDOWN => {
             let vk_code = wparam.0 as u16;
             log::debug!("WM_SYSKEYDOWN received: 0x{:04X}", vk_code);
 
             // Exclusion list for system shortcuts that should be handled by Windows/EmEditor
-            if vk_code == VK_TAB.0
-                || vk_code == VK_F4.0
-                || vk_code == VK_SPACE.0
-                || vk_code == VK_ESCAPE.0
-            {
+            if is_system_shortcut(vk_code, true) {
                 return unsafe { DefWindowProcW(hwnd, msg, wparam, lparam) };
             }
 
             if vk_code == VK_MENU.0 {
-                log::debug!(
-                    "Alt key (VK_MENU) pressed in WM_SYSKEYDOWN, suppressing DefWindowProcW"
-                );
                 return LRESULT(0);
             }
 
-            // Handle Alt + Key combinations for TUI
-            let ctrl_pressed = unsafe { GetKeyState(VK_CONTROL.0 as i32) } < 0;
-            let shift_pressed = unsafe { GetKeyState(VK_SHIFT.0 as i32) } < 0;
-            let alt_pressed = true; // WM_SYSKEYDOWN usually implies Alt is pressed
+            // Note: Alt combinations are handled by WM_APP_KEYINPUT.
+            // But if we want to suppress system menu beeps for handled Alt keys, we might need logic here.
+            // For now, let's pass to DefWindowProcW, but WM_SYSCHAR will suppress the beep if needed.
 
-            // 1. Try special keys (Arrows, F-keys, etc.) via existing vk_to_vt_sequence
-            if let Some(vt_sequence) =
-                vk_to_vt_sequence(vk_code, ctrl_pressed, shift_pressed, alt_pressed)
-            {
-                log::debug!(
-                    "WM_SYSKEYDOWN: Sending VT sequence for Alt combination: {:?}",
-                    vt_sequence
-                );
-                let data_arc = get_terminal_data();
-                let data = data_arc.lock().unwrap();
-                let _ = data.service.send_input(vt_sequence);
-                return LRESULT(0);
-            }
-
-            // 2. Handle Alt + Letter/Number (Meta key)
-            // Send ESC (0x1B) followed by the character
-            if (0x30..=0x39).contains(&vk_code) || (0x41..=0x5A).contains(&vk_code) {
-                let mut char_to_send = vk_code as u8;
-                if (0x41..=0x5A).contains(&vk_code) && !shift_pressed {
-                    char_to_send = (vk_code + 0x20) as u8; // To lowercase
-                }
-                log::debug!(
-                    "WM_SYSKEYDOWN: Sending Meta sequence: ESC + '{}'",
-                    char_to_send as char
-                );
-                let seq = [0x1bu8, char_to_send];
-                let data_arc = get_terminal_data();
-                let data = data_arc.lock().unwrap();
-                let _ = data.service.send_input(&seq);
-                return LRESULT(0);
-            }
-
-            // For other system keys, pass to DefWindowProcW
             unsafe { DefWindowProcW(hwnd, msg, wparam, lparam) }
         }
         WM_SYSKEYUP => {

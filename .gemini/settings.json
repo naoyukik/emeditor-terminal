@@ -29,6 +29,7 @@
       "ShellTool(cargo fmt)",
       "ShellTool(cargo check)",
       "ShellTool(cargo build)",
+      "ShellTool(tail)",
       "ShellTool(Test-Path)",
       "ShellTool(Get-Content sdk/)",
       "ShellTool(Get-Content conductor/)",

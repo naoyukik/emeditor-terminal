@@ -46,6 +46,9 @@
 ### Layer 1: Domain (`src/domain/`)
 - **純粋性**: **`windows` クレートへの依存を極力排除する。**
 - **責務**: ターミナルの状態（バッファ、カーソル、履歴）、ANSI パース結果のデータ表現。
+- **データモデリング**: プリミティブ型（`u16`, `bool` 等）の羅列を避け、意味のある単位で構造体（`struct`）や列挙型（`enum`）を定義すること。
+    - **Bad**: `fn handle_key(vk_code: u16, ctrl: bool, shift: bool)`
+    - **Good**: `fn handle_key(key: InputKey)` where `struct InputKey { code: KeyCode, modifiers: Modifiers }`
 - **インターフェース定義**: 外部リソース（設定、永続化など）へのアクセスは、ここで `Trait`（Repository Interface）として定義する。実装には依存しない。
 - **テスト**: ユニットテストでカバレッジ 90% 以上および十分な動作保証を目指す。ここに UI ロジックを持ち込んではならない。
 
