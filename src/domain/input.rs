@@ -1,4 +1,4 @@
-pub use crate::domain::model::input::{InputKey, Modifiers};
+pub use crate::domain::model::input::InputKey;
 
 /// キーボード入力の翻訳を行うトレイト
 pub trait KeyTranslator {
