@@ -1,7 +1,7 @@
 use std::ffi::c_void;
 use std::mem::size_of;
 use std::ptr::null_mut;
-use windows::core::PWSTR;
+use windows::core::{PWSTR, PCWSTR};
 use windows::Win32::Foundation::{CloseHandle, BOOL, HANDLE, INVALID_HANDLE_VALUE};
 use windows::Win32::System::Console::{
     ClosePseudoConsole, CreatePseudoConsole, ResizePseudoConsole, COORD, HPCON,
@@ -126,6 +126,20 @@ impl ConPTY {
             let mut cmd_line_w: Vec<u16> =
                 cmd_line.encode_utf16().chain(std::iter::once(0)).collect();
 
+            // Get USERPROFILE for current directory
+            let current_dir = std::env::var("USERPROFILE").ok();
+            let mut current_dir_w: Vec<u16> = if let Some(dir) = current_dir {
+                dir.encode_utf16().chain(std::iter::once(0)).collect()
+            } else {
+                Vec::new()
+            };
+            
+            let lp_current_directory = if current_dir_w.is_empty() {
+                None
+            } else {
+                Some(PCWSTR(current_dir_w.as_ptr()))
+            };
+
             let success = CreateProcessW(
                 None,
                 PWSTR(cmd_line_w.as_mut_ptr()),
@@ -134,7 +148,7 @@ impl ConPTY {
                 BOOL(0),
                 EXTENDED_STARTUPINFO_PRESENT,
                 None,
-                None,
+                lp_current_directory,
                 &si_ex.StartupInfo,
                 &mut pi,
             );
