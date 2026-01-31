@@ -39,5 +39,5 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 ---
 
-- [x] **Track: fix: Set working directory to USERPROFILE (#56)**
-*Link: [./archive/56_fix_working_directory_20260131/](./archive/56_fix_working_directory_20260131/)*
+- [~] **Track: PR #57 Review Fixes**
+*Link: [./tracks/pr_review_57_fixes/](./tracks/pr_review_57_fixes/)*
