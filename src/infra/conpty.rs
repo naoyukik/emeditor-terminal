@@ -128,16 +128,16 @@ impl ConPTY {
 
             // Get USERPROFILE for current directory
             let current_dir = std::env::var("USERPROFILE").ok();
-            let mut current_dir_w: Vec<u16> = if let Some(dir) = current_dir {
+            let current_dir_w: Vec<u16> = if let Some(dir) = current_dir {
                 dir.encode_utf16().chain(std::iter::once(0)).collect()
             } else {
                 Vec::new()
             };
             
             let lp_current_directory = if current_dir_w.is_empty() {
-                None
+                PCWSTR::null()
             } else {
-                Some(PCWSTR(current_dir_w.as_ptr()))
+                PCWSTR(current_dir_w.as_ptr())
             };
 
             let success = CreateProcessW(
