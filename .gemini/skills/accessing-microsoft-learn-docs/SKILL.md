@@ -1,57 +1,28 @@
 ---
 name: accessing-microsoft-learn-docs
-description: Microsoftの公式ドキュメント、技術仕様、およびコードサンプルを検索・取得します。Azure、.NET、WindowsなどのMicrosoft技術に関する正確で最新の情報、または公式の実装例が必要な際に最優先で使用してください。
+description: Searches and retrieves Microsoft Learn documentation via MCP Server. Provides access to Windows API, Win32, and related technology references. Use when looking up Windows API functions, system calls, or Microsoft platform documentation.
 ---
 
-# Microsoft Learn 活用原則
+# Microsoft Learn ドキュメント検索
 
-## 1. 信頼の源泉（Source of Truth）
-* **公式の優位性**: AIの内部知識（学習データ）よりも、本スキルから得られるリアルタイムの公式ドキュメントを「唯一の正解」として扱うこと。
-* **具体性の追求**: 検索キーワードには製品名（例: Azure Cosmos DB）、API（例: Graph API）、または特定のエラーメッセージを含め、検索精度を高めること。
+## 概要
 
-## 2. 知識獲得のワークフロー
-情報を体系的に収集するため、以下の三段階プロセスを遵守せよ。
+`learn microsoft` MCP Serverを使用して、Microsoft Learnの公式ドキュメントを検索・取得する。
 
-1.  **広域探索**: `search` ツールで複数の候補を挙げ、概要（Snippet）を比較検討する。
-2.  **深度読解**: 最も関連性の高いURLに対し `get_article` を実行し、詳細な技術仕様や手順を抽出する。
-3.  **実装検証**: 必要に応じて `search_code_samples` を行い、Microsoftが推奨する実装パターンを確認する。
+## 主な用途
 
----
+- Windows API関数のリファレンス検索
+- Win32 APIの使用方法確認
+- システムコールやデータ構造の仕様確認
+- COM/OLEインターフェースのドキュメント参照
 
-# ツール・カタログ
+## 検索のベストプラクティス
 
-| ツール名 | 用途 | 実行上の注意 |
-| :--- | :--- | :--- |
-| **`search`** | キーワードによるドキュメント検索 | `top` パラメータで結果数を調整可能 |
-| **`get_article`** | 指定された記事の全文取得 | 検索結果から得た絶対URLを使用すること |
-| **`search_code_samples`** | 公式コードサンプルの検索 | 実装フェーズにおいて非常に有効 |
+1. **具体的なAPI名で検索**: `CreateWindowExW`, `SendMessage`, `WM_PAINT` など
+2. **機能カテゴリで検索**: `Console API`, `GDI functions`, `Window Messages` など
+3. **エラーコードの調査**: `HRESULT`, `GetLastError` の戻り値を検索
 
----
+## 関連リソース
 
-# 実行パラメータ例
-
-### シナリオ：Azure SDKの利用方法を調べる
-```json
-{
-  "query": "Azure SDK for Python authentication",
-  "top": 3
-}
-
-```
-
-### シナリオ：特定のドキュメントを精読する
-
-```json
-{
-  "url": "[https://learn.microsoft.com/en-us/azure/developer/python/sdk/authentication](https://learn.microsoft.com/en-us/azure/developer/python/sdk/authentication)"
-}
-
-```
-
----
-
-# 運用の留意事項と制約
-
-* **対象範囲**: 公開ドキュメントのみ。試験問題やトレーニングパス（Learn Catalog APIの範囲）は対象外。
-* **リフレッシュ**: 情報は1日に最低1回は全更新される。
-* **エラー対応**: 検索結果が不十分な場合は、上位概念のキーワードで広めに再検索せよ。
+- EmEditor Plugin SDK: プロジェクト内 `sdk/` ディレクトリ
+- Windows API公式: https://learn.microsoft.com/windows/win32/

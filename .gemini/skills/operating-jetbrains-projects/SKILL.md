@@ -1,6 +1,6 @@
 ---
 name: operating-jetbrains-projects
-description: IntelliJ等のJetBrains IDEをMCP経由で操作します。プロジェクトの探索、コードの精読、構造的リファクタリング、および実行・検証まで、IDEの全機能を活用して効率的に開発を支援します。
+description: Operates JetBrains IDEs (IntelliJ, etc.) via MCP. Supports project exploration, code reading, structural refactoring, and execution/verification using full IDE capabilities for efficient development.
 ---
 
 # 鉄則（Absolute Principles）

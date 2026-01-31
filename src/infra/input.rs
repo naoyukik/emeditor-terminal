@@ -6,7 +6,8 @@ use windows::Win32::UI::Input::KeyboardAndMouse::{
     GetKeyState, VK_CONTROL, VK_MENU, VK_SHIFT,
 };
 use std::cell::RefCell;
-use crate::domain::input::{InputKey, Modifiers, KeyTranslator, VtSequenceTranslator};
+use crate::domain::model::input::{InputKey, Modifiers};
+use crate::domain::input::{KeyTranslator, VtSequenceTranslator};
 
 /// 描画更新を通知するメッセージ
 /// 0x8000 (WM_APP) + 1 は WM_APP_REPAINT として custom_bar.rs で定義されている

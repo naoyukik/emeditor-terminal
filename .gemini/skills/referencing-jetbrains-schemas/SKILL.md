@@ -1,6 +1,6 @@
 ---
 name: referencing-jetbrains-schemas
-description: JetBrains MCP Serverツールの厳密なJSONスキーマを提供します。パラメータ不足によるエラー（Validation Error）の解決や、未知の引数構成を確認する際に使用してください。
+description: Provides strict JSON schemas for JetBrains MCP Server tools. Use when resolving validation errors due to missing parameters or verifying unknown argument structures.
 ---
 
 # 運用原則

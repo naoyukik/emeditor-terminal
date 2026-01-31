@@ -1,6 +1,6 @@
 ---
 name: referencing-commit-convention
-description: コミットメッセージを表示する際にこのコミットメッセージ規約を参照し、適切なフォーマットで記載します。これにより、コードベースの変更履歴が一貫性を持ち、理解しやすくなります。
+description: References commit message conventions when displaying commit messages and formats them appropriately. Ensures consistent and understandable change history in the codebase.
 ---
 このスキルはコミットメッセージの作成を支援する。
 
