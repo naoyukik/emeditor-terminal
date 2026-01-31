@@ -39,5 +39,5 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 ---
 
-- [~] **Track: PR #57 Review Fixes**
-*Link: [./tracks/pr_review_57_fixes/](./tracks/pr_review_57_fixes/)*
+- [x] **Track: PR #57 Review Fixes**
+*Link: [./archive/pr_review_57_fixes/](./archive/pr_review_57_fixes/)*
