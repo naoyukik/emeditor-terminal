@@ -40,4 +40,4 @@ This file tracks all major tracks for the project. Each track has its own detail
 ---
 
 - [x] **Track: refactor: ドメインモデルの物理的な分離とディレクトリ構造の整備 (#56)**
-*Link: [./tracks/56_refactor_domain_model_input_20260130/](./tracks/56_refactor_domain_model_input_20260130/)*
+*Link: [./archive/56_refactor_domain_model_input_20260130/](./archive/56_refactor_domain_model_input_20260130/)*
