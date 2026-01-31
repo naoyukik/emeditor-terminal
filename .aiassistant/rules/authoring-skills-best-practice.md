@@ -1,6 +1,6 @@
 ---
 apply: by model decision
-instructions: AIエージェントのスキルを作成する際、参考にするスキルのベストプラクティスです。
+instructions: Best practices for skills to reference when authoring AI agent skills.
 ---
 
 # Skill authoring best practices
