@@ -39,5 +39,5 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 ---
 
-- [x] **Track: refactor: ドメインモデルの物理的な分離とディレクトリ構造の整備 (#56)**
-*Link: [./archive/56_refactor_domain_model_input_20260130/](./archive/56_refactor_domain_model_input_20260130/)*
+- [ ] **Track: fix: Set working directory to USERPROFILE (#56)**
+*Link: [./tracks/56_fix_working_directory_20260131/](./tracks/56_fix_working_directory_20260131/)*
