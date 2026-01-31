@@ -31,10 +31,12 @@ impl KeyboardHook {
 
     /// キーボードフックをインストールする
     pub fn install(&self) {
+        log::debug!("Attempting to install keyboard hook (Infra)");
         KEYBOARD_HOOK.with(|hook| {
             let mut hook_ref = hook.borrow_mut();
             if hook_ref.is_none() {
                 unsafe {
+                    log::debug!("Calling SetWindowsHookExW...");
                     let h = SetWindowsHookExW(
                         WH_KEYBOARD,
                         Some(keyboard_hook_proc),
@@ -43,7 +45,7 @@ impl KeyboardHook {
                     );
                     match h {
                         Ok(hhook) => {
-                            log::info!("Keyboard hook installed successfully (Infra)");
+                            log::info!("Keyboard hook installed successfully (Infra): {:?}", hhook);
                             *hook_ref = Some(hhook);
                             // フックが成功した場合のみターゲットウィンドウを設定
                             TARGET_HWND.with(|h| {
@@ -55,12 +57,15 @@ impl KeyboardHook {
                         }
                     }
                 }
+            } else {
+                log::debug!("Keyboard hook already installed (Infra)");
             }
         });
     }
 
     /// キーボードフックを解除する
     pub fn uninstall(&self) {
+        log::debug!("Uninstalling keyboard hook (Infra)");
         KEYBOARD_HOOK.with(|hook| {
             let mut hook_ref = hook.borrow_mut();
             if let Some(hhook) = hook_ref.take() {
@@ -84,6 +89,7 @@ impl Drop for KeyboardHook {
 
 /// フックプロシージャ
 extern "system" fn keyboard_hook_proc(code: i32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
+    // log::trace!("keyboard_hook_proc: code={}, wparam={:?}", code, wparam);
     if code >= 0 {
         let vk_code = wparam.0 as u16;
         let key_up = (lparam.0 >> 31) & 1; // bit 31 = transition state (1 = key up)
