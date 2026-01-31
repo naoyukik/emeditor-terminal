@@ -140,6 +140,7 @@ impl KeyTranslator for VtSequenceTranslator {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::domain::model::input::Modifiers;
 
     #[test]
     fn test_ctrl_combinations() {
