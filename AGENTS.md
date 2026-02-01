@@ -17,6 +17,7 @@ https://github.com/naoyukik/emeditor-terminal
 ## 開発参考資料
 - EmEditor Plugin SDK: [EmEditor Plugin SDK 公式ドキュメント](https://www.emeditor.com/sdk/)
   - EmEditor のサンプルコードやプラグインの開発に関するドキュメント。
+  - このプロジェクト内の `sdk/` ディレクトリにも SDK 関連の資料が含まれている。
 - Learn Microsoft: `learn microsoft` MCP Serverによってドキュメントを検索可能。
   - Windows APIや関連技術の公式ドキュメント。
 
