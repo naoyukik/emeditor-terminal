@@ -40,6 +40,14 @@ impl ConPTY {
         let mut h_pipe_pt_out = INVALID_HANDLE_VALUE;
         let mut h_pipe_out_read = INVALID_HANDLE_VALUE;
 
+        // Get USERPROFILE for current directory (outside unsafe block)
+        let current_dir = std::env::var("USERPROFILE").ok();
+        let current_dir_w: Vec<u16> = if let Some(dir) = current_dir {
+            dir.encode_utf16().chain(std::iter::once(0)).collect()
+        } else {
+            Vec::new()
+        };
+
         unsafe {
             if CreatePipe(&mut h_pipe_pt_in, &mut h_pipe_in_write, None, 0).is_err() {
                 return Err("Failed to create input pipe".to_string());
@@ -126,14 +134,6 @@ impl ConPTY {
             let mut cmd_line_w: Vec<u16> =
                 cmd_line.encode_utf16().chain(std::iter::once(0)).collect();
 
-            // Get USERPROFILE for current directory
-            let current_dir = std::env::var("USERPROFILE").ok();
-            let current_dir_w: Vec<u16> = if let Some(dir) = current_dir {
-                dir.encode_utf16().chain(std::iter::once(0)).collect()
-            } else {
-                Vec::new()
-            };
-            
             let lp_current_directory = if current_dir_w.is_empty() {
                 PCWSTR::null()
             } else {
