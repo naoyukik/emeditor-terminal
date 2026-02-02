@@ -43,6 +43,3 @@ This file tracks all major tracks for the project. Each track has its own detail
 *Link: [./archive/pr_review_57_fixes/](./archive/pr_review_57_fixes/)*
 
 ---
-
-- [x] **Track: refactor: custom_bar.rs から IME ハンドリングロジックを抽出 (Issue #46)**
-*Link: [./tracks/46_refactor_ime_logic_20260201/](./tracks/46_refactor_ime_logic_20260201/)*
