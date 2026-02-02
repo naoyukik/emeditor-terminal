@@ -28,7 +28,7 @@ impl KeyTranslator for VtSequenceTranslator {
         const VK_RETURN: u16 = 0x0D;
         const VK_ESCAPE: u16 = 0x1B;
         const VK_PRIOR: u16 = 0x21; // Page Up
-        const VK_NEXT: u16 = 0x22;  // Page Down
+        const VK_NEXT: u16 = 0x22; // Page Down
         const VK_END: u16 = 0x23;
         const VK_HOME: u16 = 0x24;
         const VK_LEFT: u16 = 0x25;
@@ -77,38 +77,66 @@ impl KeyTranslator for VtSequenceTranslator {
         // Special keys with modifiers
         let seq: Option<&[u8]> = match vk_code {
             VK_UP => {
-                if ctrl { Some(b"\x1b[1;5A") }
-                else if shift { Some(b"\x1b[1;2A") }
-                else if alt { Some(b"\x1b[1;3A") }
-                else { Some(b"\x1b[A") }
+                if ctrl {
+                    Some(b"\x1b[1;5A")
+                } else if shift {
+                    Some(b"\x1b[1;2A")
+                } else if alt {
+                    Some(b"\x1b[1;3A")
+                } else {
+                    Some(b"\x1b[A")
+                }
             }
             VK_DOWN => {
-                if ctrl { Some(b"\x1b[1;5B") }
-                else if shift { Some(b"\x1b[1;2B") }
-                else if alt { Some(b"\x1b[1;3B") }
-                else { Some(b"\x1b[B") }
+                if ctrl {
+                    Some(b"\x1b[1;5B")
+                } else if shift {
+                    Some(b"\x1b[1;2B")
+                } else if alt {
+                    Some(b"\x1b[1;3B")
+                } else {
+                    Some(b"\x1b[B")
+                }
             }
             VK_RIGHT => {
-                if ctrl { Some(b"\x1b[1;5C") }
-                else if shift { Some(b"\x1b[1;2C") }
-                else if alt { Some(b"\x1b[1;3C") }
-                else { Some(b"\x1b[C") }
+                if ctrl {
+                    Some(b"\x1b[1;5C")
+                } else if shift {
+                    Some(b"\x1b[1;2C")
+                } else if alt {
+                    Some(b"\x1b[1;3C")
+                } else {
+                    Some(b"\x1b[C")
+                }
             }
             VK_LEFT => {
-                if ctrl { Some(b"\x1b[1;5D") }
-                else if shift { Some(b"\x1b[1;2D") }
-                else if alt { Some(b"\x1b[1;3D") }
-                else { Some(b"\x1b[D") }
+                if ctrl {
+                    Some(b"\x1b[1;5D")
+                } else if shift {
+                    Some(b"\x1b[1;2D")
+                } else if alt {
+                    Some(b"\x1b[1;3D")
+                } else {
+                    Some(b"\x1b[D")
+                }
             }
             VK_HOME => {
-                if ctrl { Some(b"\x1b[1;5H") }
-                else if shift { Some(b"\x1b[1;2H") }
-                else { Some(b"\x1b[H") }
+                if ctrl {
+                    Some(b"\x1b[1;5H")
+                } else if shift {
+                    Some(b"\x1b[1;2H")
+                } else {
+                    Some(b"\x1b[H")
+                }
             }
             VK_END => {
-                if ctrl { Some(b"\x1b[1;5F") }
-                else if shift { Some(b"\x1b[1;2F") }
-                else { Some(b"\x1b[F") }
+                if ctrl {
+                    Some(b"\x1b[1;5F")
+                } else if shift {
+                    Some(b"\x1b[1;2F")
+                } else {
+                    Some(b"\x1b[F")
+                }
             }
             VK_DELETE => Some(b"\x1b[3~"),
             VK_INSERT => Some(b"\x1b[2~"),
@@ -146,11 +174,25 @@ mod tests {
     fn test_ctrl_combinations() {
         let translator = VtSequenceTranslator::new();
         // Ctrl+A -> \x01
-        let key_a = InputKey::new(0x41, Modifiers { ctrl: true, shift: false, alt: false });
+        let key_a = InputKey::new(
+            0x41,
+            Modifiers {
+                ctrl: true,
+                shift: false,
+                alt: false,
+            },
+        );
         assert_eq!(translator.translate(key_a), Some(vec![1]));
 
         // Ctrl+C -> \x03
-        let key_c = InputKey::new(0x43, Modifiers { ctrl: true, shift: false, alt: false });
+        let key_c = InputKey::new(
+            0x43,
+            Modifiers {
+                ctrl: true,
+                shift: false,
+                alt: false,
+            },
+        );
         assert_eq!(translator.translate(key_c), Some(vec![3]));
     }
 
@@ -158,7 +200,14 @@ mod tests {
     fn test_ctrl_alt_combinations() {
         let translator = VtSequenceTranslator::new();
         // Ctrl+Alt+A -> Should be None (or distinct if supported)
-        let key_ctrl_alt_a = InputKey::new(0x41, Modifiers { ctrl: true, shift: false, alt: true });
+        let key_ctrl_alt_a = InputKey::new(
+            0x41,
+            Modifiers {
+                ctrl: true,
+                shift: false,
+                alt: true,
+            },
+        );
         assert_eq!(translator.translate(key_ctrl_alt_a), None);
     }
 
@@ -166,15 +215,39 @@ mod tests {
     fn test_meta_keys() {
         let translator = VtSequenceTranslator::new();
         // Alt+A -> ESC + a
-        let key_alt_a = InputKey::new(0x41, Modifiers { ctrl: false, shift: false, alt: true });
+        let key_alt_a = InputKey::new(
+            0x41,
+            Modifiers {
+                ctrl: false,
+                shift: false,
+                alt: true,
+            },
+        );
         assert_eq!(translator.translate(key_alt_a), Some(vec![0x1B, b'a']));
 
         // Alt+Shift+A -> ESC + A
-        let key_alt_shift_a = InputKey::new(0x41, Modifiers { ctrl: false, shift: true, alt: true });
-        assert_eq!(translator.translate(key_alt_shift_a), Some(vec![0x1B, b'A']));
+        let key_alt_shift_a = InputKey::new(
+            0x41,
+            Modifiers {
+                ctrl: false,
+                shift: true,
+                alt: true,
+            },
+        );
+        assert_eq!(
+            translator.translate(key_alt_shift_a),
+            Some(vec![0x1B, b'A'])
+        );
 
         // Alt+1 -> ESC + 1
-        let key_alt_1 = InputKey::new(0x31, Modifiers { ctrl: false, shift: false, alt: true });
+        let key_alt_1 = InputKey::new(
+            0x31,
+            Modifiers {
+                ctrl: false,
+                shift: false,
+                alt: true,
+            },
+        );
         assert_eq!(translator.translate(key_alt_1), Some(vec![0x1B, b'1']));
     }
 
@@ -202,11 +275,25 @@ mod tests {
         assert_eq!(translator.translate(up), Some(b"\x1b[A".to_vec()));
 
         // Ctrl+Up Arrow
-        let ctrl_up = InputKey::new(0x26, Modifiers { ctrl: true, shift: false, alt: false });
+        let ctrl_up = InputKey::new(
+            0x26,
+            Modifiers {
+                ctrl: true,
+                shift: false,
+                alt: false,
+            },
+        );
         assert_eq!(translator.translate(ctrl_up), Some(b"\x1b[1;5A".to_vec()));
 
         // Alt+Up Arrow
-        let alt_up = InputKey::new(0x26, Modifiers { ctrl: false, shift: false, alt: true });
+        let alt_up = InputKey::new(
+            0x26,
+            Modifiers {
+                ctrl: false,
+                shift: false,
+                alt: true,
+            },
+        );
         assert_eq!(translator.translate(alt_up), Some(b"\x1b[1;3A".to_vec()));
 
         // Backspace
@@ -238,7 +325,14 @@ mod tests {
     fn test_ignored_keys() {
         let translator = VtSequenceTranslator::new();
         // Shift only
-        let shift = InputKey::new(0x10, Modifiers { ctrl: false, shift: true, alt: false });
+        let shift = InputKey::new(
+            0x10,
+            Modifiers {
+                ctrl: false,
+                shift: true,
+                alt: false,
+            },
+        );
         assert_eq!(translator.translate(shift), None);
     }
 }

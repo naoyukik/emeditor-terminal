@@ -4,13 +4,12 @@ use windows::Win32::Graphics::Gdi::{
     BeginPaint, EndPaint, InvalidateRect, COLOR_WINDOW, HBRUSH, PAINTSTRUCT,
 };
 use windows::Win32::UI::WindowsAndMessaging::{
-    CreateCaret, CreateWindowExW, DefWindowProcW, DestroyCaret, LoadCursorW,
-    PostMessageW, RegisterClassW, SendMessageW,
-    CS_HREDRAW, CS_VREDRAW, DLGC_WANTALLKEYS, IDC_ARROW,
-    WM_CHAR, WM_DESTROY, WM_GETDLGCODE, WM_IME_COMPOSITION, WM_IME_ENDCOMPOSITION,
-    WM_IME_SETCONTEXT, WM_IME_STARTCOMPOSITION, WM_KEYDOWN, WM_KEYUP, WM_KILLFOCUS, WM_LBUTTONDOWN,
+    CreateCaret, CreateWindowExW, DefWindowProcW, DestroyCaret, LoadCursorW, PostMessageW,
+    RegisterClassW, SendMessageW, CS_HREDRAW, CS_VREDRAW, DLGC_WANTALLKEYS, IDC_ARROW, WM_CHAR,
+    WM_DESTROY, WM_GETDLGCODE, WM_IME_COMPOSITION, WM_IME_ENDCOMPOSITION, WM_IME_SETCONTEXT,
+    WM_IME_STARTCOMPOSITION, WM_KEYDOWN, WM_KEYUP, WM_KILLFOCUS, WM_LBUTTONDOWN, WM_MOUSEWHEEL,
     WM_PAINT, WM_SETFOCUS, WM_SIZE, WM_SYSCHAR, WM_SYSCOMMAND, WM_SYSKEYDOWN, WM_SYSKEYUP,
-    WNDCLASSW, WS_CHILD, WS_VISIBLE, WS_CLIPCHILDREN, WS_CLIPSIBLINGS, WM_VSCROLL, WM_MOUSEWHEEL,
+    WM_VSCROLL, WNDCLASSW, WS_CHILD, WS_CLIPCHILDREN, WS_CLIPSIBLINGS, WS_VISIBLE,
 };
 const ISC_SHOWUICOMPOSITIONWINDOW: u32 = 0x80000000;
 use crate::application::TerminalService;
@@ -25,8 +24,7 @@ use std::sync::{Arc, Mutex, OnceLock};
 use std::thread;
 use windows::Win32::Storage::FileSystem::ReadFile;
 use windows::Win32::UI::Input::KeyboardAndMouse::{
-    SetFocus, VK_ESCAPE, VK_F4,
-    VK_MENU, VK_SPACE, VK_TAB,
+    SetFocus, VK_ESCAPE, VK_F4, VK_MENU, VK_SPACE, VK_TAB,
 };
 
 // Constants from EmEditor SDK
@@ -177,8 +175,6 @@ fn update_scroll_info(hwnd: HWND) {
     }
 }
 
-
-
 // Helper to check if IME is composing
 pub fn is_ime_composing(hwnd: HWND) -> bool {
     crate::gui::ime::is_composing(hwnd)
@@ -303,7 +299,8 @@ pub fn open_custom_bar(hwnd_editor: HWND) -> bool {
                             let mut data = data_arc.lock().unwrap();
                             data.service.set_conpty(conpty);
                             // Sync buffer size with ConPTY
-                            data.service.resize(initial_cols as usize, initial_rows as usize);
+                            data.service
+                                .resize(initial_cols as usize, initial_rows as usize);
                         }
 
                         let hwnd_client_ptr = hwnd_client.0 as usize;
@@ -439,11 +436,11 @@ extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM
                 SB_PAGEUP => {
                     let data = data_arc.lock().unwrap();
                     delta = data.service.buffer.height as isize;
-                },
+                }
                 SB_PAGEDOWN => {
                     let data = data_arc.lock().unwrap();
                     delta = -(data.service.buffer.height as isize);
-                },
+                }
                 SB_THUMBTRACK | SB_THUMBPOSITION => {
                     let pos = (wparam.0 >> 16) & 0xFFFF;
 
@@ -460,11 +457,11 @@ extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM
                     } else {
                         absolute_pos = Some(0);
                     }
-                },
+                }
                 SB_TOP => {
                     let data = data_arc.lock().unwrap();
                     absolute_pos = Some(data.service.get_history_count());
-                },
+                }
                 SB_BOTTOM => absolute_pos = Some(0),
                 _ => {}
             }
@@ -479,7 +476,9 @@ extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM
             }
 
             update_scroll_info(hwnd);
-            unsafe { let _ = InvalidateRect(hwnd, None, BOOL(0)); }
+            unsafe {
+                let _ = InvalidateRect(hwnd, None, BOOL(0));
+            }
             LRESULT(0)
         }
         WM_MOUSEWHEEL => {
@@ -494,7 +493,9 @@ extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM
             }
 
             update_scroll_info(hwnd);
-            unsafe { let _ = InvalidateRect(hwnd, None, BOOL(0)); }
+            unsafe {
+                let _ = InvalidateRect(hwnd, None, BOOL(0));
+            }
             LRESULT(0)
         }
         WM_PAINT => {
@@ -672,7 +673,9 @@ extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM
                 let _ = data.service.send_input(s.as_bytes());
             }
             update_scroll_info(hwnd);
-            unsafe { let _ = InvalidateRect(hwnd, None, BOOL(0)); }
+            unsafe {
+                let _ = InvalidateRect(hwnd, None, BOOL(0));
+            }
 
             LRESULT(0)
         }
@@ -723,46 +726,47 @@ extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM
             lparam.0 &= !(ISC_SHOWUICOMPOSITIONWINDOW as isize);
             unsafe { DefWindowProcW(hwnd, msg, wparam, lparam) }
         }
-                WM_IME_STARTCOMPOSITION => {
-                    {
-                        let data_arc = get_terminal_data();
-                        let mut data = data_arc.lock().unwrap();
-                        crate::gui::ime::handle_start_composition(hwnd, &mut data.service);
-                    }
-                    // Lock must be released before calling update_scroll_info as it acquires the lock internally
-                    update_scroll_info(hwnd);
-        
-                    LRESULT(0)
-                }
-                WM_IME_COMPOSITION => {
-                    let handled = {
-                        let data_arc = get_terminal_data();
-                        let mut data = data_arc.lock().unwrap();
-                        let data_inner = &mut *data;
-        
-                        crate::gui::ime::handle_composition(
-                            hwnd,
-                            lparam,
-                            &mut data_inner.service,
-                            &data_inner.renderer,
-                            &mut data_inner.composition,
-                        )
-                    };
-        
-                    if !handled {
-                        unsafe { DefWindowProcW(hwnd, msg, wparam, lparam) }
-                    } else {
-                        LRESULT(0)
-                    }
-                }
-                WM_IME_ENDCOMPOSITION => {
-                    {
-                        let data_arc = get_terminal_data();
-                        let mut data = data_arc.lock().unwrap();
-                        crate::gui::ime::handle_end_composition(hwnd, &mut data.composition);
-                    }
-                    LRESULT(0)
-                }        WM_DESTROY => {
+        WM_IME_STARTCOMPOSITION => {
+            {
+                let data_arc = get_terminal_data();
+                let mut data = data_arc.lock().unwrap();
+                crate::gui::ime::handle_start_composition(hwnd, &mut data.service);
+            }
+            // Lock must be released before calling update_scroll_info as it acquires the lock internally
+            update_scroll_info(hwnd);
+
+            LRESULT(0)
+        }
+        WM_IME_COMPOSITION => {
+            let handled = {
+                let data_arc = get_terminal_data();
+                let mut data = data_arc.lock().unwrap();
+                let data_inner = &mut *data;
+
+                crate::gui::ime::handle_composition(
+                    hwnd,
+                    lparam,
+                    &mut data_inner.service,
+                    &data_inner.renderer,
+                    &mut data_inner.composition,
+                )
+            };
+
+            if !handled {
+                unsafe { DefWindowProcW(hwnd, msg, wparam, lparam) }
+            } else {
+                LRESULT(0)
+            }
+        }
+        WM_IME_ENDCOMPOSITION => {
+            {
+                let data_arc = get_terminal_data();
+                let mut data = data_arc.lock().unwrap();
+                crate::gui::ime::handle_end_composition(hwnd, &mut data.composition);
+            }
+            LRESULT(0)
+        }
+        WM_DESTROY => {
             log::info!("WM_DESTROY: Cleaning up terminal resources");
             uninstall_keyboard_hook();
 

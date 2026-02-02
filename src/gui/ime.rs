@@ -1,3 +1,5 @@
+use std::ffi::c_void;
+use std::mem::size_of;
 use windows::Win32::Foundation::{BOOL, HWND, LPARAM};
 use windows::Win32::Graphics::Gdi::InvalidateRect;
 use windows::Win32::UI::Input::Ime::{
@@ -5,8 +7,6 @@ use windows::Win32::UI::Input::Ime::{
     COMPOSITIONFORM, GCS_COMPSTR, GCS_RESULTSTR,
 };
 use windows::Win32::UI::WindowsAndMessaging::SetCaretPos;
-use std::ffi::c_void;
-use std::mem::size_of;
 
 use crate::application::TerminalService;
 use crate::gui::renderer::{CompositionData, TerminalRenderer};
@@ -155,13 +155,15 @@ pub fn handle_start_composition(hwnd: HWND, service: &mut TerminalService) {
     log::debug!("WM_IME_STARTCOMPOSITION");
     // Snap on Input for IME
     service.reset_viewport();
-    
+
     // Invalidate rect is typically handled by caller or update_scroll_info logic which might follow
-    unsafe { let _ = InvalidateRect(hwnd, None, BOOL(0)); }
+    unsafe {
+        let _ = InvalidateRect(hwnd, None, BOOL(0));
+    }
 }
 
 pub fn handle_end_composition(hwnd: HWND, composition: &mut Option<CompositionData>) {
-     log::debug!("WM_IME_ENDCOMPOSITION");
+    log::debug!("WM_IME_ENDCOMPOSITION");
     // Ensure composition is cleared when IME ends
     *composition = None;
     unsafe {
