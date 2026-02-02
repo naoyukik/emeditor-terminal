@@ -29,10 +29,10 @@ IMEハンドリングロジックを `ime.rs` に切り出し、`custom_bar.rs` 
 - [x] Task: `custom_bar.rs` のクリーンアップ
     - [x] `custom_bar.rs` から未使用のインポート（`Imm*` 関数、定数など）を削除する。
     - [x] `cargo clippy` を実行し、警告を修正する。
-- [ ] Task: 手動検証 (IME機能)
-    - [ ] EmEditor でプラグインを起動する。
-    - [ ] IME入力（入力、変換、確定）をテストする。
-    - [ ] 候補ウィンドウ（Candidate Window）がカーソル位置に追従することを確認する。
-    - [ ] 基本的なターミナル入力に退行（リグレッション）がないことを確認する。
-- [ ] Task: Conductor - ユーザー手動検証 'Phase 2' (Protocol in workflow.md)
-    - [ ] すべての受け入れ基準が満たされていることを確認する。
+- [x] Task: 手動検証 (IME機能)
+    - [x] EmEditor でプラグインを起動する。
+    - [x] IME入力（入力、変換、確定）をテストする。
+    - [x] 候補ウィンドウ（Candidate Window）がカーソル位置に追従することを確認する。
+    - [x] 基本的なターミナル入力に退行（リグレッション）がないことを確認する。
+- [x] Task: Conductor - ユーザー手動検証 'Phase 2' (Protocol in workflow.md)
+    - [x] すべての受け入れ基準が満たされていることを確認する。
