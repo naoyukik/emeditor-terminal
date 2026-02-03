@@ -4,13 +4,12 @@ use windows::Win32::Graphics::Gdi::{
     BeginPaint, EndPaint, InvalidateRect, COLOR_WINDOW, HBRUSH, PAINTSTRUCT,
 };
 use windows::Win32::UI::WindowsAndMessaging::{
-    CreateCaret, CreateWindowExW, DefWindowProcW, DestroyCaret, LoadCursorW,
-    PostMessageW, RegisterClassW, SendMessageW, SetCaretPos,
-    CS_HREDRAW, CS_VREDRAW, DLGC_WANTALLKEYS, IDC_ARROW,
-    WM_CHAR, WM_DESTROY, WM_GETDLGCODE, WM_IME_COMPOSITION, WM_IME_ENDCOMPOSITION,
-    WM_IME_SETCONTEXT, WM_IME_STARTCOMPOSITION, WM_KEYDOWN, WM_KEYUP, WM_KILLFOCUS, WM_LBUTTONDOWN,
+    CreateCaret, CreateWindowExW, DefWindowProcW, DestroyCaret, LoadCursorW, PostMessageW,
+    RegisterClassW, SendMessageW, CS_HREDRAW, CS_VREDRAW, DLGC_WANTALLKEYS, IDC_ARROW, WM_CHAR,
+    WM_DESTROY, WM_GETDLGCODE, WM_IME_COMPOSITION, WM_IME_ENDCOMPOSITION, WM_IME_SETCONTEXT,
+    WM_IME_STARTCOMPOSITION, WM_KEYDOWN, WM_KEYUP, WM_KILLFOCUS, WM_LBUTTONDOWN, WM_MOUSEWHEEL,
     WM_PAINT, WM_SETFOCUS, WM_SIZE, WM_SYSCHAR, WM_SYSCOMMAND, WM_SYSKEYDOWN, WM_SYSKEYUP,
-    WNDCLASSW, WS_CHILD, WS_VISIBLE, WS_CLIPCHILDREN, WS_CLIPSIBLINGS, WM_VSCROLL, WM_MOUSEWHEEL,
+    WM_VSCROLL, WNDCLASSW, WS_CHILD, WS_CLIPCHILDREN, WS_CLIPSIBLINGS, WS_VISIBLE,
 };
 const ISC_SHOWUICOMPOSITIONWINDOW: u32 = 0x80000000;
 use crate::application::TerminalService;
@@ -24,13 +23,8 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
 use std::thread;
 use windows::Win32::Storage::FileSystem::ReadFile;
-use windows::Win32::UI::Input::Ime::{
-    ImmGetCompositionStringW, ImmGetContext, ImmReleaseContext, ImmSetCompositionWindow, CFS_POINT,
-    COMPOSITIONFORM, GCS_COMPSTR, GCS_RESULTSTR,
-};
 use windows::Win32::UI::Input::KeyboardAndMouse::{
-    SetFocus, VK_ESCAPE, VK_F4,
-    VK_MENU, VK_SPACE, VK_TAB,
+    SetFocus, VK_ESCAPE, VK_F4, VK_MENU, VK_SPACE, VK_TAB,
 };
 
 // Constants from EmEditor SDK
@@ -67,6 +61,7 @@ extern "system" {
 
 #[repr(C)]
 #[allow(non_snake_case)]
+#[allow(clippy::upper_case_acronyms)]
 struct SCROLLINFO {
     cbSize: u32,
     fMask: u32,
@@ -180,63 +175,9 @@ fn update_scroll_info(hwnd: HWND) {
     }
 }
 
-// Helper to update IME window position
-fn update_ime_window_position(hwnd: HWND) {
-    let data_arc = get_terminal_data();
-    let data = data_arc.lock().unwrap();
-
-    if let Some(metrics) = data.renderer.get_metrics() {
-        let (cursor_x, cursor_y) = data.service.buffer.get_cursor_pos();
-        let display_cols = data.service.buffer.get_display_width_up_to(cursor_y, cursor_x);
-
-        let pixel_x = display_cols as i32 * metrics.base_width;
-        let pixel_y = cursor_y as i32 * metrics.char_height;
-
-        log::debug!(
-            "Updating IME Window position: cursor=({}, {}), pixel=({}, {})",
-            cursor_x,
-            cursor_y,
-            pixel_x,
-            pixel_y
-        );
-
-        unsafe {
-            // Update system caret position (IME uses this as reference)
-            let _ = SetCaretPos(pixel_x, pixel_y);
-
-            // Explicitly set composition window position
-            let himc = ImmGetContext(hwnd);
-            if !himc.0.is_null() {
-                let form = COMPOSITIONFORM {
-                    dwStyle: CFS_POINT,
-                    ptCurrentPos: windows::Win32::Foundation::POINT {
-                        x: pixel_x,
-                        y: pixel_y,
-                    },
-                    rcArea: windows::Win32::Foundation::RECT::default(),
-                };
-                let _ = ImmSetCompositionWindow(himc, &form);
-                let _ = ImmReleaseContext(hwnd, himc);
-            }
-        }
-    }
-}
-
 // Helper to check if IME is composing
 pub fn is_ime_composing(hwnd: HWND) -> bool {
-    unsafe {
-        let himc = ImmGetContext(hwnd);
-        if himc.0.is_null() {
-            return false;
-        }
-        let len = ImmGetCompositionStringW(himc, GCS_COMPSTR, None, 0);
-        let _ = ImmReleaseContext(hwnd, himc);
-        if len < 0 {
-            // ImmGetCompositionStringW failed; treat as not composing
-            return false;
-        }
-        len > 0
-    }
+    crate::gui::ime::is_composing(hwnd)
 }
 
 pub fn open_custom_bar(hwnd_editor: HWND) -> bool {
@@ -358,7 +299,8 @@ pub fn open_custom_bar(hwnd_editor: HWND) -> bool {
                             let mut data = data_arc.lock().unwrap();
                             data.service.set_conpty(conpty);
                             // Sync buffer size with ConPTY
-                            data.service.resize(initial_cols as usize, initial_rows as usize);
+                            data.service
+                                .resize(initial_cols as usize, initial_rows as usize);
                         }
 
                         let hwnd_client_ptr = hwnd_client.0 as usize;
@@ -494,11 +436,11 @@ extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM
                 SB_PAGEUP => {
                     let data = data_arc.lock().unwrap();
                     delta = data.service.buffer.height as isize;
-                },
+                }
                 SB_PAGEDOWN => {
                     let data = data_arc.lock().unwrap();
                     delta = -(data.service.buffer.height as isize);
-                },
+                }
                 SB_THUMBTRACK | SB_THUMBPOSITION => {
                     let pos = (wparam.0 >> 16) & 0xFFFF;
 
@@ -506,7 +448,7 @@ extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM
                     // viewport_offset = history_count - nPos
                     let data = data_arc.lock().unwrap();
                     let history_count = data.service.get_history_count();
-                    let target_pos = pos as usize;
+                    let target_pos = pos;
 
                     // Allow scroll beyond history count (active buffer)?
                     // No, our scroll bar maps 0..history_count.
@@ -515,11 +457,11 @@ extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM
                     } else {
                         absolute_pos = Some(0);
                     }
-                },
+                }
                 SB_TOP => {
                     let data = data_arc.lock().unwrap();
                     absolute_pos = Some(data.service.get_history_count());
-                },
+                }
                 SB_BOTTOM => absolute_pos = Some(0),
                 _ => {}
             }
@@ -534,7 +476,9 @@ extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM
             }
 
             update_scroll_info(hwnd);
-            unsafe { let _ = InvalidateRect(hwnd, None, BOOL(0)); }
+            unsafe {
+                let _ = InvalidateRect(hwnd, None, BOOL(0));
+            }
             LRESULT(0)
         }
         WM_MOUSEWHEEL => {
@@ -549,7 +493,9 @@ extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM
             }
 
             update_scroll_info(hwnd);
-            unsafe { let _ = InvalidateRect(hwnd, None, BOOL(0)); }
+            unsafe {
+                let _ = InvalidateRect(hwnd, None, BOOL(0));
+            }
             LRESULT(0)
         }
         WM_PAINT => {
@@ -727,7 +673,9 @@ extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM
                 let _ = data.service.send_input(s.as_bytes());
             }
             update_scroll_info(hwnd);
-            unsafe { let _ = InvalidateRect(hwnd, None, BOOL(0)); }
+            unsafe {
+                let _ = InvalidateRect(hwnd, None, BOOL(0));
+            }
 
             LRESULT(0)
         }
@@ -779,95 +727,30 @@ extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM
             unsafe { DefWindowProcW(hwnd, msg, wparam, lparam) }
         }
         WM_IME_STARTCOMPOSITION => {
-            log::debug!("WM_IME_STARTCOMPOSITION");
-            // Snap on Input for IME
             {
                 let data_arc = get_terminal_data();
                 let mut data = data_arc.lock().unwrap();
-                data.service.reset_viewport();
+                crate::gui::ime::handle_start_composition(hwnd, &mut data.service);
             }
+            // Lock must be released before calling update_scroll_info as it acquires the lock internally
             update_scroll_info(hwnd);
-            unsafe { let _ = InvalidateRect(hwnd, None, BOOL(0)); }
 
             LRESULT(0)
         }
         WM_IME_COMPOSITION => {
-            log::debug!("WM_IME_COMPOSITION: lparam={:?}", lparam);
-            let mut handled = false;
+            let handled = {
+                let data_arc = get_terminal_data();
+                let mut data = data_arc.lock().unwrap();
+                let data_inner = &mut *data;
 
-            // Handle Result String (Committed)
-            if (lparam.0 as u32 & GCS_RESULTSTR.0) != 0 {
-                unsafe {
-                    let himc = ImmGetContext(hwnd);
-                    if !himc.0.is_null() {
-                        let len_bytes = ImmGetCompositionStringW(himc, GCS_RESULTSTR, None, 0);
-                        if len_bytes >= 0 {
-                            let len_u16 = (len_bytes as usize) / size_of::<u16>();
-                            let mut buffer = vec![0u16; len_u16];
-                            let _ = ImmGetCompositionStringW(
-                                himc,
-                                GCS_RESULTSTR,
-                                Some(buffer.as_mut_ptr() as *mut c_void),
-                                len_bytes as u32,
-                            );
-                            let result_str = String::from_utf16_lossy(&buffer);
-                            log::info!("IME Result: '{}'", result_str);
-
-                            // Send result string to ConPTY
-                            let data_arc = get_terminal_data();
-                            let mut data = data_arc.lock().unwrap();
-                            let _ = data.service.send_input(result_str.as_bytes());
-
-                            // Clear composition data on commit
-                            data.composition = None;
-
-                            let _ = InvalidateRect(hwnd, None, BOOL(0));
-                            handled = true;
-                        }
-                        let _ = ImmReleaseContext(hwnd, himc);
-                    }
-                }
-            }
-
-            // Handle Composition String (In-progress)
-            if (lparam.0 as u32 & GCS_COMPSTR.0) != 0 {
-                update_ime_window_position(hwnd);
-                unsafe {
-                    let himc = ImmGetContext(hwnd);
-                    if !himc.0.is_null() {
-                        // Get size first
-                        let len_bytes = ImmGetCompositionStringW(himc, GCS_COMPSTR, None, 0);
-                        if len_bytes >= 0 {
-                            let len_u16 = (len_bytes as usize) / size_of::<u16>();
-                            let mut buffer = vec![0u16; len_u16];
-
-                            // Get content
-                            let _ = ImmGetCompositionStringW(
-                                himc,
-                                GCS_COMPSTR,
-                                Some(buffer.as_mut_ptr() as *mut c_void),
-                                len_bytes as u32,
-                            );
-
-                            let comp_str = String::from_utf16_lossy(&buffer);
-                            log::info!("IME Composition: '{}' (len={})", comp_str, len_u16);
-
-                            let data_arc = get_terminal_data();
-                            let mut data = data_arc.lock().unwrap();
-
-                            if comp_str.is_empty() {
-                                data.composition = None;
-                            } else {
-                                data.composition = Some(CompositionData { text: comp_str });
-                            }
-
-                            let _ = InvalidateRect(hwnd, None, BOOL(0));
-                            handled = true;
-                        }
-                        let _ = ImmReleaseContext(hwnd, himc);
-                    }
-                }
-            }
+                crate::gui::ime::handle_composition(
+                    hwnd,
+                    lparam,
+                    &mut data_inner.service,
+                    &data_inner.renderer,
+                    &mut data_inner.composition,
+                )
+            };
 
             if !handled {
                 unsafe { DefWindowProcW(hwnd, msg, wparam, lparam) }
@@ -876,13 +759,10 @@ extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM
             }
         }
         WM_IME_ENDCOMPOSITION => {
-            log::debug!("WM_IME_ENDCOMPOSITION");
-            // Ensure composition is cleared when IME ends
-            let data_arc = get_terminal_data();
-            let mut data = data_arc.lock().unwrap();
-            data.composition = None;
-            unsafe {
-                let _ = InvalidateRect(hwnd, None, BOOL(0));
+            {
+                let data_arc = get_terminal_data();
+                let mut data = data_arc.lock().unwrap();
+                crate::gui::ime::handle_end_composition(hwnd, &mut data.composition);
             }
             LRESULT(0)
         }

@@ -18,6 +18,67 @@
     - **bool型**: `is_visible`, `has_focus`, `can_scroll` のように、状態（State）や能力（Capability）を明確にする述語形式とする。
     - プロジェクト内で用語を統一する（例: `Viewport` と `Window` を混同しない）。
 
+#### 各種命名規約
+
+##### ファイル命名規約
+
+| 種類 | 命名パターン | 例 |
+|------|------------|-----|
+| モデル（エンティティ） | `{entity_name}.rs` (単数形・スネークケース) | `access_token.rs`, `facet.rs`, `login_credential.rs` |
+| サービス | `{feature}_service.rs` | `message_service.rs`, `facet_service.rs` |
+| リポジトリトレイト | `{feature}_repository.rs` | `login_repository.rs`, `message_repository.rs` |
+| リポジトリ実装 | `{feature}_repository_impl.rs` | `login_repository_impl.rs` |
+| DTO | `{entity}_dto.rs` | `facet_dto.rs`, `access_token_dto.rs` |
+| ワークフロー | `{action}_workflow.rs` | `send_message_workflow.rs`, `authentication_workflow.rs` |
+| プレゼンテーション層 | `{feature}_resolver.rs` | `message_resolver.rs` |
+| モジュール定義 | `mod.rs` | ─ |
+
+---
+
+##### 構造体・列挙型・トレイト命名規約
+
+| 種類 | 命名パターン | 例 |
+|------|------------|-----|
+| 構造体（モデル） | PascalCase | `AccessToken`, `Facet`, `LoginCredential` |
+| 構造体（DTO） | PascalCase + `Dto`サフィックス | `FacetDto`, `AccessTokenDto` |
+| 構造体（実装） | PascalCase + `Impl`サフィックス | `LoginRepositoryImpl`, `MessageServiceImpl` |
+| 列挙型（enum） | PascalCase | `FeatureMode`, `Receivers`, `Command` |
+| トレイト | PascalCase | `LoginRepository`, `MessageService`, `HttpService` |
+
+---
+
+##### 関数命名規約
+
+| 用途 | 命名パターン | 例 |
+|------|------------|-----|
+| 一般関数 | snake_case（動詞ベース） | `create_facets()`, `set_post_message()` |
+| コンストラクタ | `new` または `create` | `AccessToken::new()`, `Facet::create()` |
+| ゲッター | `get_` プレフィックス | `get_identifier()`, `get_value()` |
+| 変換関数 | `to_` プレフィックス | `to_facet_dto()`, `to_facet_index()` |
+| ヘルパー関数（private） | snake_case | `get_url_string()` |
+
+---
+
+##### 変数・フィールド命名規約
+
+- **変数名・フィールド名**: snake_case
+  ```rust
+  pub fn example_function() {
+    let access_token = AccessToken::new();
+  }
+  ```
+
+- **構造体フィールド**: snake_case（JSONシリアライズ時は`#[serde(rename = "camelCase")]`で変換）
+  ```rust
+  #[derive(Serialize, Deserialize)]
+  pub struct FacetIndex {
+      #[serde(rename = "byteStart")]
+      byte_start: u16,
+      #[serde(rename = "byteEnd")]
+      byte_end: u16,
+  }
+  ```
+
 ### 1.2 単一責任の原則 (SRP) & ファイルサイズ
 - **1ファイル 300行制限**: 1つのファイルが300行を超えたら、設計の見直しを検討せよ。
 - **責務の分離**: UI描画、イベント処理、ドメインロジック、Infrastructure ラッパーは、それぞれ別のモジュール・構造体に分割する。
@@ -27,9 +88,9 @@
 レイヤードアーキテクチャを採用する。依存の方向は常に **外側 → 内側** でなければならない。
 
 ```
-┌─────────────┐
-│     GUI     │
-└──────┬──────┘
+┌───────────────────┐
+│ GUI(Presentation) │
+└──────┬────────────┘
        │ (依存)
        ↓
 ┌─────────────┐     ┌────────────────┐
@@ -66,7 +127,7 @@
     - 例: `Win32ClipboardRepository`, `ConptyInputRepository`
 - **ルール**: Win32 API の生の操作はここに閉じ込める。Domain 層が使いやすい安全なラッパーを提供する。
 
-### Layer 4: GUI (`src/gui/`)
+### Layer 4: GUI(Presentation) (`src/gui/`)
 - **責務**: 画面への描画 (GDI)、ユーザー入力の受け取り。
 - **ルール**: `wnd_proc` のような巨大な関数を作らず、メッセージ処理ごとにハンドラ関数に委譲する。
 
@@ -84,6 +145,7 @@
 ### 3.3 エラーハンドリング
 - **Panic 禁止**: DLL として動作するため、`unwrap()` や `expect()` によるパニックは避け、`Result` を返し、トップレベルで適切にログ出力・復帰を行う。
 - **ロギング**: エラー発生時は必ず `log::error!` を出力する。
+- **ログファイル**: `$env:TEMP\emeditor_terminal.log` に出力されている
 
 ## 4. テスト戦略
 
@@ -93,3 +155,4 @@
 
 ### 4.2 UI/Infrastructure のテスト
 - Win32 API に依存する部分は自動テストが困難なため、ロジックを極限まで分離し、純粋な計算部分（例：キー入力から VT シーケンスへの変換テーブル）のみをユニットテストの対象とする。
+

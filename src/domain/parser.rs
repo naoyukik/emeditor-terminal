@@ -1,4 +1,4 @@
-use crate::domain::terminal::{TerminalBuffer, TerminalAttribute, TerminalColor};
+use crate::domain::terminal::{TerminalAttribute, TerminalBuffer, TerminalColor};
 
 pub struct AnsiParser {
     incomplete_sequence: String,
@@ -120,7 +120,13 @@ impl AnsiParser {
         }
     }
 
-    fn handle_csi(&mut self, buffer: &mut TerminalBuffer, command: char, params: &str, _intermediates: &str) {
+    fn handle_csi(
+        &mut self,
+        buffer: &mut TerminalBuffer,
+        command: char,
+        params: &str,
+        _intermediates: &str,
+    ) {
         match command {
             'm' => self.handle_sgr(buffer, params),
             'A' => {
@@ -174,7 +180,7 @@ impl AnsiParser {
                         2 => {
                             line.fill(crate::domain::terminal::Cell::default());
                         }
-                        _ => {} 
+                        _ => {}
                     }
                 }
             }
@@ -185,7 +191,10 @@ impl AnsiParser {
                         let end_idx = std::cmp::min(buffer.cursor.x + n, line.len());
                         let removed_count = end_idx - buffer.cursor.x;
                         line.drain(buffer.cursor.x..end_idx);
-                        line.extend(std::iter::repeat_n(crate::domain::terminal::Cell::default(), removed_count));
+                        line.extend(std::iter::repeat_n(
+                            crate::domain::terminal::Cell::default(),
+                            removed_count,
+                        ));
                     }
                 }
             }
@@ -220,7 +229,8 @@ impl AnsiParser {
                     buffer.cursor.y = buffer.height - 1;
                 }
                 let target_display_col = if col > 0 { col - 1 } else { 0 };
-                buffer.cursor.x = buffer.display_col_to_char_index(buffer.cursor.y, target_display_col);
+                buffer.cursor.x =
+                    buffer.display_col_to_char_index(buffer.cursor.y, target_display_col);
             }
             'J' => {
                 let mode = params.parse::<usize>().unwrap_or(0);
@@ -260,25 +270,27 @@ impl AnsiParser {
                             line.fill(crate::domain::terminal::Cell::default());
                         }
                     }
-                    _ => {} 
+                    _ => {}
                 }
             }
             'G' => {
                 let col = self.parse_csi_param(params, 1);
                 let target_display_col = if col > 0 { col - 1 } else { 0 };
-                let target_display_col = 
+                let target_display_col =
                     std::cmp::min(target_display_col, buffer.width.saturating_sub(1));
-                buffer.cursor.x = buffer.display_col_to_char_index(buffer.cursor.y, target_display_col);
+                buffer.cursor.x =
+                    buffer.display_col_to_char_index(buffer.cursor.y, target_display_col);
             }
             'd' => {
                 let row = self.parse_csi_param(params, 1);
-                let current_display_col = 
+                let current_display_col =
                     buffer.get_display_width_up_to(buffer.cursor.y, buffer.cursor.x);
                 buffer.cursor.y = if row > 0 { row - 1 } else { 0 };
                 if buffer.cursor.y >= buffer.height {
                     buffer.cursor.y = buffer.height - 1;
                 }
-                buffer.cursor.x = buffer.display_col_to_char_index(buffer.cursor.y, current_display_col);
+                buffer.cursor.x =
+                    buffer.display_col_to_char_index(buffer.cursor.y, current_display_col);
             }
             'E' => {
                 let n = self.parse_csi_param(params, 1);
@@ -330,7 +342,7 @@ impl AnsiParser {
                     buffer.cursor.y = 0;
                 }
             }
-            _ => {} 
+            _ => {}
         }
     }
 
@@ -430,7 +442,7 @@ impl AnsiParser {
                 49 => buffer.current_attribute.bg = TerminalColor::Default,
                 90..=97 => buffer.current_attribute.fg = TerminalColor::Ansi(p - 90 + 8),
                 100..=107 => buffer.current_attribute.bg = TerminalColor::Ansi(p - 100 + 8),
-                _ => {} 
+                _ => {}
             }
             i += 1;
         }
@@ -449,7 +461,7 @@ impl AnsiParser {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::domain::terminal::{TerminalBuffer, Cell};
+    use crate::domain::terminal::{Cell, TerminalBuffer};
 
     fn line_to_string(line: &[Cell]) -> String {
         line.iter().map(|cell| cell.c).collect()
@@ -469,8 +481,14 @@ mod tests {
         let mut buffer = TerminalBuffer::new(80, 25);
         let mut parser = AnsiParser::new();
         parser.parse("\x1b[31mRed\x1b[39mDefault", &mut buffer);
-        assert_eq!(buffer.get_lines()[0][0].attribute.fg, TerminalColor::Ansi(1));
-        assert_eq!(buffer.get_lines()[0][3].attribute.fg, TerminalColor::Default);
+        assert_eq!(
+            buffer.get_lines()[0][0].attribute.fg,
+            TerminalColor::Ansi(1)
+        );
+        assert_eq!(
+            buffer.get_lines()[0][3].attribute.fg,
+            TerminalColor::Default
+        );
     }
 
     #[test]
@@ -481,7 +499,7 @@ mod tests {
         // "Hello CJK" is 9 chars. "あ" is 2 width. Total 11.
         // With width 10, "CJK" might be wrapped or truncated.
         // Current logic wraps at char boundary.
-        assert_eq!(buffer.get_cursor_pos().1, 1); 
+        assert_eq!(buffer.get_cursor_pos().1, 1);
         buffer.resize(20, 10);
         assert_eq!(line_to_string(&buffer.get_lines()[0]).trim(), "Hello CJK");
     }

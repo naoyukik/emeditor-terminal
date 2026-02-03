@@ -439,18 +439,33 @@ mod tests {
         // History: ["A"], Lines: ["B", "C", "D"]
 
         // Normal view (offset 0)
-        assert_eq!(line_to_string(buffer.get_line_at_visual_row(0).unwrap()).trim(), "B");
-        assert_eq!(line_to_string(buffer.get_line_at_visual_row(2).unwrap()).trim(), "D");
+        assert_eq!(
+            line_to_string(buffer.get_line_at_visual_row(0).unwrap()).trim(),
+            "B"
+        );
+        assert_eq!(
+            line_to_string(buffer.get_line_at_visual_row(2).unwrap()).trim(),
+            "D"
+        );
 
         // Scroll up 1 (offset 1) -> Should show A, B, C
         buffer.scroll_lines(1);
         assert_eq!(buffer.viewport_offset, 1);
-        assert_eq!(line_to_string(buffer.get_line_at_visual_row(0).unwrap()).trim(), "A");
-        assert_eq!(line_to_string(buffer.get_line_at_visual_row(2).unwrap()).trim(), "C");
+        assert_eq!(
+            line_to_string(buffer.get_line_at_visual_row(0).unwrap()).trim(),
+            "A"
+        );
+        assert_eq!(
+            line_to_string(buffer.get_line_at_visual_row(2).unwrap()).trim(),
+            "C"
+        );
 
         // Scroll back down
         buffer.scroll_lines(-1);
         assert_eq!(buffer.viewport_offset, 0);
-        assert_eq!(line_to_string(buffer.get_line_at_visual_row(0).unwrap()).trim(), "B");
+        assert_eq!(
+            line_to_string(buffer.get_line_at_visual_row(0).unwrap()).trim(),
+            "B"
+        );
     }
 }

@@ -1,13 +1,11 @@
+use crate::domain::input::{KeyTranslator, VtSequenceTranslator};
+use crate::domain::model::input::{InputKey, Modifiers};
+use std::cell::RefCell;
 use windows::Win32::Foundation::{HWND, LPARAM, LRESULT, WPARAM};
+use windows::Win32::UI::Input::KeyboardAndMouse::{GetKeyState, VK_CONTROL, VK_MENU, VK_SHIFT};
 use windows::Win32::UI::WindowsAndMessaging::{
     CallNextHookEx, PostMessageW, SetWindowsHookExW, UnhookWindowsHookEx, HHOOK, WH_KEYBOARD,
 };
-use windows::Win32::UI::Input::KeyboardAndMouse::{
-    GetKeyState, VK_CONTROL, VK_MENU, VK_SHIFT,
-};
-use std::cell::RefCell;
-use crate::domain::model::input::{InputKey, Modifiers};
-use crate::domain::input::{KeyTranslator, VtSequenceTranslator};
 
 /// 描画更新を通知するメッセージ
 /// 0x8000 (WM_APP) + 1 は WM_APP_REPAINT として custom_bar.rs で定義されている
@@ -118,7 +116,9 @@ extern "system" fn keyboard_hook_proc(code: i32, wparam: WPARAM, lparam: LPARAM)
                             drop(data);
 
                             // 描画更新を通知（これは安全なPostMessage）
-                            unsafe { let _ = PostMessageW(hwnd, WM_APP_REPAINT, WPARAM(0), LPARAM(0)); }
+                            unsafe {
+                                let _ = PostMessageW(hwnd, WM_APP_REPAINT, WPARAM(0), LPARAM(0));
+                            }
 
                             // キーを処理したことを示す
                             return LRESULT(1);

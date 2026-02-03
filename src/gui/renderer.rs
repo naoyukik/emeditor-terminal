@@ -1,12 +1,13 @@
-use crate::domain::terminal::{TerminalColor, TerminalBuffer};
+use crate::domain::terminal::{TerminalBuffer, TerminalColor};
 use std::collections::HashMap;
 use windows::core::{w, PCWSTR};
 use windows::Win32::Foundation::{COLORREF, RECT, SIZE};
 use windows::Win32::Graphics::Gdi::{
-    CreateFontIndirectW, DeleteObject, ExtTextOutW, GetTextExtentPoint32W, GetTextMetricsW, InvertRect,
-    SelectObject, SetBkColor, SetTextColor, CLIP_DEFAULT_PRECIS, DEFAULT_CHARSET, DEFAULT_QUALITY,
-    ETO_OPAQUE, ETO_OPTIONS, FF_MODERN, FIXED_PITCH, FW_BOLD, FW_NORMAL, HDC, HFONT, HGDIOBJ,
-    LOGFONTW, OUT_DEFAULT_PRECIS, TEXTMETRICW, FONT_CHARSET, FONT_OUTPUT_PRECISION, FONT_CLIP_PRECISION, FONT_QUALITY
+    CreateFontIndirectW, DeleteObject, ExtTextOutW, GetTextExtentPoint32W, GetTextMetricsW,
+    InvertRect, SelectObject, SetBkColor, SetTextColor, CLIP_DEFAULT_PRECIS, DEFAULT_CHARSET,
+    DEFAULT_QUALITY, ETO_OPAQUE, ETO_OPTIONS, FF_MODERN, FIXED_PITCH, FONT_CHARSET,
+    FONT_CLIP_PRECISION, FONT_OUTPUT_PRECISION, FONT_QUALITY, FW_BOLD, FW_NORMAL, HDC, HFONT,
+    HGDIOBJ, LOGFONTW, OUT_DEFAULT_PRECIS, TEXTMETRICW,
 };
 
 #[derive(Clone, Debug)]
@@ -95,9 +96,21 @@ impl TerminalRenderer {
             } else {
                 FW_NORMAL.0 as i32
             };
-            lf.lfItalic = if (style_mask & STYLE_ITALIC) != 0 { 1 } else { 0 };
-            lf.lfUnderline = if (style_mask & STYLE_UNDERLINE) != 0 { 1 } else { 0 };
-            lf.lfStrikeOut = if (style_mask & STYLE_STRIKEOUT) != 0 { 1 } else { 0 };
+            lf.lfItalic = if (style_mask & STYLE_ITALIC) != 0 {
+                1
+            } else {
+                0
+            };
+            lf.lfUnderline = if (style_mask & STYLE_UNDERLINE) != 0 {
+                1
+            } else {
+                0
+            };
+            lf.lfStrikeOut = if (style_mask & STYLE_STRIKEOUT) != 0 {
+                1
+            } else {
+                0
+            };
             lf.lfCharSet = FONT_CHARSET(DEFAULT_CHARSET.0 as u8);
             lf.lfOutPrecision = FONT_OUTPUT_PRECISION(OUT_DEFAULT_PRECIS.0 as u8);
             lf.lfClipPrecision = FONT_CLIP_PRECISION(CLIP_DEFAULT_PRECIS.0 as u8);
@@ -173,7 +186,9 @@ impl TerminalRenderer {
             }
             TerminalColor::Ansi(n) => self.ansi_to_colorref(n),
             TerminalColor::Xterm(n) => self.xterm_to_colorref(n),
-            TerminalColor::Rgb(r, g, b) => COLORREF(r as u32 | ((g as u32) << 8) | ((b as u32) << 16)),
+            TerminalColor::Rgb(r, g, b) => {
+                COLORREF(r as u32 | ((g as u32) << 8) | ((b as u32) << 16))
+            }
         }
     }
 
@@ -227,7 +242,7 @@ impl TerminalRenderer {
         composition: Option<&CompositionData>,
     ) {
         let _ = self.get_font_for_style(hdc, 0);
-        
+
         let metrics = match &self.metrics {
             Some(m) => m,
             None => return,
@@ -257,7 +272,10 @@ impl TerminalRenderer {
                             run_text.push(cell.c);
                             let w = TerminalBuffer::char_display_width(cell.c) as i32 * base_width;
                             run_dx.push(w);
-                            run_dx.extend(std::iter::repeat_n(0, cell.c.len_utf16().saturating_sub(1)));
+                            run_dx.extend(std::iter::repeat_n(
+                                0,
+                                cell.c.len_utf16().saturating_sub(1),
+                            ));
                             cell_idx += 1;
                         }
 
@@ -273,16 +291,32 @@ impl TerminalRenderer {
 
                         if !wide_run.is_empty() {
                             let mut style_mask = 0;
-                            if start_attr.bold { style_mask |= STYLE_BOLD; }
-                            if start_attr.italic { style_mask |= STYLE_ITALIC; }
-                            if start_attr.underline { style_mask |= STYLE_UNDERLINE; }
-                            if start_attr.strikethrough { style_mask |= STYLE_STRIKEOUT; }
+                            if start_attr.bold {
+                                style_mask |= STYLE_BOLD;
+                            }
+                            if start_attr.italic {
+                                style_mask |= STYLE_ITALIC;
+                            }
+                            if start_attr.underline {
+                                style_mask |= STYLE_UNDERLINE;
+                            }
+                            if start_attr.strikethrough {
+                                style_mask |= STYLE_STRIKEOUT;
+                            }
 
                             let h_font = self.get_font_for_style(hdc, style_mask);
                             let old_font = SelectObject(hdc, HGDIOBJ(h_font.0));
 
-                            let fg = if start_attr.inverse { start_attr.bg } else { start_attr.fg };
-                            let bg = if start_attr.inverse { start_attr.fg } else { start_attr.bg };
+                            let fg = if start_attr.inverse {
+                                start_attr.bg
+                            } else {
+                                start_attr.fg
+                            };
+                            let bg = if start_attr.inverse {
+                                start_attr.fg
+                            } else {
+                                start_attr.bg
+                            };
 
                             let mut fg_colorref = self.color_to_colorref(fg, false);
                             let bg_colorref = self.color_to_colorref(bg, true);

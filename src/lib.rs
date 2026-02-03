@@ -6,10 +6,10 @@ use std::sync::OnceLock;
 use windows::Win32::Foundation::{BOOL, HINSTANCE, HWND, LPARAM, LRESULT, WPARAM};
 use windows::Win32::System::SystemServices::{DLL_PROCESS_ATTACH, DLL_PROCESS_DETACH};
 
+mod application;
 mod domain;
 mod gui;
 mod infra;
-mod application;
 
 use gui::custom_bar;
 

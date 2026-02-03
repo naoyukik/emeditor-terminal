@@ -1,5 +1,5 @@
-use crate::domain::terminal::TerminalBuffer;
 use crate::domain::parser::AnsiParser;
+use crate::domain::terminal::TerminalBuffer;
 use crate::infra::conpty::ConPTY;
 use windows::Win32::Foundation::HANDLE;
 use windows::Win32::Storage::FileSystem::WriteFile;

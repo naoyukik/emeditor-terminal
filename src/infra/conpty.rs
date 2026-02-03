@@ -1,7 +1,7 @@
 use std::ffi::c_void;
 use std::mem::size_of;
 use std::ptr::null_mut;
-use windows::core::{PWSTR, PCWSTR};
+use windows::core::{PCWSTR, PWSTR};
 use windows::Win32::Foundation::{CloseHandle, BOOL, HANDLE, INVALID_HANDLE_VALUE};
 use windows::Win32::System::Console::{
     ClosePseudoConsole, CreatePseudoConsole, ResizePseudoConsole, COORD, HPCON,
