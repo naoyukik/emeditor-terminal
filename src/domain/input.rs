@@ -51,11 +51,9 @@ impl KeyTranslator for VtSequenceTranslator {
         const VK_F12: u16 = 0x7B;
 
         // Ctrl+ combinations (A-Z)
-        if ctrl && !alt {
-            if (0x41..=0x5A).contains(&vk_code) {
-                let ctrl_char = (vk_code - 0x40) as u8;
-                return Some(vec![ctrl_char]);
-            }
+        if ctrl && !alt && (0x41..=0x5A).contains(&vk_code) {
+            let ctrl_char = (vk_code - 0x40) as u8;
+            return Some(vec![ctrl_char]);
         }
 
         // Alt + Letter/Number (Meta key)

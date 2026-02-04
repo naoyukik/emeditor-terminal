@@ -352,7 +352,7 @@ impl AnsiParser {
             return;
         }
 
-        let parts: Vec<&str> = params.split(|c| c == ';' || c == ':').collect();
+        let parts: Vec<&str> = params.split([';', ':']).collect();
         let mut i = 0;
         while i < parts.len() {
             let p = parts[i].parse::<u8>().unwrap_or(0);
