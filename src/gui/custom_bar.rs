@@ -46,11 +46,6 @@ const SIF_POS: u32 = 0x0004;
 const SIF_DISABLENOSCROLL: u32 = 0x0008;
 const SIF_TRACKPOS: u32 = 0x0010;
 const SIF_ALL: u32 = SIF_RANGE | SIF_PAGE | SIF_POS | SIF_TRACKPOS;
-const SIF_PAGE: u32 = 0x0002;
-const SIF_POS: u32 = 0x0004;
-const SIF_DISABLENOSCROLL: u32 = 0x0008;
-const SIF_TRACKPOS: u32 = 0x0010;
-const SIF_ALL: u32 = SIF_RANGE | SIF_PAGE | SIF_POS | SIF_TRACKPOS;
 
 #[link(name = "user32")]
 extern "system" {
