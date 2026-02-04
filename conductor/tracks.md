@@ -47,7 +47,4 @@ This file tracks all major tracks for the project. Each track has its own detail
 - [x] **Track: PR #59 Review Fixes: Format and Style**
 *Link: [./archive/59_pr_review_fixes_20260202/](./archive/59_pr_review_fixes_20260202/)*
 
----
 
-- [x] **Track: PR #60 Review Fixes**
-*Link: [./tracks/pr_review_60_fixes/](./tracks/pr_review_60_fixes/)*
