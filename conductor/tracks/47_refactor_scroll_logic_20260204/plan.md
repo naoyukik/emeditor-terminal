@@ -15,15 +15,15 @@
     - [x] `handle_vscroll` メソッドを実装する。
     - [x] `handle_mousewheel` メソッドのテストを作成する。
     - [x] `handle_mousewheel` メソッドを実装する。
-- [ ] Task: Conductor - ユーザー手動検証 'Phase 1' (Protocol in workflow.md)
-    - [ ] `cargo test src/gui/scroll.rs` が成功することを確認する。
+- [x] Task: Conductor - ユーザー手動検証 'Phase 1' (Protocol in workflow.md)
+    - [x] `cargo test src/gui/scroll.rs` が成功することを確認する。
 
 ## Phase 2: CustomBar への統合
 実装した `ScrollManager` を `src/gui/custom_bar.rs` に組み込み、既存のロジックを置き換える。
 
-- [ ] Task: `CustomBar` 構造体への `ScrollManager` の追加
-    - [ ] `src/gui/custom_bar.rs` を開き、`CustomBar` 構造体に `scroll_manager: ScrollManager` フィールドを追加する。
-    - [ ] 初期化ロジックを更新する。
+- [x] Task: `CustomBar` 構造体への `ScrollManager` の追加
+    - [x] `src/gui/custom_bar.rs` を開き、`CustomBar` 構造体に `scroll_manager: ScrollManager` フィールドを追加する。
+    - [x] 初期化ロジックを更新する。
 - [ ] Task: `WM_VSCROLL` 処理の置き換え
     - [ ] `wnd_proc` 内の `WM_VSCROLL` ケースを修正し、`scroll_manager.handle_vscroll` を呼び出すように変更する。
     - [ ] 返された `ScrollAction` に基づいて `terminal_service` を操作するコードを記述する。

@@ -14,6 +14,7 @@ use windows::Win32::UI::WindowsAndMessaging::{
 const ISC_SHOWUICOMPOSITIONWINDOW: u32 = 0x80000000;
 use crate::application::TerminalService;
 use crate::gui::renderer::{CompositionData, TerminalRenderer};
+use crate::gui::scroll::{ScrollAction, ScrollManager};
 use crate::infra::conpty::ConPTY;
 use crate::infra::input::KeyboardHook;
 use std::cell::RefCell;
@@ -38,14 +39,6 @@ const WM_APP_REPAINT: u32 = WM_APP + 1;
 
 // Scroll Bar Constants (Self-defined to avoid dependency issues)
 const SB_VERT: i32 = 1;
-const SB_LINEUP: i32 = 0;
-const SB_LINEDOWN: i32 = 1;
-const SB_PAGEUP: i32 = 2;
-const SB_PAGEDOWN: i32 = 3;
-const SB_THUMBPOSITION: i32 = 4;
-const SB_THUMBTRACK: i32 = 5;
-const SB_TOP: i32 = 6;
-const SB_BOTTOM: i32 = 7;
 
 const SIF_RANGE: u32 = 0x0001;
 const SIF_PAGE: u32 = 0x0002;
@@ -125,6 +118,7 @@ pub struct TerminalData {
     pub renderer: TerminalRenderer,
     pub window_handle: Option<SendHWND>,
     pub composition: Option<CompositionData>,
+    pub scroll_manager: ScrollManager,
 }
 
 pub fn get_terminal_data() -> Arc<Mutex<TerminalData>> {
@@ -135,10 +129,12 @@ pub fn get_terminal_data() -> Arc<Mutex<TerminalData>> {
                 renderer: TerminalRenderer::new(),
                 window_handle: None,
                 composition: None,
+                scroll_manager: ScrollManager::new(),
             }))
         })
         .clone()
 }
+
 
 fn update_scroll_info(hwnd: HWND) {
     let data_arc = get_terminal_data();
