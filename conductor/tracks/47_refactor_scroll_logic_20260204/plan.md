@@ -6,15 +6,15 @@
 - [x] Task: `src/gui/scroll.rs` ファイルの作成とモジュール定義
     - [x] `src/gui/mod.rs` に `mod scroll;` を追加する。
     - [x] `src/gui/scroll.rs` を作成する。
-- [ ] Task: `ScrollManager` と `ScrollAction` の定義 (TDD: Test First)
-    - [ ] `ScrollAction` Enum を定義する (`ScrollTo`, `ScrollBy`, `None` 等)。
-    - [ ] `ScrollManager` 構造体と `new` メソッドを定義する。
-    - [ ] `ScrollManager` の基本機能（状態保持）に対するテストケースを作成する。
-- [ ] Task: メッセージハンドリングロジックの実装 (TDD)
-    - [ ] `handle_vscroll` メソッドのテスト（SB_LINEUP, SB_PAGEDOWN 等）を作成する。
-    - [ ] `handle_vscroll` メソッドを実装する。
-    - [ ] `handle_mousewheel` メソッドのテストを作成する。
-    - [ ] `handle_mousewheel` メソッドを実装する。
+- [x] Task: `ScrollManager` と `ScrollAction` の定義 (TDD: Test First)
+    - [x] `ScrollAction` Enum を定義する (`ScrollTo`, `ScrollBy`, `None` 等)。
+    - [x] `ScrollManager` 構造体と `new` メソッドを定義する。
+    - [x] `ScrollManager` の基本機能（状態保持）に対するテストケースを作成する。
+- [x] Task: メッセージハンドリングロジックの実装 (TDD)
+    - [x] `handle_vscroll` メソッドのテスト（SB_LINEUP, SB_PAGEDOWN 等）を作成する。
+    - [x] `handle_vscroll` メソッドを実装する。
+    - [x] `handle_mousewheel` メソッドのテストを作成する。
+    - [x] `handle_mousewheel` メソッドを実装する。
 - [ ] Task: Conductor - ユーザー手動検証 'Phase 1' (Protocol in workflow.md)
     - [ ] `cargo test src/gui/scroll.rs` が成功することを確認する。
 
