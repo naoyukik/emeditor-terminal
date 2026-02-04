@@ -420,55 +420,29 @@ fn uninstall_keyboard_hook() {
 extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
     match msg {
         WM_VSCROLL => {
-            let request = wparam.0 & 0xFFFF;
-            let mut delta = 0isize;
-            let mut absolute_pos: Option<usize> = None;
-
             let data_arc = get_terminal_data();
-
-            match request as i32 {
-                SB_LINEUP => delta = 1,
-                SB_LINEDOWN => delta = -1,
-                SB_PAGEUP => {
-                    let data = data_arc.lock().unwrap();
-                    delta = data.service.buffer.height as isize;
-                }
-                SB_PAGEDOWN => {
-                    let data = data_arc.lock().unwrap();
-                    delta = -(data.service.buffer.height as isize);
-                }
-                SB_THUMBTRACK | SB_THUMBPOSITION => {
-                    let pos = (wparam.0 >> 16) & 0xFFFF;
-
-                    // nPos = history_count - viewport_offset
-                    // viewport_offset = history_count - nPos
-                    let data = data_arc.lock().unwrap();
-                    let history_count = data.service.get_history_count();
-                    let target_pos = pos;
-
-                    // Allow scroll beyond history count (active buffer)?
-                    // No, our scroll bar maps 0..history_count.
-                    if target_pos <= history_count {
-                        absolute_pos = Some(history_count - target_pos);
-                    } else {
-                        absolute_pos = Some(0);
-                    }
-                }
-                SB_TOP => {
-                    let data = data_arc.lock().unwrap();
-                    absolute_pos = Some(data.service.get_history_count());
-                }
-                SB_BOTTOM => absolute_pos = Some(0),
-                _ => {}
-            }
-
-            {
+            let action = {
                 let mut data = data_arc.lock().unwrap();
-                if let Some(pos) = absolute_pos {
-                    data.service.scroll_to(pos);
-                } else if delta != 0 {
-                    data.service.scroll_lines(delta);
+                
+                // Sync state before handling
+                let history_count = data.service.get_history_count() as i32;
+                let height = data.service.buffer.height as i32;
+                data.scroll_manager.max = history_count + height - 1;
+                data.scroll_manager.page = height as u32;
+
+                data.scroll_manager.handle_vscroll(wparam.0, lparam.0)
+            };
+
+            match action {
+                ScrollAction::ScrollTo(pos) => {
+                     let mut data = data_arc.lock().unwrap();
+                     data.service.scroll_to(pos);
                 }
+                ScrollAction::ScrollBy(delta) => {
+                     let mut data = data_arc.lock().unwrap();
+                     data.service.scroll_lines(delta);
+                }
+                _ => {}
             }
 
             update_scroll_info(hwnd);

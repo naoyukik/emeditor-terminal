@@ -24,9 +24,9 @@
 - [x] Task: `CustomBar` 構造体への `ScrollManager` の追加
     - [x] `src/gui/custom_bar.rs` を開き、`CustomBar` 構造体に `scroll_manager: ScrollManager` フィールドを追加する。
     - [x] 初期化ロジックを更新する。
-- [ ] Task: `WM_VSCROLL` 処理の置き換え
-    - [ ] `wnd_proc` 内の `WM_VSCROLL` ケースを修正し、`scroll_manager.handle_vscroll` を呼び出すように変更する。
-    - [ ] 返された `ScrollAction` に基づいて `terminal_service` を操作するコードを記述する。
+- [x] Task: `WM_VSCROLL` 処理の置き換え
+    - [x] `wnd_proc` 内の `WM_VSCROLL` ケースを修正し、`scroll_manager.handle_vscroll` を呼び出すように変更する。
+    - [x] 返された `ScrollAction` に基づいて `terminal_service` を操作するコードを記述する。
 - [ ] Task: `WM_MOUSEWHEEL` 処理の置き換え
     - [ ] `wnd_proc` 内の `WM_MOUSEWHEEL` ケースを修正し、`scroll_manager.handle_mousewheel` を呼び出すように変更する。
     - [ ] 返された `ScrollAction` に基づいて処理を行う。
