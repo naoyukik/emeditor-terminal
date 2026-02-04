@@ -10,6 +10,8 @@
       "LSTool",
       "GrepTool",
       "GlobTool",
+      "Edit",
+      "write_file",
       "ShellTool(ls)",
       "ShellTool(grep)",
       "ShellTool(glob)",
@@ -30,6 +32,7 @@
       "ShellTool(cargo check)",
       "ShellTool(cargo build)",
       "ShellTool(tail)",
+      "ShellTool(mkdir)",
       "ShellTool(Test-Path)",
       "ShellTool(Get-Content sdk/)",
       "ShellTool(Get-Content conductor/)",
@@ -63,8 +66,13 @@
       "github__search_pull_requests",
       "github__update_pull_request",
       "github__update_pull_request_branch",
-      "activate_skill(think)",
-      "activate_skill(operating-jetbrains-projects)"
+      "memory__create_entities",
+      "memory__create_relations",
+      "memory__add_observations",
+      "memory__delete_entities",
+      "memory__delete_relations",
+      "memory__read_graph",
+      "memory__search_nodes"
     ]
   },
   "mcpServers": {
@@ -76,6 +84,13 @@
     },
     "learn-microsoft": {
       "url": "https://learn.microsoft.com/api/mcp"
+    },
+    "memory": {
+      "command": "pnpm",
+      "args": [
+        "dlx",
+        "@modelcontextprotocol/server-memory"
+      ]
     }
   },
   "model": {
