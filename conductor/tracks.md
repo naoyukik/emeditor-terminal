@@ -46,8 +46,3 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 - [x] **Track: PR #59 Review Fixes: Format and Style**
 *Link: [./archive/59_pr_review_fixes_20260202/](./archive/59_pr_review_fixes_20260202/)*
-
----
-
-- [~] **Track: refactor: custom_bar.rs からスクロールロジックを抽出**
-*Link: [./tracks/47_refactor_scroll_logic_20260204/](./tracks/47_refactor_scroll_logic_20260204/)*
