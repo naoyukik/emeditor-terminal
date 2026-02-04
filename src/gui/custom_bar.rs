@@ -135,7 +135,6 @@ pub fn get_terminal_data() -> Arc<Mutex<TerminalData>> {
         .clone()
 }
 
-
 fn update_scroll_info(hwnd: HWND) {
     let data_arc = get_terminal_data();
     let mut data = data_arc.lock().unwrap();
@@ -150,7 +149,7 @@ fn update_scroll_info(hwnd: HWND) {
     // The ScrollManager uses nMax = history + page - 1 logic internally if needed, or we set it here.
     // Let's align with existing logic: nMax = history_count + page_size - 1
     // And nPos = history_count - viewport_offset
-    
+
     let page_size = height;
     data.scroll_manager.max = history_count + page_size - 1;
     data.scroll_manager.page = page_size as u32;
@@ -423,7 +422,7 @@ extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM
             let data_arc = get_terminal_data();
             let action = {
                 let mut data = data_arc.lock().unwrap();
-                
+
                 // Sync state before handling
                 let history_count = data.service.get_history_count() as i32;
                 let height = data.service.buffer.height as i32;
@@ -435,12 +434,12 @@ extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM
 
             match action {
                 ScrollAction::ScrollTo(pos) => {
-                     let mut data = data_arc.lock().unwrap();
-                     data.service.scroll_to(pos);
+                    let mut data = data_arc.lock().unwrap();
+                    data.service.scroll_to(pos);
                 }
                 ScrollAction::ScrollBy(delta) => {
-                     let mut data = data_arc.lock().unwrap();
-                     data.service.scroll_lines(delta);
+                    let mut data = data_arc.lock().unwrap();
+                    data.service.scroll_lines(delta);
                 }
                 _ => {}
             }
@@ -458,12 +457,9 @@ extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM
                 data.scroll_manager.handle_mousewheel(wparam.0)
             };
 
-            match action {
-                ScrollAction::ScrollBy(lines) => {
-                     let mut data = data_arc.lock().unwrap();
-                     data.service.scroll_lines(lines);
-                }
-                _ => {}
+            if let ScrollAction::ScrollBy(lines) = action {
+                let mut data = data_arc.lock().unwrap();
+                data.service.scroll_lines(lines);
             }
 
             update_scroll_info(hwnd);

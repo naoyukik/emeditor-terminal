@@ -121,7 +121,7 @@ mod tests {
 
         // Pos 0 (Top) -> history count (100)
         // wparam low word is request, high word is pos
-        let wparam = (SB_THUMBTRACK.0 as usize);
+        let wparam = SB_THUMBTRACK.0 as usize;
         let action = manager.handle_vscroll(wparam, 0);
         assert_eq!(action, ScrollAction::ScrollTo(100));
 
