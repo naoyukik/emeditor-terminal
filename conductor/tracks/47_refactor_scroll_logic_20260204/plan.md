@@ -30,8 +30,8 @@
 - [ ] Task: `WM_MOUSEWHEEL` 処理の置き換え
     - [ ] `wnd_proc` 内の `WM_MOUSEWHEEL` ケースを修正し、`scroll_manager.handle_mousewheel` を呼び出すように変更する。
     - [ ] 返された `ScrollAction` に基づいて処理を行う。
-- [ ] Task: スクロール情報更新処理 (`update_scroll_info`) の置き換え
-    - [ ] 既存の `update_scroll_info` 関数と同様の処理を `ScrollManager` 経由で行うように変更する。
+- [x] Task: スクロール情報更新処理 (`update_scroll_info`) の置き換え
+    - [x] 既存の `update_scroll_info` 関数と同様の処理を `ScrollManager` 経由で行うように変更する。
 - [ ] Task: リグレッションテストとクリーンアップ
     - [ ] 古いスクロール関連コード（定数やヘルパー関数）を削除する。
     - [ ] コンパイルエラーがないことを確認する。

@@ -138,31 +138,31 @@ pub fn get_terminal_data() -> Arc<Mutex<TerminalData>> {
 
 fn update_scroll_info(hwnd: HWND) {
     let data_arc = get_terminal_data();
-    let data = data_arc.lock().unwrap();
+    let mut data = data_arc.lock().unwrap();
 
     let history_count = data.service.get_history_count() as i32;
     let viewport_offset = data.service.get_viewport_offset() as i32;
     let height = data.service.buffer.height as i32;
 
-    // nMax calculation for Win32 scrollbar
-    // The scrollable range is nMin to nMax - nPage + 1
-    // We want the scrollable range to be [0, history_count]
-    // So: nMax - nPage + 1 = history_count
-    // nMax = history_count + nPage - 1
+    // Update ScrollManager state
+    data.scroll_manager.min = 0;
+    // The scrollable range is [0, history_count]
+    // The ScrollManager uses nMax = history + page - 1 logic internally if needed, or we set it here.
+    // Let's align with existing logic: nMax = history_count + page_size - 1
+    // And nPos = history_count - viewport_offset
+    
     let page_size = height;
-    let n_max = history_count + page_size - 1;
-
-    // Position: 0 (top of history) to history_count (bottom)
-    // viewport_offset is 0 at bottom.
-    let n_pos = history_count - viewport_offset;
+    data.scroll_manager.max = history_count + page_size - 1;
+    data.scroll_manager.page = page_size as u32;
+    data.scroll_manager.pos = history_count - viewport_offset;
 
     let si = SCROLLINFO {
         cbSize: size_of::<SCROLLINFO>() as u32,
         fMask: SIF_ALL | SIF_DISABLENOSCROLL,
-        nMin: 0,
-        nMax: n_max,
-        nPage: page_size as u32,
-        nPos: n_pos,
+        nMin: data.scroll_manager.min,
+        nMax: data.scroll_manager.max,
+        nPage: data.scroll_manager.page,
+        nPos: data.scroll_manager.pos,
         nTrackPos: 0,
     };
 
