@@ -452,14 +452,18 @@ extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM
             LRESULT(0)
         }
         WM_MOUSEWHEEL => {
-            let z_delta = (wparam.0 >> 16) as i16;
-            // 3 lines per notch
-            let lines = (z_delta as f32 / 120.0 * 3.0) as isize;
+            let data_arc = get_terminal_data();
+            let action = {
+                let data = data_arc.lock().unwrap();
+                data.scroll_manager.handle_mousewheel(wparam.0)
+            };
 
-            if lines != 0 {
-                let data_arc = get_terminal_data();
-                let mut data = data_arc.lock().unwrap();
-                data.service.scroll_lines(lines);
+            match action {
+                ScrollAction::ScrollBy(lines) => {
+                     let mut data = data_arc.lock().unwrap();
+                     data.service.scroll_lines(lines);
+                }
+                _ => {}
             }
 
             update_scroll_info(hwnd);

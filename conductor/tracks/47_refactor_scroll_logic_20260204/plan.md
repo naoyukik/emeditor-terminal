@@ -27,9 +27,9 @@
 - [x] Task: `WM_VSCROLL` 処理の置き換え
     - [x] `wnd_proc` 内の `WM_VSCROLL` ケースを修正し、`scroll_manager.handle_vscroll` を呼び出すように変更する。
     - [x] 返された `ScrollAction` に基づいて `terminal_service` を操作するコードを記述する。
-- [ ] Task: `WM_MOUSEWHEEL` 処理の置き換え
-    - [ ] `wnd_proc` 内の `WM_MOUSEWHEEL` ケースを修正し、`scroll_manager.handle_mousewheel` を呼び出すように変更する。
-    - [ ] 返された `ScrollAction` に基づいて処理を行う。
+- [x] Task: `WM_MOUSEWHEEL` 処理の置き換え
+    - [x] `wnd_proc` 内の `WM_MOUSEWHEEL` ケースを修正し、`scroll_manager.handle_mousewheel` を呼び出すように変更する。
+    - [x] 返された `ScrollAction` に基づいて処理を行う。
 - [x] Task: スクロール情報更新処理 (`update_scroll_info`) の置き換え
     - [x] 既存の `update_scroll_info` 関数と同様の処理を `ScrollManager` 経由で行うように変更する。
 - [ ] Task: リグレッションテストとクリーンアップ
