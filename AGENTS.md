@@ -24,3 +24,6 @@ https://github.com/naoyukik/emeditor-terminal
 ## 開発環境
 - 言語: Rust (Win32 API)
 - シェル: PowerShell 7.5
+
+## Conductor
+Conductor Extensionが呼び出されて会話する際、日本語を使用してください。

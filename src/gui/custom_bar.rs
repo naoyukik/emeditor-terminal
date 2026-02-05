@@ -5,15 +5,16 @@ use windows::Win32::Graphics::Gdi::{
 };
 use windows::Win32::UI::WindowsAndMessaging::{
     CreateCaret, CreateWindowExW, DefWindowProcW, DestroyCaret, LoadCursorW, PostMessageW,
-    RegisterClassW, SendMessageW, CS_HREDRAW, CS_VREDRAW, DLGC_WANTALLKEYS, IDC_ARROW, WM_CHAR,
-    WM_DESTROY, WM_GETDLGCODE, WM_IME_COMPOSITION, WM_IME_ENDCOMPOSITION, WM_IME_SETCONTEXT,
-    WM_IME_STARTCOMPOSITION, WM_KEYDOWN, WM_KEYUP, WM_KILLFOCUS, WM_LBUTTONDOWN, WM_MOUSEWHEEL,
-    WM_PAINT, WM_SETFOCUS, WM_SIZE, WM_SYSCHAR, WM_SYSCOMMAND, WM_SYSKEYDOWN, WM_SYSKEYUP,
-    WM_VSCROLL, WNDCLASSW, WS_CHILD, WS_CLIPCHILDREN, WS_CLIPSIBLINGS, WS_VISIBLE,
+    RegisterClassW, SendMessageW, CS_HREDRAW, CS_VREDRAW, DLGC_WANTALLKEYS, IDC_ARROW, SB_VERT,
+    WM_CHAR, WM_DESTROY, WM_GETDLGCODE, WM_IME_COMPOSITION, WM_IME_ENDCOMPOSITION,
+    WM_IME_SETCONTEXT, WM_IME_STARTCOMPOSITION, WM_KEYDOWN, WM_KEYUP, WM_KILLFOCUS, WM_LBUTTONDOWN,
+    WM_MOUSEWHEEL, WM_PAINT, WM_SETFOCUS, WM_SIZE, WM_SYSCHAR, WM_SYSCOMMAND, WM_SYSKEYDOWN,
+    WM_SYSKEYUP, WM_VSCROLL, WNDCLASSW, WS_CHILD, WS_CLIPCHILDREN, WS_CLIPSIBLINGS, WS_VISIBLE,
 };
 const ISC_SHOWUICOMPOSITIONWINDOW: u32 = 0x80000000;
 use crate::application::TerminalService;
 use crate::gui::renderer::{CompositionData, TerminalRenderer};
+use crate::gui::scroll::{ScrollAction, ScrollManager};
 use crate::infra::conpty::ConPTY;
 use crate::infra::input::KeyboardHook;
 use std::cell::RefCell;
@@ -35,17 +36,6 @@ const EE_CUSTOM_BAR_OPEN: u32 = EE_FIRST + 73;
 // Custom message for repaint from background thread
 const WM_APP: u32 = 0x8000;
 const WM_APP_REPAINT: u32 = WM_APP + 1;
-
-// Scroll Bar Constants (Self-defined to avoid dependency issues)
-const SB_VERT: i32 = 1;
-const SB_LINEUP: i32 = 0;
-const SB_LINEDOWN: i32 = 1;
-const SB_PAGEUP: i32 = 2;
-const SB_PAGEDOWN: i32 = 3;
-const SB_THUMBPOSITION: i32 = 4;
-const SB_THUMBTRACK: i32 = 5;
-const SB_TOP: i32 = 6;
-const SB_BOTTOM: i32 = 7;
 
 const SIF_RANGE: u32 = 0x0001;
 const SIF_PAGE: u32 = 0x0002;
@@ -125,6 +115,7 @@ pub struct TerminalData {
     pub renderer: TerminalRenderer,
     pub window_handle: Option<SendHWND>,
     pub composition: Option<CompositionData>,
+    pub scroll_manager: ScrollManager,
 }
 
 pub fn get_terminal_data() -> Arc<Mutex<TerminalData>> {
@@ -135,6 +126,7 @@ pub fn get_terminal_data() -> Arc<Mutex<TerminalData>> {
                 renderer: TerminalRenderer::new(),
                 window_handle: None,
                 composition: None,
+                scroll_manager: ScrollManager::new(),
             }))
         })
         .clone()
@@ -142,36 +134,36 @@ pub fn get_terminal_data() -> Arc<Mutex<TerminalData>> {
 
 fn update_scroll_info(hwnd: HWND) {
     let data_arc = get_terminal_data();
-    let data = data_arc.lock().unwrap();
+    let mut data = data_arc.lock().unwrap();
 
     let history_count = data.service.get_history_count() as i32;
     let viewport_offset = data.service.get_viewport_offset() as i32;
     let height = data.service.buffer.height as i32;
 
-    // nMax calculation for Win32 scrollbar
-    // The scrollable range is nMin to nMax - nPage + 1
-    // We want the scrollable range to be [0, history_count]
-    // So: nMax - nPage + 1 = history_count
-    // nMax = history_count + nPage - 1
-    let page_size = height;
-    let n_max = history_count + page_size - 1;
+    // Update ScrollManager state
+    data.scroll_manager.min = 0;
+    // The scrollable range is [0, history_count]
+    // The ScrollManager uses nMax = history + page - 1 logic internally if needed, or we set it here.
+    // Let's align with existing logic: nMax = history_count + page_size - 1
+    // And nPos = history_count - viewport_offset
 
-    // Position: 0 (top of history) to history_count (bottom)
-    // viewport_offset is 0 at bottom.
-    let n_pos = history_count - viewport_offset;
+    let page_size = height;
+    data.scroll_manager.max = history_count + page_size - 1;
+    data.scroll_manager.page = page_size as u32;
+    data.scroll_manager.pos = history_count - viewport_offset;
 
     let si = SCROLLINFO {
         cbSize: size_of::<SCROLLINFO>() as u32,
         fMask: SIF_ALL | SIF_DISABLENOSCROLL,
-        nMin: 0,
-        nMax: n_max,
-        nPage: page_size as u32,
-        nPos: n_pos,
+        nMin: data.scroll_manager.min,
+        nMax: data.scroll_manager.max,
+        nPage: data.scroll_manager.page,
+        nPos: data.scroll_manager.pos,
         nTrackPos: 0,
     };
 
     unsafe {
-        SetScrollInfo(hwnd, SB_VERT, &si, BOOL(1));
+        SetScrollInfo(hwnd, SB_VERT.0, &si, BOOL(1));
     }
 }
 
@@ -424,55 +416,29 @@ fn uninstall_keyboard_hook() {
 extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
     match msg {
         WM_VSCROLL => {
-            let request = wparam.0 & 0xFFFF;
-            let mut delta = 0isize;
-            let mut absolute_pos: Option<usize> = None;
-
             let data_arc = get_terminal_data();
-
-            match request as i32 {
-                SB_LINEUP => delta = 1,
-                SB_LINEDOWN => delta = -1,
-                SB_PAGEUP => {
-                    let data = data_arc.lock().unwrap();
-                    delta = data.service.buffer.height as isize;
-                }
-                SB_PAGEDOWN => {
-                    let data = data_arc.lock().unwrap();
-                    delta = -(data.service.buffer.height as isize);
-                }
-                SB_THUMBTRACK | SB_THUMBPOSITION => {
-                    let pos = (wparam.0 >> 16) & 0xFFFF;
-
-                    // nPos = history_count - viewport_offset
-                    // viewport_offset = history_count - nPos
-                    let data = data_arc.lock().unwrap();
-                    let history_count = data.service.get_history_count();
-                    let target_pos = pos;
-
-                    // Allow scroll beyond history count (active buffer)?
-                    // No, our scroll bar maps 0..history_count.
-                    if target_pos <= history_count {
-                        absolute_pos = Some(history_count - target_pos);
-                    } else {
-                        absolute_pos = Some(0);
-                    }
-                }
-                SB_TOP => {
-                    let data = data_arc.lock().unwrap();
-                    absolute_pos = Some(data.service.get_history_count());
-                }
-                SB_BOTTOM => absolute_pos = Some(0),
-                _ => {}
-            }
-
-            {
+            let action = {
                 let mut data = data_arc.lock().unwrap();
-                if let Some(pos) = absolute_pos {
+
+                // Sync state before handling
+                let history_count = data.service.get_history_count() as i32;
+                let height = data.service.buffer.height as i32;
+                data.scroll_manager.max = history_count + height - 1;
+                data.scroll_manager.page = height as u32;
+
+                data.scroll_manager.handle_vscroll(wparam.0, lparam.0)
+            };
+
+            match action {
+                ScrollAction::ScrollTo(pos) => {
+                    let mut data = data_arc.lock().unwrap();
                     data.service.scroll_to(pos);
-                } else if delta != 0 {
+                }
+                ScrollAction::ScrollBy(delta) => {
+                    let mut data = data_arc.lock().unwrap();
                     data.service.scroll_lines(delta);
                 }
+                _ => {}
             }
 
             update_scroll_info(hwnd);
@@ -482,12 +448,13 @@ extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM
             LRESULT(0)
         }
         WM_MOUSEWHEEL => {
-            let z_delta = (wparam.0 >> 16) as i16;
-            // 3 lines per notch
-            let lines = (z_delta as f32 / 120.0 * 3.0) as isize;
+            let data_arc = get_terminal_data();
+            let action = {
+                let data = data_arc.lock().unwrap();
+                data.scroll_manager.handle_mousewheel(wparam.0)
+            };
 
-            if lines != 0 {
-                let data_arc = get_terminal_data();
+            if let ScrollAction::ScrollBy(lines) = action {
                 let mut data = data_arc.lock().unwrap();
                 data.service.scroll_lines(lines);
             }

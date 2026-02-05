@@ -111,11 +111,11 @@ impl TerminalRenderer {
             } else {
                 0
             };
-            lf.lfCharSet = FONT_CHARSET(DEFAULT_CHARSET.0 as u8);
-            lf.lfOutPrecision = FONT_OUTPUT_PRECISION(OUT_DEFAULT_PRECIS.0 as u8);
-            lf.lfClipPrecision = FONT_CLIP_PRECISION(CLIP_DEFAULT_PRECIS.0 as u8);
-            lf.lfQuality = FONT_QUALITY(DEFAULT_QUALITY.0 as u8);
-            lf.lfPitchAndFamily = (FIXED_PITCH.0 | FF_MODERN.0) as u8;
+            lf.lfCharSet = FONT_CHARSET(DEFAULT_CHARSET.0);
+            lf.lfOutPrecision = FONT_OUTPUT_PRECISION(OUT_DEFAULT_PRECIS.0);
+            lf.lfClipPrecision = FONT_CLIP_PRECISION(CLIP_DEFAULT_PRECIS.0);
+            lf.lfQuality = FONT_QUALITY(DEFAULT_QUALITY.0);
+            lf.lfPitchAndFamily = FIXED_PITCH.0 | FF_MODERN.0;
 
             let face_name = w!("Consolas");
             let len = std::cmp::min(face_name.len(), lf.lfFaceName.len() - 1);
@@ -323,7 +323,7 @@ impl TerminalRenderer {
 
                             // Dim属性が有効な場合は、COLORREFのRGB成分を用いて輝度を低減する
                             if start_attr.dim {
-                                let raw = fg_colorref.0 as u32;
+                                let raw = fg_colorref.0;
                                 // COLORREFは通常0x00BBGGRR形式
                                 let r = (raw & 0x000000FF) as u8 / 2;
                                 let g = ((raw & 0x0000FF00) >> 8) as u8 / 2;
