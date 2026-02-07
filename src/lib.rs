@@ -11,7 +11,7 @@ mod domain;
 mod gui;
 mod infra;
 
-use gui::custom_bar;
+use gui::window;
 
 // EmEditor SDK Constants
 pub const EVENT_CREATE: u32 = 0x00000400;
@@ -70,7 +70,7 @@ pub extern "system" fn OnCommand(hwnd: HWND) {
     log::info!("OnCommand called");
 
     // Show custom bar
-    if custom_bar::open_custom_bar(hwnd) {
+    if window::open_custom_bar(hwnd) {
         log::info!("Terminal bar opened and pwsh.exe started");
     } else {
         log::info!("Custom bar already open, focusing only");
@@ -97,7 +97,7 @@ pub extern "system" fn OnEvents(hwnd: HWND, nEvent: u32, wParam: WPARAM, lParam:
         log::info!("OnEvents: EVENT_CREATE");
     } else if nEvent == EVENT_CLOSE {
         log::info!("OnEvents: EVENT_CLOSE - cleaning up plugin resources");
-        custom_bar::cleanup_terminal();
+        window::cleanup_terminal();
     }
 }
 

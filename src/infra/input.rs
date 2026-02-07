@@ -8,7 +8,7 @@ use windows::Win32::UI::WindowsAndMessaging::{
 };
 
 /// 描画更新を通知するメッセージ
-/// 0x8000 (WM_APP) + 1 は WM_APP_REPAINT として custom_bar.rs で定義されている
+/// 0x8000 (WM_APP) + 1 は WM_APP_REPAINT として window.rs で定義されている
 const WM_APP_REPAINT: u32 = 0x8001;
 
 thread_local! {
@@ -90,13 +90,13 @@ extern "system" fn keyboard_hook_proc(code: i32, wparam: WPARAM, lparam: LPARAM)
         if key_up == 0 {
             if let Some(hwnd) = TARGET_HWND.with(|h| *h.borrow()) {
                 // IMEの状態チェック
-                if !crate::gui::custom_bar::is_ime_composing(hwnd) {
+                if !crate::gui::window::is_ime_composing(hwnd) {
                     let ctrl_pressed = unsafe { GetKeyState(VK_CONTROL.0 as i32) } < 0;
                     let shift_pressed = unsafe { GetKeyState(VK_SHIFT.0 as i32) } < 0;
                     let alt_pressed = unsafe { GetKeyState(VK_MENU.0 as i32) } < 0;
 
                     // システムショートカットの除外
-                    if !crate::gui::custom_bar::is_system_shortcut(vk_code, alt_pressed) {
+                    if !crate::gui::window::is_system_shortcut(vk_code, alt_pressed) {
                         let translator = VtSequenceTranslator::new();
                         let input_key = InputKey::new(
                             vk_code,

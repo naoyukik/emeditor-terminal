@@ -1,4 +1,4 @@
-pub mod custom_bar;
+pub mod window;
 pub mod ime;
 pub mod renderer;
 pub mod scroll;
