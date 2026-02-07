@@ -49,7 +49,7 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 ---
 
-- [~] **Track: refactor: ウィンドウプロシージャの整理とディスパッチの効率化**
+- [x] **Track: refactor: ウィンドウプロシージャの整理とディスパッチの効率化**
 *Link: [./tracks/48_window_proc_refactor_20260205/](./tracks/48_window_proc_refactor_20260205/)*
 
 
