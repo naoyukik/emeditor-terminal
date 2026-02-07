@@ -109,7 +109,7 @@ extern "system" fn keyboard_hook_proc(code: i32, wparam: WPARAM, lparam: LPARAM)
 
                         if let Some(seq) = translator.translate(input_key) {
                             // 直接ターミナルデータに書き込む
-                            let data_arc = crate::gui::custom_bar::get_terminal_data();
+                            let data_arc = crate::gui::terminal_data::get_terminal_data();
                             let mut data = data_arc.lock().unwrap();
                             data.service.reset_viewport();
                             let _ = data.service.send_input(&seq);

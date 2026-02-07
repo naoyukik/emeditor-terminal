@@ -12,26 +12,20 @@ use windows::Win32::UI::WindowsAndMessaging::{
     WM_SYSKEYUP, WM_VSCROLL, WNDCLASSW, WS_CHILD, WS_CLIPCHILDREN, WS_CLIPSIBLINGS, WS_VISIBLE,
 };
 const ISC_SHOWUICOMPOSITIONWINDOW: u32 = 0x80000000;
-use crate::application::TerminalService;
-use crate::gui::renderer::{CompositionData, TerminalRenderer};
-use crate::gui::scroll::{ScrollAction, ScrollManager};
+use crate::gui::scroll::ScrollAction;
+use crate::gui::terminal_data::{get_terminal_data, SendHWND, TerminalData};
 use crate::infra::conpty::ConPTY;
+use crate::infra::editor::{CUSTOM_BAR_BOTTOM, CUSTOM_BAR_INFO, EE_CUSTOM_BAR_OPEN};
 use crate::infra::input::KeyboardHook;
 use std::cell::RefCell;
 use std::ffi::c_void;
 use std::mem::size_of;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex, OnceLock};
 use std::thread;
 use windows::Win32::Storage::FileSystem::ReadFile;
 use windows::Win32::UI::Input::KeyboardAndMouse::{
     SetFocus, VK_ESCAPE, VK_F4, VK_MENU, VK_SPACE, VK_TAB,
 };
-
-// Constants from EmEditor SDK
-const WM_USER: u32 = 0x0400;
-const EE_FIRST: u32 = WM_USER + 0x400;
-const EE_CUSTOM_BAR_OPEN: u32 = EE_FIRST + 73;
 
 // Custom message for repaint from background thread
 const WM_APP: u32 = 0x8000;
@@ -66,70 +60,14 @@ struct SCROLLINFO {
 // const CUSTOM_BAR_LEFT: i32 = 0;
 // const CUSTOM_BAR_TOP: i32 = 1;
 // const CUSTOM_BAR_RIGHT: i32 = 2;
-const CUSTOM_BAR_BOTTOM: i32 = 3;
-
-#[repr(C)]
-#[allow(non_snake_case)]
-struct CUSTOM_BAR_INFO {
-    cbSize: usize,
-    hwndCustomBar: HWND,
-    hwndClient: HWND,
-    pszTitle: PCWSTR,
-    iPos: i32,
-}
 
 static CLASS_REGISTERED: AtomicBool = AtomicBool::new(false);
 const CLASS_NAME: PCWSTR = w!("EmEditorTerminalClass");
-
-static TERMINAL_DATA: OnceLock<Arc<Mutex<TerminalData>>> = OnceLock::new();
 
 // Keyboard hook wrapper
 thread_local! {
     static KEYBOARD_HOOK_WRAPPER: RefCell<Option<KeyboardHook>> = const { RefCell::new(None) };
     static TERMINAL_HWND: RefCell<Option<HWND>> = const { RefCell::new(None) };
-}
-
-#[derive(Clone, Copy)]
-/// Wrapper around a Windows `HWND` handle that is treated as `Send` and `Sync`.
-///
-/// On Windows, many operations on `HWND` (such as `PostMessageW`) are documented
-/// as cross-thread safe, but some operations must only be performed on the thread
-/// that created/owns the window (for example, most UI updates and message loops).
-pub struct SendHWND(pub HWND);
-
-/// SAFETY:
-/// - The `HWND` handle value itself may be moved across threads.
-/// - Callers must only perform operations from other threads that the Windows
-///   API documents as thread-safe for `HWND` (e.g., `PostMessageW`).
-/// - Thread-affine operations must still be invoked on the thread that owns the window.
-unsafe impl Send for SendHWND {}
-
-/// SAFETY:
-/// - Sharing an `HWND` between threads does not in itself cause data races, as
-///   long as all threads confine thread-affine operations to the owning thread
-///   and only perform cross-thread-safe operations from other threads.
-unsafe impl Sync for SendHWND {}
-
-pub struct TerminalData {
-    pub service: TerminalService,
-    pub renderer: TerminalRenderer,
-    pub window_handle: Option<SendHWND>,
-    pub composition: Option<CompositionData>,
-    pub scroll_manager: ScrollManager,
-}
-
-pub fn get_terminal_data() -> Arc<Mutex<TerminalData>> {
-    TERMINAL_DATA
-        .get_or_init(|| {
-            Arc::new(Mutex::new(TerminalData {
-                service: TerminalService::new(80, 25),
-                renderer: TerminalRenderer::new(),
-                window_handle: None,
-                composition: None,
-                scroll_manager: ScrollManager::new(),
-            }))
-        })
-        .clone()
 }
 
 fn update_scroll_info(hwnd: HWND) {
