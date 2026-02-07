@@ -1,5 +1,7 @@
 use windows::core::{w, PCWSTR};
-use windows::Win32::Foundation::{HANDLE, HWND, LPARAM, LRESULT, WPARAM};
+use windows::Win32::Foundation::{
+    ERROR_CLASS_ALREADY_EXISTS, GetLastError, HWND, LPARAM, LRESULT, WPARAM,
+};
 use windows::Win32::Graphics::Gdi::{COLOR_WINDOW, HBRUSH};
 use windows::Win32::UI::WindowsAndMessaging::{
     CreateWindowExW, DefWindowProcW, LoadCursorW, PostMessageW, RegisterClassW, SendMessageW,
@@ -11,7 +13,7 @@ use windows::Win32::UI::WindowsAndMessaging::{
 };
 
 use crate::gui::terminal_data::{get_terminal_data, SendHWND};
-use crate::infra::conpty::ConPTY;
+use crate::infra::conpty::{ConPTY, SendHandle};
 use crate::infra::editor::{CUSTOM_BAR_BOTTOM, CUSTOM_BAR_INFO, EE_CUSTOM_BAR_OPEN};
 use std::ffi::c_void;
 use std::mem::size_of;
@@ -41,8 +43,10 @@ fn start_conpty_and_reader_thread(hwnd: HWND, cols: i16, rows: i16) -> bool {
             log::info!("ConPTY started successfully with size {}x{}", cols, rows);
 
             let data_arc = get_terminal_data();
-            let output_handle = conpty.get_output_handle();
-            let output_handle_raw = output_handle.0 .0 as usize;
+            let output_handle: SendHandle = conpty.get_output_handle();
+            // ConPTY retains ownership of the handle and closes it on drop.
+            // SendHandle is Copy, so we can pass a copy to the thread.
+            
             {
                 let mut data = data_arc.lock().unwrap();
                 data.service.set_conpty(conpty);
@@ -50,15 +54,17 @@ fn start_conpty_and_reader_thread(hwnd: HWND, cols: i16, rows: i16) -> bool {
                 data.service.resize(cols as usize, rows as usize);
             }
 
-            let hwnd_ptr = hwnd.0 as usize;
+            let send_hwnd = SendHWND(hwnd);
 
             thread::spawn(move || {
+                let output_handle = output_handle; // Force capture of SendHandle to avoid disjoint capture of !Send HANDLE
+                let send_hwnd = send_hwnd; // Force capture of SendHWND
                 let mut buffer = [0u8; 1024];
                 let mut bytes_read = 0;
                 loop {
                     let read_result = unsafe {
                         ReadFile(
-                            HANDLE(output_handle_raw as *mut _),
+                            output_handle.0,
                             Some(&mut buffer),
                             Some(&mut bytes_read),
                             None,
@@ -89,7 +95,7 @@ fn start_conpty_and_reader_thread(hwnd: HWND, cols: i16, rows: i16) -> bool {
                     // Trigger repaint via PostMessage (thread-safe)
                     unsafe {
                         let _ = PostMessageW(
-                            HWND(hwnd_ptr as *mut _),
+                            send_hwnd.0,
                             WM_APP_REPAINT,
                             WPARAM(0),
                             LPARAM(0),
@@ -131,7 +137,14 @@ pub fn open_custom_bar(hwnd_editor: HWND) -> bool {
                 hbrBackground: HBRUSH((COLOR_WINDOW.0 + 1) as isize as *mut c_void),
                 ..Default::default()
             };
-            RegisterClassW(&wc);
+            let atom = RegisterClassW(&wc);
+            if atom == 0 {
+                let err = GetLastError();
+                if err != ERROR_CLASS_ALREADY_EXISTS {
+                    log::error!("Failed to register window class: {:?}", err);
+                    return false;
+                }
+            }
             CLASS_REGISTERED.store(true, Ordering::Relaxed);
         }
 

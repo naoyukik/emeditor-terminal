@@ -8,7 +8,7 @@ use windows::Win32::UI::WindowsAndMessaging::{
 };
 
 /// 描画更新を通知するメッセージ
-/// 0x8000 (WM_APP) + 1 は WM_APP_REPAINT として window.rs で定義されている
+/// 0x8000 (WM_APP) + 1 は WM_APP_REPAINT として window モジュールで定義されている
 const WM_APP_REPAINT: u32 = 0x8001;
 
 thread_local! {
