@@ -1,12 +1,76 @@
+use crate::gui::terminal_data::get_terminal_data;
+use std::mem::size_of;
+use windows::Win32::Foundation::{BOOL, HWND};
 use windows::Win32::UI::WindowsAndMessaging::{
     SB_BOTTOM, SB_LINEDOWN, SB_LINEUP, SB_PAGEDOWN, SB_PAGEUP, SB_THUMBPOSITION, SB_THUMBTRACK,
-    SB_TOP, SCROLLBAR_COMMAND,
+    SB_TOP, SB_VERT, SCROLLBAR_COMMAND,
 };
+
+const SIF_RANGE: u32 = 0x0001;
+const SIF_PAGE: u32 = 0x0002;
+const SIF_POS: u32 = 0x0004;
+const SIF_DISABLENOSCROLL: u32 = 0x0008;
+const SIF_TRACKPOS: u32 = 0x0010;
+const SIF_ALL: u32 = SIF_RANGE | SIF_PAGE | SIF_POS | SIF_TRACKPOS;
+
+#[link(name = "user32")]
+extern "system" {
+    fn SetScrollInfo(hwnd: HWND, nbar: i32, lpsi: *const SCROLLINFO, redraw: BOOL) -> i32;
+}
+
+#[repr(C)]
+#[allow(non_snake_case)]
+#[allow(clippy::upper_case_acronyms)]
+struct SCROLLINFO {
+    cbSize: u32,
+    fMask: u32,
+    nMin: i32,
+    nMax: i32,
+    nPage: u32,
+    nPos: i32,
+    nTrackPos: i32,
+}
+
+pub fn update_window_scroll_info(hwnd: HWND) {
+    let data_arc = get_terminal_data();
+    let mut data = data_arc.lock().unwrap();
+
+    let history_count = data.service.get_history_count() as i32;
+    let viewport_offset = data.service.get_viewport_offset() as i32;
+    let height = data.service.buffer.height as i32;
+
+    // Update ScrollManager state
+    data.scroll_manager.min = 0;
+    // The scrollable range is [0, history_count]
+    // The ScrollManager uses nMax = history + page - 1 logic internally if needed, or we set it here.
+    // Let's align with existing logic: nMax = history_count + page_size - 1
+    // And nPos = history_count - viewport_offset
+
+    let page_size = height;
+    data.scroll_manager.max = history_count + page_size - 1;
+    data.scroll_manager.page = page_size as u32;
+    data.scroll_manager.pos = history_count - viewport_offset;
+
+    let si = SCROLLINFO {
+        cbSize: size_of::<SCROLLINFO>() as u32,
+        fMask: SIF_ALL | SIF_DISABLENOSCROLL,
+        nMin: data.scroll_manager.min,
+        nMax: data.scroll_manager.max,
+        nPage: data.scroll_manager.page,
+        nPos: data.scroll_manager.pos,
+        nTrackPos: 0,
+    };
+
+    unsafe {
+        SetScrollInfo(hwnd, SB_VERT.0, &si, BOOL(1));
+    }
+}
 
 #[derive(Debug, PartialEq)]
 pub enum ScrollAction {
     ScrollTo(usize),
     ScrollBy(isize),
+    #[allow(dead_code)]
     Redraw,
     None,
 }

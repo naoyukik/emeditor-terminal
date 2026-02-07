@@ -89,33 +89,31 @@ impl TerminalRenderer {
         }
 
         unsafe {
-            let mut lf = LOGFONTW::default();
-            lf.lfHeight = 16;
-            lf.lfWeight = if (style_mask & STYLE_BOLD) != 0 {
-                FW_BOLD.0 as i32
-            } else {
-                FW_NORMAL.0 as i32
+            let mut lf = LOGFONTW {
+                lfHeight: 16,
+                lfWeight: if (style_mask & STYLE_BOLD) != 0 {
+                    FW_BOLD.0 as i32
+                } else {
+                    FW_NORMAL.0 as i32
+                },
+                lfItalic: if (style_mask & STYLE_ITALIC) != 0 { 1 } else { 0 },
+                lfUnderline: if (style_mask & STYLE_UNDERLINE) != 0 {
+                    1
+                } else {
+                    0
+                },
+                lfStrikeOut: if (style_mask & STYLE_STRIKEOUT) != 0 {
+                    1
+                } else {
+                    0
+                },
+                lfCharSet: FONT_CHARSET(DEFAULT_CHARSET.0),
+                lfOutPrecision: FONT_OUTPUT_PRECISION(OUT_DEFAULT_PRECIS.0),
+                lfClipPrecision: FONT_CLIP_PRECISION(CLIP_DEFAULT_PRECIS.0),
+                lfQuality: FONT_QUALITY(DEFAULT_QUALITY.0),
+                lfPitchAndFamily: FIXED_PITCH.0 | FF_MODERN.0,
+                ..Default::default()
             };
-            lf.lfItalic = if (style_mask & STYLE_ITALIC) != 0 {
-                1
-            } else {
-                0
-            };
-            lf.lfUnderline = if (style_mask & STYLE_UNDERLINE) != 0 {
-                1
-            } else {
-                0
-            };
-            lf.lfStrikeOut = if (style_mask & STYLE_STRIKEOUT) != 0 {
-                1
-            } else {
-                0
-            };
-            lf.lfCharSet = FONT_CHARSET(DEFAULT_CHARSET.0);
-            lf.lfOutPrecision = FONT_OUTPUT_PRECISION(OUT_DEFAULT_PRECIS.0);
-            lf.lfClipPrecision = FONT_CLIP_PRECISION(CLIP_DEFAULT_PRECIS.0);
-            lf.lfQuality = FONT_QUALITY(DEFAULT_QUALITY.0);
-            lf.lfPitchAndFamily = FIXED_PITCH.0 | FF_MODERN.0;
 
             let face_name = w!("Consolas");
             let len = std::cmp::min(face_name.len(), lf.lfFaceName.len() - 1);

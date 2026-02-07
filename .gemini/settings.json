@@ -90,7 +90,10 @@
       "args": [
         "dlx",
         "@modelcontextprotocol/server-memory"
-      ]
+      ],
+      "env": {
+        "MEMORY_FILE_PATH": "$MEMORY_FILE_PATH"
+      }
     }
   },
   "model": {

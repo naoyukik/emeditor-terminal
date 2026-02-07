@@ -14,6 +14,7 @@ const WM_APP_REPAINT: u32 = 0x8001;
 thread_local! {
     static KEYBOARD_HOOK: RefCell<Option<HHOOK>> = const { RefCell::new(None) };
     static TARGET_HWND: RefCell<Option<HWND>> = const { RefCell::new(None) };
+    static HOOK_INSTANCE: RefCell<Option<KeyboardHook>> = const { RefCell::new(None) };
 }
 
 /// Windowsの低レベルキーボードフックを管理する構造体
@@ -25,6 +26,30 @@ impl KeyboardHook {
     /// 新しいフック管理インスタンスを作成する
     pub fn new(target_hwnd: HWND) -> Self {
         Self { target_hwnd }
+    }
+
+    /// グローバルにフックをインストールし、スレッドローカルストレージで管理する
+    pub fn install_global(hwnd: HWND) {
+        HOOK_INSTANCE.with(|instance| {
+            let mut instance_ref = instance.borrow_mut();
+            if instance_ref.is_none() {
+                let hook = KeyboardHook::new(hwnd);
+                hook.install();
+                *instance_ref = Some(hook);
+                log::info!("Global keyboard hook installed");
+            }
+        });
+    }
+
+    /// グローバルフックをアンインストールする
+    pub fn uninstall_global() {
+        HOOK_INSTANCE.with(|instance| {
+            let mut instance_ref = instance.borrow_mut();
+            if let Some(hook) = instance_ref.take() {
+                hook.uninstall();
+                log::info!("Global keyboard hook uninstalled");
+            }
+        });
     }
 
     /// キーボードフックをインストールする
