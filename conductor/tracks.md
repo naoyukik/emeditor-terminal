@@ -47,9 +47,5 @@ This file tracks all major tracks for the project. Each track has its own detail
 - [x] **Track: PR #59 Review Fixes: Format and Style**
 *Link: [./archive/59_pr_review_fixes_20260202/](./archive/59_pr_review_fixes_20260202/)*
 
----
-
-- [x] **Track: refactor: ウィンドウプロシージャの整理とディスパッチの効率化**
-*Link: [./tracks/48_window_proc_refactor_20260205/](./tracks/48_window_proc_refactor_20260205/)*
 
 
