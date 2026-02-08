@@ -8,12 +8,13 @@ use windows::Win32::UI::WindowsAndMessaging::{
 };
 
 /// 描画更新を通知するメッセージ
-/// 0x8000 (WM_APP) + 1 は WM_APP_REPAINT として custom_bar.rs で定義されている
+/// 0x8000 (WM_APP) + 1 は WM_APP_REPAINT として window モジュールで定義されている
 const WM_APP_REPAINT: u32 = 0x8001;
 
 thread_local! {
     static KEYBOARD_HOOK: RefCell<Option<HHOOK>> = const { RefCell::new(None) };
     static TARGET_HWND: RefCell<Option<HWND>> = const { RefCell::new(None) };
+    static HOOK_INSTANCE: RefCell<Option<KeyboardHook>> = const { RefCell::new(None) };
 }
 
 /// Windowsの低レベルキーボードフックを管理する構造体
@@ -25,6 +26,30 @@ impl KeyboardHook {
     /// 新しいフック管理インスタンスを作成する
     pub fn new(target_hwnd: HWND) -> Self {
         Self { target_hwnd }
+    }
+
+    /// グローバルにフックをインストールし、スレッドローカルストレージで管理する
+    pub fn install_global(hwnd: HWND) {
+        HOOK_INSTANCE.with(|instance| {
+            let mut instance_ref = instance.borrow_mut();
+            if instance_ref.is_none() {
+                let hook = KeyboardHook::new(hwnd);
+                hook.install();
+                *instance_ref = Some(hook);
+                log::info!("Global keyboard hook installed");
+            }
+        });
+    }
+
+    /// グローバルフックをアンインストールする
+    pub fn uninstall_global() {
+        HOOK_INSTANCE.with(|instance| {
+            let mut instance_ref = instance.borrow_mut();
+            if let Some(hook) = instance_ref.take() {
+                hook.uninstall();
+                log::info!("Global keyboard hook uninstalled");
+            }
+        });
     }
 
     /// キーボードフックをインストールする
@@ -90,13 +115,13 @@ extern "system" fn keyboard_hook_proc(code: i32, wparam: WPARAM, lparam: LPARAM)
         if key_up == 0 {
             if let Some(hwnd) = TARGET_HWND.with(|h| *h.borrow()) {
                 // IMEの状態チェック
-                if !crate::gui::custom_bar::is_ime_composing(hwnd) {
+                if !crate::gui::window::is_ime_composing(hwnd) {
                     let ctrl_pressed = unsafe { GetKeyState(VK_CONTROL.0 as i32) } < 0;
                     let shift_pressed = unsafe { GetKeyState(VK_SHIFT.0 as i32) } < 0;
                     let alt_pressed = unsafe { GetKeyState(VK_MENU.0 as i32) } < 0;
 
                     // システムショートカットの除外
-                    if !crate::gui::custom_bar::is_system_shortcut(vk_code, alt_pressed) {
+                    if !crate::gui::window::is_system_shortcut(vk_code, alt_pressed) {
                         let translator = VtSequenceTranslator::new();
                         let input_key = InputKey::new(
                             vk_code,
@@ -109,7 +134,7 @@ extern "system" fn keyboard_hook_proc(code: i32, wparam: WPARAM, lparam: LPARAM)
 
                         if let Some(seq) = translator.translate(input_key) {
                             // 直接ターミナルデータに書き込む
-                            let data_arc = crate::gui::custom_bar::get_terminal_data();
+                            let data_arc = crate::gui::terminal_data::get_terminal_data();
                             let mut data = data_arc.lock().unwrap();
                             data.service.reset_viewport();
                             let _ = data.service.send_input(&seq);

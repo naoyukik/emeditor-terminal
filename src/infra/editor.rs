@@ -1,16 +1,32 @@
+use windows::core::PCWSTR;
 use windows::Win32::Foundation::{HWND, LPARAM, WPARAM};
 use windows::Win32::UI::WindowsAndMessaging::SendMessageW;
 
 #[allow(dead_code)]
 const WM_USER: u32 = 0x0400;
 #[allow(dead_code)]
-const EE_FIRST: u32 = WM_USER + 0x400;
+pub const EE_FIRST: u32 = WM_USER + 0x400;
 #[allow(dead_code)]
-const EE_OUTPUT_STRING: u32 = EE_FIRST + 90;
+pub const EE_OUTPUT_STRING: u32 = EE_FIRST + 90;
 #[allow(dead_code)]
-const EE_EXEC_COMMAND: u32 = EE_FIRST + 22;
+pub const EE_EXEC_COMMAND: u32 = EE_FIRST + 22;
+#[allow(dead_code)]
+pub const EE_CUSTOM_BAR_OPEN: u32 = EE_FIRST + 73;
+
 #[allow(dead_code)]
 const EEID_VIEW_OUTPUT: u32 = 4420;
+
+pub const CUSTOM_BAR_BOTTOM: i32 = 3;
+
+#[repr(C)]
+#[allow(non_snake_case)]
+pub struct CUSTOM_BAR_INFO {
+    pub cbSize: usize,
+    pub hwndCustomBar: HWND,
+    pub hwndClient: HWND,
+    pub pszTitle: PCWSTR,
+    pub iPos: i32,
+}
 
 #[allow(dead_code)]
 pub fn output_string(hwnd: HWND, text: &str) {
