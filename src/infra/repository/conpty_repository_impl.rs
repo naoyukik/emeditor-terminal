@@ -14,7 +14,6 @@ impl ConptyRepositoryImpl {
         Self { conpty }
     }
 
-    /// ConPTYのインスタンスを取得する（Application層での移行期間用、または特定の用途用）
     pub fn get_conpty(&self) -> &ConPTY {
         &self.conpty
     }
@@ -34,5 +33,18 @@ impl TerminalOutputRepository for ConptyRepositoryImpl {
         self.conpty
             .resize(cols as i16, rows as i16)
             .map_err(io::Error::other)
+    }
+}
+
+/// 起動時など、ConPTYがまだ準備できていない場合に使用するダミーリポジトリ
+pub struct DummyOutputRepository;
+
+impl TerminalOutputRepository for DummyOutputRepository {
+    fn send_input(&self, _data: &[u8]) -> io::Result<()> {
+        Ok(())
+    }
+
+    fn resize(&self, _cols: u16, _rows: u16) -> io::Result<()> {
+        Ok(())
     }
 }
