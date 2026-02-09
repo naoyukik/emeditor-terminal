@@ -47,7 +47,3 @@ This file tracks all major tracks for the project. Each track has its own detail
 - [x] **Track: PR #59 Review Fixes: Format and Style**
 *Link: [./archive/59_pr_review_fixes_20260202/](./archive/59_pr_review_fixes_20260202/)*
 
----
-
-- [x] **Track: Issue #50: Repositoryパターンと依存性注入(DI)の導入**
-*Link: [./tracks/50_repository_pattern_di_20260208/](./tracks/50_repository_pattern_di_20260208/)*
