@@ -49,9 +49,5 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 ---
 
-- [~] **Track: Issue #50: Repositoryパターンと依存性注入(DI)の導入**
+- [x] **Track: Issue #50: Repositoryパターンと依存性注入(DI)の導入**
 *Link: [./tracks/50_repository_pattern_di_20260208/](./tracks/50_repository_pattern_di_20260208/)*
-
-
-
-
