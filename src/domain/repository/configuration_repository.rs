@@ -1,5 +1,10 @@
 pub trait ConfigurationRepository: Send + Sync {
-    // 将来的に具体的な設定構造体を返すように拡張する
-    // 現時点では、設定の変更を通知するリスナー登録などのインターフェースを想定
-    // または、必要な設定値を個別に取得するメソッドを定義
+    /// フォント名を取得する
+    fn get_font_face(&self) -> String;
+    /// フォントサイズを取得する
+    fn get_font_size(&self) -> i32;
+    /// 背景色を取得する
+    fn get_background_color(&self) -> u32;
+    /// 前景色を取得する
+    fn get_foreground_color(&self) -> u32;
 }
