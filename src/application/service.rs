@@ -1,57 +1,63 @@
 use crate::domain::parser::AnsiParser;
+use crate::domain::repository::configuration_repository::ConfigurationRepository;
+use crate::domain::repository::terminal_output_repository::TerminalOutputRepository;
 use crate::domain::terminal::TerminalBuffer;
-use crate::infra::conpty::ConPTY;
-use windows::Win32::Foundation::HANDLE;
-use windows::Win32::Storage::FileSystem::WriteFile;
 
 pub struct TerminalService {
     pub(crate) buffer: TerminalBuffer,
     parser: AnsiParser,
-    conpty: Option<ConPTY>,
+    output_repo: Box<dyn TerminalOutputRepository>,
+    config_repo: Box<dyn ConfigurationRepository>,
+    // キャッシュされた設定情報
+    font_face: String,
+    font_size: i32,
 }
 
 impl TerminalService {
-    pub fn new(cols: usize, rows: usize) -> Self {
+    pub fn new(
+        cols: usize,
+        rows: usize,
+        output_repo: Box<dyn TerminalOutputRepository>,
+        config_repo: Box<dyn ConfigurationRepository>,
+    ) -> Self {
+        let font_face = config_repo.get_font_face();
+        let font_size = config_repo.get_font_size();
+
         Self {
             buffer: TerminalBuffer::new(cols, rows),
             parser: AnsiParser::new(),
-            conpty: None,
+            output_repo,
+            config_repo,
+            font_face,
+            font_size,
         }
-    }
-
-    pub fn set_conpty(&mut self, conpty: ConPTY) {
-        self.conpty = Some(conpty);
-    }
-
-    #[allow(dead_code)]
-    pub fn get_conpty_output_handle(&self) -> Option<HANDLE> {
-        self.conpty.as_ref().map(|c| c.get_output_handle().0)
-    }
-
-    pub fn take_conpty(&mut self) -> Option<ConPTY> {
-        self.conpty.take()
     }
 
     pub fn process_output(&mut self, output: &str) {
         self.parser.parse(output, &mut self.buffer);
     }
 
-    pub fn send_input(&self, data: &[u8]) -> Result<(), windows::core::Error> {
-        if let Some(conpty) = &self.conpty {
-            let handle = conpty.get_input_handle();
-            let mut bytes_written = 0;
-            unsafe {
-                WriteFile(handle.0, Some(data), Some(&mut bytes_written), None)?;
-            }
-        }
-        Ok(())
+    pub fn send_input(&self, data: &[u8]) -> std::io::Result<()> {
+        self.output_repo.send_input(data)
     }
 
     pub fn resize(&mut self, cols: usize, rows: usize) {
-        if let Some(conpty) = &self.conpty {
-            let _ = conpty.resize(cols as i16, rows as i16);
-        }
+        let _ = self.output_repo.resize(cols as u16, rows as u16);
         self.buffer.resize(cols, rows);
+    }
+
+    /// 設定を最新状態に更新する
+    pub fn refresh_config(&mut self) {
+        self.font_face = self.config_repo.get_font_face();
+        self.font_size = self.config_repo.get_font_size();
+    }
+
+    pub fn get_font_face(&self) -> &str {
+        &self.font_face
+    }
+
+    pub fn get_font_size(&self) -> i32 {
+        self.font_size
     }
 
     /// ビューポートを指定したオフセットにスクロールする

@@ -29,15 +29,15 @@ Domain層で定義したトレイトを、Windows APIや既存の `ConPTY` を�
 ## Phase 3: Application層のリファクタリング (DI導入)
 `TerminalService` を具体的な実装から切り離し、DIを受け入れるように変更する。
 
-- [ ] Task: `TerminalService` の構造体変更
-    - [ ] `output_repo`, `config_repo` をメンバに追加
-- [ ] Task: `TerminalService::new` のシグネチャ変更
-    - [ ] リポジトリを引数で受け取るように変更（Constructor Injection）
-- [ ] Task: 既存メソッドの修正
-    - [ ] `send_input`, `resize` 等をリポジトリ経由の呼び出しに変更
-- [ ] Task: キャッシュロジックの実装
-    - [ ] 生成時に `config_repo` から設定を取得して保持する
-- [ ] Task: Conductor - User Manual Verification 'Phase 3: Application層のリファクタリング (DI導入)' (Protocol in workflow.md)
+- [x] Task: `TerminalService` の構造体変更
+    - [x] `output_repo`, `config_repo` をメンバに追加
+- [x] Task: `TerminalService::new` のシグネチャ変更
+    - [x] リポジトリを引数で受け取るように変更（Constructor Injection）
+- [x] Task: 既存メソッドの修正
+    - [x] `send_input`, `resize` 等をリポジトリ経由の呼び出しに変更
+- [x] Task: キャッシュロジックの実装
+    - [x] 生成時に `config_repo` から設定を取得して保持する
+- [x] Task: Conductor - User Manual Verification 'Phase 3: Application層のリファクタリング (DI導入)' (Protocol in workflow.md)
 
 ## Phase 4: 統合と動作検証
 GUI層での初期化処理を修正し、全体の動作を確認する。
