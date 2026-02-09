@@ -3,10 +3,12 @@ use crate::infra::conpty::ConPTY;
 use std::io;
 use windows::Win32::Storage::FileSystem::WriteFile;
 
+#[allow(dead_code)]
 pub struct ConptyRepositoryImpl {
     conpty: ConPTY,
 }
 
+#[allow(dead_code)]
 impl ConptyRepositoryImpl {
     pub fn new(conpty: ConPTY) -> Self {
         Self { conpty }
@@ -24,13 +26,13 @@ impl TerminalOutputRepository for ConptyRepositoryImpl {
         let mut bytes_written = 0;
         unsafe {
             WriteFile(handle.0, Some(data), Some(&mut bytes_written), None)
-                .map_err(|e| io::Error::new(io::ErrorKind::Other, e.to_string()))
+                .map_err(|e| io::Error::other(e.to_string()))
         }
     }
 
     fn resize(&self, cols: u16, rows: u16) -> io::Result<()> {
         self.conpty
             .resize(cols as i16, rows as i16)
-            .map_err(|e| io::Error::new(io::ErrorKind::Other, e))
+            .map_err(io::Error::other)
     }
 }

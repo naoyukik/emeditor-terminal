@@ -1,7 +1,9 @@
 use crate::domain::repository::configuration_repository::ConfigurationRepository;
 
+#[allow(dead_code)]
 pub struct EmEditorConfigRepositoryImpl;
 
+#[allow(dead_code)]
 impl EmEditorConfigRepositoryImpl {
     pub fn new() -> Self {
         Self

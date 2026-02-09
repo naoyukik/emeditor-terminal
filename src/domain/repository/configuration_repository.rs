@@ -1,3 +1,4 @@
+#[allow(dead_code)]
 pub trait ConfigurationRepository: Send + Sync {
     /// フォント名を取得する
     fn get_font_face(&self) -> String;
