@@ -42,7 +42,14 @@ impl TerminalService {
     }
 
     pub fn resize(&mut self, cols: usize, rows: usize) {
-        let _ = self.output_repo.resize(cols as u16, rows as u16);
+        if let Err(err) = self.output_repo.resize(cols as u16, rows as u16) {
+            log::error!(
+                "Failed to resize terminal output (requested: {}x{}): {:?}",
+                cols,
+                rows,
+                err
+            );
+        }
         self.buffer.resize(cols, rows);
     }
 

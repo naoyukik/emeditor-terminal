@@ -256,9 +256,11 @@ pub fn send_input(text: &str) {
 pub fn cleanup_terminal() {
     log::info!("cleanup_terminal: Starting cleanup");
     let data_arc = get_terminal_data();
-    let mut _data = data_arc.lock().unwrap();
-    // TerminalServiceがドロップされる際に、内部のリポジトリ経由でConPTYもドロップされる
-    log::info!("TerminalData locked for cleanup, will be dropped");
+    let mut data = data_arc.lock().unwrap();
+    // TerminalServiceが差し替えられる（古いサービスがドロップされる）際に、
+    // 内部のリポジトリ経由でConPTYもドロップされる。
+    data.reset_service();
+    log::info!("TerminalService reset in cleanup_terminal");
 }
 
 extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
