@@ -122,5 +122,20 @@
         }
       }
     }
+  },
+  "hooks": {
+    "BeforeTool": [
+      {
+        "matcher": "run_shell_command",
+        "hooks": [
+          {
+            "name": "check-ampersand",
+            "type": "command",
+            "command": "$PYTHON_COMMAND ./.gemini/hooks/detect_double_ampersand.py",
+            "description": "PowerShellでの&&利用を制限する"
+          }
+        ]
+      }
+    ]
   }
 }
