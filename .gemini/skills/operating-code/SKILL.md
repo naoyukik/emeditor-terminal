@@ -1,6 +1,6 @@
 ---
-name: committing-code
-description: Assists with Git commit operations. Generates Conventional Commits format messages and enforces individual file staging rules. Use when running git add, commit, or reviewing diffs.
+name: operating-code
+description: Git操作のガイドラインです。Gitコマンドを使用する際の規則が書かれているので、必ずこのスキルを参照してください。
 ---
 
 # Git操作ガイドライン

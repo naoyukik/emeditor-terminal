@@ -96,7 +96,11 @@ impl TerminalRenderer {
                 } else {
                     FW_NORMAL.0 as i32
                 },
-                lfItalic: if (style_mask & STYLE_ITALIC) != 0 { 1 } else { 0 },
+                lfItalic: if (style_mask & STYLE_ITALIC) != 0 {
+                    1
+                } else {
+                    0
+                },
                 lfUnderline: if (style_mask & STYLE_UNDERLINE) != 0 {
                     1
                 } else {

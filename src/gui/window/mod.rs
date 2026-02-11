@@ -1,6 +1,6 @@
 use windows::core::{w, PCWSTR};
 use windows::Win32::Foundation::{
-    ERROR_CLASS_ALREADY_EXISTS, GetLastError, HWND, LPARAM, LRESULT, WPARAM,
+    GetLastError, ERROR_CLASS_ALREADY_EXISTS, HWND, LPARAM, LRESULT, WPARAM,
 };
 use windows::Win32::Graphics::Gdi::{COLOR_WINDOW, HBRUSH};
 use windows::Win32::UI::WindowsAndMessaging::{
@@ -46,12 +46,19 @@ fn start_conpty_and_reader_thread(hwnd: HWND, cols: i16, rows: i16) -> bool {
             let output_handle: SendHandle = conpty.get_output_handle();
             // ConPTY retains ownership of the handle and closes it on drop.
             // SendHandle is Copy, so we can pass a copy to the thread.
-            
+
             {
                 let mut data = data_arc.lock().unwrap();
-                data.service.set_conpty(conpty);
-                // Sync buffer size with ConPTY
-                data.service.resize(cols as usize, rows as usize);
+                let output_repo = Box::new(crate::infra::repository::conpty_repository_impl::ConptyRepositoryImpl::new(conpty));
+                let config_repo = Box::new(crate::infra::repository::emeditor_config_repository_impl::EmEditorConfigRepositoryImpl::new());
+                
+                // 新しいリポジトリでサービスを再構築する（DI）
+                data.service = crate::application::TerminalService::new(
+                    cols as usize,
+                    rows as usize,
+                    output_repo,
+                    config_repo,
+                );
             }
 
             let send_hwnd = SendHWND(hwnd);
@@ -94,12 +101,7 @@ fn start_conpty_and_reader_thread(hwnd: HWND, cols: i16, rows: i16) -> bool {
 
                     // Trigger repaint via PostMessage (thread-safe)
                     unsafe {
-                        let _ = PostMessageW(
-                            send_hwnd.0,
-                            WM_APP_REPAINT,
-                            WPARAM(0),
-                            LPARAM(0),
-                        );
+                        let _ = PostMessageW(send_hwnd.0, WM_APP_REPAINT, WPARAM(0), LPARAM(0));
                     }
                 }
                 log::info!("ConPTY output thread finished");
@@ -255,12 +257,10 @@ pub fn cleanup_terminal() {
     log::info!("cleanup_terminal: Starting cleanup");
     let data_arc = get_terminal_data();
     let mut data = data_arc.lock().unwrap();
-    if let Some(_conpty) = data.service.take_conpty() {
-        log::info!("ConPTY instance found, will be dropped and cleaned up");
-        // Drop happens automatically
-    } else {
-        log::info!("No ConPTY instance to clean up");
-    }
+    // TerminalServiceが差し替えられる（古いサービスがドロップされる）際に、
+    // 内部のリポジトリ経由でConPTYもドロップされる。
+    data.reset_service();
+    log::info!("TerminalService reset in cleanup_terminal");
 }
 
 extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {

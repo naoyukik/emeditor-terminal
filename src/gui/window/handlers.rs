@@ -317,15 +317,16 @@ pub fn on_destroy() -> LRESULT {
     log::info!("WM_DESTROY: Cleaning up terminal resources");
     KeyboardHook::uninstall_global();
 
+    // 先にグローバルデータをリセット（ConPTY解放を含む）
+    super::cleanup_terminal();
+
     let data_arc = get_terminal_data();
     let mut data = data_arc.lock().unwrap();
 
     data.window_handle = None;
     data.renderer.clear_resources();
 
-    if let Some(_conpty) = data.service.take_conpty() {
-        log::info!("ConPTY will be dropped and cleaned up");
-    }
+    log::info!("Terminal resources cleared");
     LRESULT(0)
 }
 
