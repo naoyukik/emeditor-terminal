@@ -15,8 +15,8 @@
     - `src/domain/repository/configuration_repository.rs`: 設定情報（フォント、色、動作設定）の取得を抽象化。
 
 2.  **Infra層での実装**
-    - `src/infra/repository/conpty_repository.rs`: `TerminalOutputRepository` を実装し、内部で `ConPTY` を制御する。
-    - `src/infra/repository/emeditor_config_repository.rs`: `ConfigurationRepository` を実装し、EmEditorの設定情報を取得する。
+    - `src/infra/repository/conpty_repository_impl.rs`: `TerminalOutputRepository` を実装し、内部で `ConPTY` を制御する。
+    - `src/infra/repository/emeditor_config_repository_impl.rs`: `ConfigurationRepository` を実装し、EmEditorの設定情報を取得する。
 
 3.  **Application層へのDI**
     - `TerminalService` のコンストラクタを変更し、`Box<dyn TerminalOutputRepository>` および `Box<dyn ConfigurationRepository>` を受け取るようにする。

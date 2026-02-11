@@ -46,6 +46,6 @@ GUI層での初期化処理を修正し、全体の動作を確認する。
     - [x] `TerminalService` 生成時に具象リポジトリを注入するように変更
 - [x] Task: ビルドと基本的な動作確認
     - [x] 文字入力、リサイズが正しく動作することを確認
-- [x] Task: ユニットテストの追加
-    - [x] Mockリポジトリを用いた `TerminalService` のテストを追加
+- [ ] Task: ユニットテストの追加
+    - [ ] Mockリポジトリを用いた `TerminalService` のテストを追加
 - [x] Task: Conductor - User Manual Verification 'Phase 4: 統合と動作検証' (Protocol in workflow.md)
