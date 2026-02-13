@@ -51,6 +51,9 @@ description: Operates JetBrains IDEs (IntelliJ, etc.) via MCP. Supports project 
 | `execute_run_configuration` | 構成の実行 | 修正後の動作確認に使用 |
 | `execute_terminal_command` | 任意コマンドの実行 | `rm -rf` 等の破壊的コマンドには細心の注意 |
 
+- **execute_terminal_command**については基本的に使用しない。run_sell_commandでどうしても実行できない場合、ユーザーに確認を取ってから使用すること。
+
+
 # ワークフロー例
 
 ### ステップ：精密なコード修正

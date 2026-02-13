@@ -1,5 +1,5 @@
 ---
-name: think
+name: sequential-thinking
 description: You have access to a "think" tool that provides a dedicated space for structured reasoning. Using this tool significantly improves your performance on complex tasks.
 ---
 

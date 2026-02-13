@@ -13,6 +13,7 @@ https://github.com/naoyukik/emeditor-terminal
   - **重要**: `git add .` および `git add -A` の使用は固く禁ずる。ファイルは必ず個別に指定すること。
   - コミットメッセージの形式（Conventional Commits + チケット番号）。
 - **Issue 作成ガイドライン**: [`conductor/github_issue.md`](conductor/github_issue.md)
+- **動作ログ**: `$env:TEMP\emeditor_terminal.log` を確認すること。
 
 ## 開発参考資料
 - EmEditor Plugin SDK: [EmEditor Plugin SDK 公式ドキュメント](https://www.emeditor.com/sdk/)
