@@ -23,6 +23,9 @@ impl KeyTranslator for VtSequenceTranslator {
         let alt = key.modifiers.alt;
 
         // Win32 Virtual-Key Codes (一部抜粋、実装に必要なもの)
+        // Note: ここで定数を手動定義しているのは、Domain層が windows クレートに依存しないようにするためです。
+        // windows::Win32::UI::Input::KeyboardAndMouse の定数と同じ値を使用していますが、
+        // 依存関係を持たせないために意図的に再定義しています。
         const VK_BACK: u16 = 0x08;
         const VK_TAB: u16 = 0x09;
         const VK_RETURN: u16 = 0x0D;

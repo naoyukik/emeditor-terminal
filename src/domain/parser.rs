@@ -1,11 +1,11 @@
 use crate::domain::terminal::{TerminalAttribute, TerminalBuffer, TerminalColor};
 
-pub struct AnsiParser {
+pub(crate) struct AnsiParser {
     incomplete_sequence: String,
 }
 
 impl AnsiParser {
-    pub fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self {
             incomplete_sequence: String::new(),
         }
@@ -19,7 +19,7 @@ impl Default for AnsiParser {
 }
 
 impl AnsiParser {
-    pub fn parse(&mut self, s: &str, buffer: &mut TerminalBuffer) {
+    pub(crate) fn parse(&mut self, s: &str, buffer: &mut TerminalBuffer) {
         let input = if !self.incomplete_sequence.is_empty() {
             let mut combined = std::mem::take(&mut self.incomplete_sequence);
             combined.push_str(s);
