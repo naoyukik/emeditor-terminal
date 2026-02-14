@@ -7,9 +7,12 @@ pub struct TerminalService {
     pub(crate) buffer: TerminalBuffer,
     parser: AnsiParser,
     output_repo: Box<dyn TerminalOutputRepository>,
+    #[allow(dead_code)]
     config_repo: Box<dyn ConfigurationRepository>,
     // キャッシュされた設定情報
+    #[allow(dead_code)]
     font_face: String,
+    #[allow(dead_code)]
     font_size: i32,
 }
 
@@ -54,15 +57,18 @@ impl TerminalService {
     }
 
     /// 設定を最新状態に更新する
+    #[allow(dead_code)]
     pub fn refresh_config(&mut self) {
         self.font_face = self.config_repo.get_font_face();
         self.font_size = self.config_repo.get_font_size();
     }
 
+    #[allow(dead_code)]
     pub fn get_font_face(&self) -> &str {
         &self.font_face
     }
 
+    #[allow(dead_code)]
     pub fn get_font_size(&self) -> i32 {
         self.font_size
     }
