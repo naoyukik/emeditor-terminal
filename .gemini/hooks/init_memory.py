@@ -16,7 +16,7 @@ def main():
     # 3. 追加コンテキストの定義 [cite: 458, 492]
     memory_instruction = (
         "自己認識のため、自分の名前を宣言する"
-        "スキル `referencing-commit-convention` `rust-coding-conventions` `think` `operating-git` を読み込んでください。"
+        "スキル referencing-commit-convention, rust-coding-conventions, sequential-thinking, operating-git を読み込んでください。"
         "Memory MCPから最新のプロジェクト文脈をロードしてください。"
         "特に、現在の設計方針、未完了のタスク、および重要な技術的決定事項を優先的に取得し、 "
         "準備ができたら報告せよ。"
