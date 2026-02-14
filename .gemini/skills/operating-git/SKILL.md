@@ -1,5 +1,5 @@
 ---
-name: operating-code
+name: operating-git
 description: Git操作のガイドラインです。Gitコマンドを使用する際の規則が書かれているので、必ずこのスキルを参照してください。
 ---
 

@@ -1,12 +1,18 @@
 {
+  "$schema": "https://raw.githubusercontent.com/google-gemini/gemini-cli/main/schemas/settings.schema.json",
   "tools": {
     "exclude": [
       "jetbrains__find_files_by_glob",
       "jetbrains__find_files_by_name_keyword",
       "jetbrains__search_in_files_by_regex",
-      "jetbrains__search_in_files_by_text"
+      "jetbrains__search_in_files_by_text",
+      "ShellTool(git add .)"
     ],
     "allowed": [
+      "activate_skill(referencing-commit-convention)",
+      "activate_skill(sequential-thinking)",
+      "activate_skill(rust-coding-conventions)",
+      "activate_skill(operating-git)",
       "LSTool",
       "GrepTool",
       "GlobTool",
@@ -34,10 +40,9 @@
       "ShellTool(tail)",
       "ShellTool(mkdir)",
       "ShellTool(Test-Path)",
-      "ShellTool(Get-Content sdk/)",
-      "ShellTool(Get-Content conductor/)",
-      "ShellTool(Get-Content \"$env:TEMP\\emeditor_terminal.log\")",
+      "ShellTool(Get-Content)",
       "ShellTool(New-Item -ItemType Directory -Path conductor/)",
+      "ShellTool(pwsh -ExecutionPolicy Bypass -File .\\install.ps1)",
       "ShellTool(Add-Content conductor/)",
       "ShellTool(.\\gradlew buildPlugin)",
       "ShellTool(.\\gradlew compileKotlin)",
@@ -131,8 +136,21 @@
           {
             "name": "check-ampersand",
             "type": "command",
-            "command": "$PYTHON_COMMAND ./.gemini/hooks/detect_double_ampersand.py",
+            "command": "$PYTHON_COMMAND $GEMINI_PROJECT_DIR/.gemini/hooks/detect_double_ampersand.py",
             "description": "PowerShellでの&&利用を制限する"
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "matcher": "startup",
+        "hooks": [
+          {
+            "name": "python-memory-loader",
+            "type": "command",
+            "command": "$PYTHON_COMMAND $GEMINI_PROJECT_DIR/.gemini/hooks/init_memory.py",
+            "description": "汎用的なメモリロード・フック"
           }
         ]
       }
