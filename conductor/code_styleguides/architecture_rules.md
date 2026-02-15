@@ -53,3 +53,17 @@ Presentation ───→ Application ───→ Domain ←─── Infrastru
           (描画・IME)                                   (ConPTY・Editor)
 ```
 ※ `_gui_driver` と `_io_driver` は実装詳細であり、各境界の「最外周」に位置する。
+
+## **6. ユビキタス言語辞典 (Ubiquitous Language Dictionary)**
+
+特定の文脈において、以下の命名を「正しいドメイン用語」として強制する。
+
+| 概念 | 推奨される名称 | 除外すべき汎用名 |
+| :--- | :--- | :--- |
+| ウィンドウ共有データ | `window_data` | `data` |
+| 入力用バイト列 | `input_bytes` | `data`, `buf` |
+| 文字属性（太字等） | `is_bold`, `is_italic` 等 | `bold`, `italic` (形容詞単体) |
+| 可視性状態 | `is_visible` | `visible` |
+| キー押下状態 | `is_ctrl_pressed` 等 | `ctrl`, `shift` (単一名) |
+| スクロール位置 | `viewport_offset`, `scroll_pos` | `pos`, `offset` |
+| 履歴・バックバッファ | `history`, `back_buffer` | `old_data`, `cache` |
