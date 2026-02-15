@@ -465,7 +465,7 @@ impl TerminalRenderer {
                 let _ = SelectObject(hdc, old_pen);
                 let _ = DeleteObject(HGDIOBJ(pen.0));
             } else {
-                log::error!("TerminalRenderer: Failed to create pen for composition is_underline");
+                log::error!("TerminalRenderer: Failed to create pen for composition underline");
             }
         }
     }
