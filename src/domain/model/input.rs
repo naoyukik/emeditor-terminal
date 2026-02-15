@@ -1,18 +1,18 @@
 /// 修飾キーの状態を表す構造体
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Modifiers {
-    pub ctrl: bool,
-    pub shift: bool,
-    pub alt: bool,
+    pub is_ctrl_pressed: bool,
+    pub is_shift_pressed: bool,
+    pub is_alt_pressed: bool,
 }
 
 impl Modifiers {
     #[allow(dead_code)]
     pub fn none() -> Self {
         Self {
-            ctrl: false,
-            shift: false,
-            alt: false,
+            is_ctrl_pressed: false,
+            is_shift_pressed: false,
+            is_alt_pressed: false,
         }
     }
 }

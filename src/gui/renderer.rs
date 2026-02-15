@@ -293,28 +293,28 @@ impl TerminalRenderer {
 
                         if !wide_run.is_empty() {
                             let mut style_mask = 0;
-                            if start_attr.bold {
+                            if start_attr.is_bold {
                                 style_mask |= STYLE_BOLD;
                             }
-                            if start_attr.italic {
+                            if start_attr.is_italic {
                                 style_mask |= STYLE_ITALIC;
                             }
-                            if start_attr.underline {
+                            if start_attr.is_underline {
                                 style_mask |= STYLE_UNDERLINE;
                             }
-                            if start_attr.strikethrough {
+                            if start_attr.is_strikethrough {
                                 style_mask |= STYLE_STRIKEOUT;
                             }
 
                             let h_font = self.get_font_for_style(hdc, style_mask);
                             let old_font = SelectObject(hdc, HGDIOBJ(h_font.0));
 
-                            let fg = if start_attr.inverse {
+                            let fg = if start_attr.is_inverse {
                                 start_attr.bg
                             } else {
                                 start_attr.fg
                             };
-                            let bg = if start_attr.inverse {
+                            let bg = if start_attr.is_inverse {
                                 start_attr.fg
                             } else {
                                 start_attr.bg
@@ -324,7 +324,7 @@ impl TerminalRenderer {
                             let bg_colorref = self.color_to_colorref(bg, true);
 
                             // Dim属性が有効な場合は、COLORREFのRGB成分を用いて輝度を低減する
-                            if start_attr.dim {
+                            if start_attr.is_dim {
                                 let raw = fg_colorref.0;
                                 // COLORREFは通常0x00BBGGRR形式
                                 let r = (raw & 0x000000FF) as u8 / 2;
@@ -465,7 +465,7 @@ impl TerminalRenderer {
                 let _ = SelectObject(hdc, old_pen);
                 let _ = DeleteObject(HGDIOBJ(pen.0));
             } else {
-                log::error!("TerminalRenderer: Failed to create pen for composition underline");
+                log::error!("TerminalRenderer: Failed to create pen for composition is_underline");
             }
         }
     }

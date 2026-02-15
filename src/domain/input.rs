@@ -18,9 +18,9 @@ impl VtSequenceTranslator {
 impl KeyTranslator for VtSequenceTranslator {
     fn translate(&self, key: InputKey) -> Option<Vec<u8>> {
         let vk_code = key.vk_code;
-        let ctrl = key.modifiers.ctrl;
-        let shift = key.modifiers.shift;
-        let alt = key.modifiers.alt;
+        let ctrl = key.modifiers.is_ctrl_pressed;
+        let shift = key.modifiers.is_shift_pressed;
+        let alt = key.modifiers.is_alt_pressed;
 
         // Win32 Virtual-Key Codes (一部抜粋、実装に必要なもの)
         // Note: ここで定数を手動定義しているのは、Domain層が windows クレートに依存しないようにするためです。
@@ -178,9 +178,9 @@ mod tests {
         let key_a = InputKey::new(
             0x41,
             Modifiers {
-                ctrl: true,
-                shift: false,
-                alt: false,
+                is_ctrl_pressed: true,
+                is_shift_pressed: false,
+                is_alt_pressed: false,
             },
         );
         assert_eq!(translator.translate(key_a), Some(vec![1]));
@@ -189,9 +189,9 @@ mod tests {
         let key_c = InputKey::new(
             0x43,
             Modifiers {
-                ctrl: true,
-                shift: false,
-                alt: false,
+                is_ctrl_pressed: true,
+                is_shift_pressed: false,
+                is_alt_pressed: false,
             },
         );
         assert_eq!(translator.translate(key_c), Some(vec![3]));
@@ -204,9 +204,9 @@ mod tests {
         let key_ctrl_alt_a = InputKey::new(
             0x41,
             Modifiers {
-                ctrl: true,
-                shift: false,
-                alt: true,
+                is_ctrl_pressed: true,
+                is_shift_pressed: false,
+                is_alt_pressed: true,
             },
         );
         assert_eq!(translator.translate(key_ctrl_alt_a), None);
@@ -219,9 +219,9 @@ mod tests {
         let key_alt_a = InputKey::new(
             0x41,
             Modifiers {
-                ctrl: false,
-                shift: false,
-                alt: true,
+                is_ctrl_pressed: false,
+                is_shift_pressed: false,
+                is_alt_pressed: true,
             },
         );
         assert_eq!(translator.translate(key_alt_a), Some(vec![0x1B, b'a']));
@@ -230,9 +230,9 @@ mod tests {
         let key_alt_shift_a = InputKey::new(
             0x41,
             Modifiers {
-                ctrl: false,
-                shift: true,
-                alt: true,
+                is_ctrl_pressed: false,
+                is_shift_pressed: true,
+                is_alt_pressed: true,
             },
         );
         assert_eq!(
@@ -244,9 +244,9 @@ mod tests {
         let key_alt_1 = InputKey::new(
             0x31,
             Modifiers {
-                ctrl: false,
-                shift: false,
-                alt: true,
+                is_ctrl_pressed: false,
+                is_shift_pressed: false,
+                is_alt_pressed: true,
             },
         );
         assert_eq!(translator.translate(key_alt_1), Some(vec![0x1B, b'1']));
@@ -279,9 +279,9 @@ mod tests {
         let ctrl_up = InputKey::new(
             0x26,
             Modifiers {
-                ctrl: true,
-                shift: false,
-                alt: false,
+                is_ctrl_pressed: true,
+                is_shift_pressed: false,
+                is_alt_pressed: false,
             },
         );
         assert_eq!(translator.translate(ctrl_up), Some(b"\x1b[1;5A".to_vec()));
@@ -290,9 +290,9 @@ mod tests {
         let alt_up = InputKey::new(
             0x26,
             Modifiers {
-                ctrl: false,
-                shift: false,
-                alt: true,
+                is_ctrl_pressed: false,
+                is_shift_pressed: false,
+                is_alt_pressed: true,
             },
         );
         assert_eq!(translator.translate(alt_up), Some(b"\x1b[1;3A".to_vec()));
@@ -329,9 +329,9 @@ mod tests {
         let shift = InputKey::new(
             0x10,
             Modifiers {
-                ctrl: false,
-                shift: true,
-                alt: false,
+                is_ctrl_pressed: false,
+                is_shift_pressed: true,
+                is_alt_pressed: false,
             },
         );
         assert_eq!(translator.translate(shift), None);

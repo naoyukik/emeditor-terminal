@@ -126,9 +126,9 @@ extern "system" fn keyboard_hook_proc(code: i32, wparam: WPARAM, lparam: LPARAM)
                         let input_key = InputKey::new(
                             vk_code,
                             Modifiers {
-                                ctrl: ctrl_pressed,
-                                shift: shift_pressed,
-                                alt: alt_pressed,
+                                is_ctrl_pressed: ctrl_pressed,
+                                is_shift_pressed: shift_pressed,
+                                is_alt_pressed: alt_pressed,
                             },
                         );
 

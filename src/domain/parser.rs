@@ -308,12 +308,12 @@ impl AnsiParser {
             }
             'h' => {
                 if params == "?25" {
-                    buffer.cursor.visible = true;
+                    buffer.cursor.is_visible = true;
                 }
             }
             'l' => {
                 if params == "?25" {
-                    buffer.cursor.visible = false;
+                    buffer.cursor.is_visible = false;
                 }
             }
             'r' => {
@@ -358,20 +358,20 @@ impl AnsiParser {
             let p = parts[i].parse::<u8>().unwrap_or(0);
             match p {
                 0 => buffer.current_attribute = TerminalAttribute::default(),
-                1 => buffer.current_attribute.bold = true,
-                2 => buffer.current_attribute.dim = true,
-                3 => buffer.current_attribute.italic = true,
-                4 => buffer.current_attribute.underline = true,
-                7 => buffer.current_attribute.inverse = true,
-                9 => buffer.current_attribute.strikethrough = true,
+                1 => buffer.current_attribute.is_bold = true,
+                2 => buffer.current_attribute.is_dim = true,
+                3 => buffer.current_attribute.is_italic = true,
+                4 => buffer.current_attribute.is_underline = true,
+                7 => buffer.current_attribute.is_inverse = true,
+                9 => buffer.current_attribute.is_strikethrough = true,
                 22 => {
-                    buffer.current_attribute.bold = false;
-                    buffer.current_attribute.dim = false;
+                    buffer.current_attribute.is_bold = false;
+                    buffer.current_attribute.is_dim = false;
                 }
-                23 => buffer.current_attribute.italic = false,
-                24 => buffer.current_attribute.underline = false,
-                27 => buffer.current_attribute.inverse = false,
-                29 => buffer.current_attribute.strikethrough = false,
+                23 => buffer.current_attribute.is_italic = false,
+                24 => buffer.current_attribute.is_underline = false,
+                27 => buffer.current_attribute.is_inverse = false,
+                29 => buffer.current_attribute.is_strikethrough = false,
                 30..=37 => buffer.current_attribute.fg = TerminalColor::Ansi(p - 30),
                 38 => {
                     i += 1;
