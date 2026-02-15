@@ -11,7 +11,7 @@ use windows::Win32::Graphics::Gdi::{
 };
 
 #[derive(Clone, Debug)]
-pub struct CompositionData {
+pub struct CompositionInfo {
     pub text: String,
 }
 
@@ -241,7 +241,7 @@ impl TerminalRenderer {
         hdc: HDC,
         client_rect: &RECT,
         buffer: &TerminalBuffer,
-        composition: Option<&CompositionData>,
+        composition: Option<&CompositionInfo>,
     ) {
         let _ = self.get_font_for_style(hdc, 0);
 
@@ -410,7 +410,7 @@ impl TerminalRenderer {
         y: i32,
         char_height: i32,
         base_width: i32,
-        comp: &CompositionData,
+        comp: &CompositionInfo,
     ) {
         let comp_wide: Vec<u16> = comp.text.encode_utf16().collect();
         let mut comp_dx = Vec::with_capacity(comp_wide.len());

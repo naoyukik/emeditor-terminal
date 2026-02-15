@@ -9,7 +9,7 @@ use windows::Win32::UI::Input::Ime::{
 use windows::Win32::UI::WindowsAndMessaging::SetCaretPos;
 
 use crate::application::TerminalService;
-use crate::gui::renderer::{CompositionData, TerminalRenderer};
+use crate::gui::renderer::{CompositionInfo, TerminalRenderer};
 
 /// Helper to update IME window position based on the terminal cursor
 pub fn update_window_position(hwnd: HWND, service: &TerminalService, renderer: &TerminalRenderer) {
@@ -74,7 +74,7 @@ pub fn handle_composition(
     lparam: LPARAM,
     service: &mut TerminalService,
     renderer: &TerminalRenderer,
-    composition: &mut Option<CompositionData>,
+    composition: &mut Option<CompositionInfo>,
 ) -> bool {
     log::debug!("WM_IME_COMPOSITION: lparam={:?}", lparam);
     let mut handled = false;
@@ -137,7 +137,7 @@ pub fn handle_composition(
                     if comp_str.is_empty() {
                         *composition = None;
                     } else {
-                        *composition = Some(CompositionData { text: comp_str });
+                        *composition = Some(CompositionInfo { text: comp_str });
                     }
 
                     let _ = InvalidateRect(hwnd, None, BOOL(0));
@@ -162,7 +162,7 @@ pub fn handle_start_composition(hwnd: HWND, service: &mut TerminalService) {
     }
 }
 
-pub fn handle_end_composition(hwnd: HWND, composition: &mut Option<CompositionData>) {
+pub fn handle_end_composition(hwnd: HWND, composition: &mut Option<CompositionInfo>) {
     log::debug!("WM_IME_ENDCOMPOSITION");
     // Ensure composition is cleared when IME ends
     *composition = None;

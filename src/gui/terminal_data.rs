@@ -1,5 +1,5 @@
 use crate::application::TerminalService;
-use crate::gui::renderer::{CompositionData, TerminalRenderer};
+use crate::gui::renderer::{CompositionInfo, TerminalRenderer};
 use crate::gui::scroll::ScrollManager;
 use crate::infra::repository::conpty_repository_impl::DummyOutputRepository;
 use crate::infra::repository::emeditor_config_repository_impl::EmEditorConfigRepositoryImpl;
@@ -27,7 +27,7 @@ pub struct TerminalData {
     pub service: TerminalService,
     pub renderer: TerminalRenderer,
     pub window_handle: Option<SendHWND>,
-    pub composition: Option<CompositionData>,
+    pub composition: Option<CompositionInfo>,
     pub scroll_manager: ScrollManager,
 }
 
