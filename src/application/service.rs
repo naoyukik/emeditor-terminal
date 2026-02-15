@@ -36,12 +36,12 @@ impl TerminalService {
         }
     }
 
-    pub fn process_output(&mut self, output: &str) {
-        self.parser.parse(output, &mut self.buffer);
+    pub fn process_output(&mut self, output_text: &str) {
+        self.parser.parse(output_text, &mut self.buffer);
     }
 
-    pub fn send_input(&self, data: &[u8]) -> std::io::Result<()> {
-        self.output_repo.send_input(data)
+    pub fn send_input(&self, input_bytes: &[u8]) -> std::io::Result<()> {
+        self.output_repo.send_input(input_bytes)
     }
 
     pub fn resize(&mut self, cols: usize, rows: usize) {
