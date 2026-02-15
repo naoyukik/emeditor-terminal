@@ -100,7 +100,7 @@ pub fn handle_composition(
                     // Send result string to ConPTY
                     let _ = service.send_input(result_str.as_bytes());
 
-                    // Clear composition data on commit
+                    // Clear composition information on commit
                     *composition = None;
 
                     let _ = InvalidateRect(hwnd, None, BOOL(0));

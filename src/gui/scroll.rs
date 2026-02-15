@@ -33,31 +33,31 @@ struct SCROLLINFO {
 
 pub fn update_window_scroll_info(hwnd: HWND) {
     let data_arc = get_terminal_data();
-    let mut data = data_arc.lock().unwrap();
+    let mut window_data = data_arc.lock().unwrap();
 
-    let history_count = data.service.get_history_count() as i32;
-    let viewport_offset = data.service.get_viewport_offset() as i32;
-    let height = data.service.buffer.height as i32;
+    let history_count = window_data.service.get_history_count() as i32;
+    let viewport_offset = window_data.service.get_viewport_offset() as i32;
+    let height = window_data.service.buffer.height as i32;
 
     // Update ScrollManager state
-    data.scroll_manager.min = 0;
+    window_data.scroll_manager.min = 0;
     // The scrollable range is [0, history_count]
     // The ScrollManager uses nMax = history + page - 1 logic internally if needed, or we set it here.
     // Let's align with existing logic: nMax = history_count + page_size - 1
     // And nPos = history_count - viewport_offset
 
     let page_size = height;
-    data.scroll_manager.max = history_count + page_size - 1;
-    data.scroll_manager.page = page_size as u32;
-    data.scroll_manager.pos = history_count - viewport_offset;
+    window_data.scroll_manager.max = history_count + page_size - 1;
+    window_data.scroll_manager.page = page_size as u32;
+    window_data.scroll_manager.pos = history_count - viewport_offset;
 
     let si = SCROLLINFO {
         cbSize: size_of::<SCROLLINFO>() as u32,
         fMask: SIF_ALL | SIF_DISABLENOSCROLL,
-        nMin: data.scroll_manager.min,
-        nMax: data.scroll_manager.max,
-        nPage: data.scroll_manager.page,
-        nPos: data.scroll_manager.pos,
+        nMin: window_data.scroll_manager.min,
+        nMax: window_data.scroll_manager.max,
+        nPage: window_data.scroll_manager.page,
+        nPos: window_data.scroll_manager.pos,
         nTrackPos: 0,
     };
 

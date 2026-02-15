@@ -48,12 +48,12 @@ fn start_conpty_and_reader_thread(hwnd: HWND, cols: i16, rows: i16) -> bool {
             // SendHandle is Copy, so we can pass a copy to the thread.
 
             {
-                let mut data = data_arc.lock().unwrap();
+                let mut window_data = data_arc.lock().unwrap();
                 let output_repo = Box::new(crate::infra::repository::conpty_repository_impl::ConptyRepositoryImpl::new(conpty));
                 let config_repo = Box::new(crate::infra::repository::emeditor_config_repository_impl::EmEditorConfigRepositoryImpl::new());
                 
                 // 新しいリポジトリでサービスを再構築する（DI）
-                data.service = crate::application::TerminalService::new(
+                window_data.service = crate::application::TerminalService::new(
                     cols as usize,
                     rows as usize,
                     output_repo,
@@ -95,8 +95,8 @@ fn start_conpty_and_reader_thread(hwnd: HWND, cols: i16, rows: i16) -> bool {
                     log::debug!("ConPTY Output: {}", output);
 
                     {
-                        let mut data = data_arc.lock().unwrap();
-                        data.service.process_output(&output);
+                        let mut window_data = data_arc.lock().unwrap();
+                        window_data.service.process_output(&output);
                     }
 
                     // Trigger repaint via PostMessage (thread-safe)
@@ -122,8 +122,8 @@ pub fn open_custom_bar(hwnd_editor: HWND) -> bool {
         // Check if already open
         let data_arc = get_terminal_data();
         {
-            let data = data_arc.lock().unwrap();
-            if let Some(h) = data.window_handle {
+            let window_data = data_arc.lock().unwrap();
+            if let Some(h) = window_data.window_handle {
                 let _ = SetFocus(h.0);
                 return false;
             }
@@ -174,15 +174,15 @@ pub fn open_custom_bar(hwnd_editor: HWND) -> bool {
 
                 // Store window handle immediately
                 {
-                    let mut data = data_arc.lock().unwrap();
+                    let mut window_data = data_arc.lock().unwrap();
                     // Double check if another window was created concurrently (unlikely in UI thread but safe)
-                    if let Some(h) = data.window_handle {
+                    if let Some(h) = window_data.window_handle {
                         // Another window exists, destroy this one and focus the existing one
                         let _ = windows::Win32::UI::WindowsAndMessaging::DestroyWindow(hwnd_client);
                         let _ = SetFocus(h.0);
                         return false;
                     }
-                    data.window_handle = Some(SendHWND(hwnd_client));
+                    window_data.window_handle = Some(SendHWND(hwnd_client));
                 }
 
                 let mut info = CUSTOM_BAR_INFO {
@@ -210,9 +210,9 @@ pub fn open_custom_bar(hwnd_editor: HWND) -> bool {
                 let height_px = client_rect.bottom - client_rect.top;
 
                 let (initial_cols, initial_rows) = if width_px > 0 && height_px > 0 {
-                    let data = data_arc.lock().unwrap();
+                    let window_data = data_arc.lock().unwrap();
                     let (char_width, char_height) =
-                        if let Some(metrics) = data.renderer.get_metrics() {
+                        if let Some(metrics) = window_data.renderer.get_metrics() {
                             (metrics.base_width, metrics.char_height)
                         } else {
                             (8, 16) // Fallback
@@ -247,19 +247,19 @@ pub fn is_system_shortcut(vk_code: u16, alt_pressed: bool) -> bool {
 #[allow(dead_code)]
 pub fn send_input(text: &str) {
     let data_arc = get_terminal_data();
-    let data = data_arc.lock().unwrap();
-    let _ = data.service.send_input(text.as_bytes());
+    let window_data = data_arc.lock().unwrap();
+    let _ = window_data.service.send_input(text.as_bytes());
     // 改行を送る
-    let _ = data.service.send_input(b"\r");
+    let _ = window_data.service.send_input(b"\r");
 }
 
 pub fn cleanup_terminal() {
     log::info!("cleanup_terminal: Starting cleanup");
     let data_arc = get_terminal_data();
-    let mut data = data_arc.lock().unwrap();
+    let mut window_data = data_arc.lock().unwrap();
     // TerminalServiceが差し替えられる（古いサービスがドロップされる）際に、
     // 内部のリポジトリ経由でConPTYもドロップされる。
-    data.reset_service();
+    window_data.reset_service();
     log::info!("TerminalService reset in cleanup_terminal");
 }
 

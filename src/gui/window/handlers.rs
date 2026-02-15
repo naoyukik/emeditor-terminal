@@ -13,25 +13,25 @@ const ISC_SHOWUICOMPOSITIONWINDOW: u32 = 0x80000000;
 pub fn on_vscroll(hwnd: HWND, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
     let data_arc = get_terminal_data();
     let action = {
-        let mut data = data_arc.lock().unwrap();
+        let mut window_data = data_arc.lock().unwrap();
 
         // Sync state before handling
-        let history_count = data.service.get_history_count() as i32;
-        let height = data.service.buffer.height as i32;
-        data.scroll_manager.max = history_count + height - 1;
-        data.scroll_manager.page = height as u32;
+        let history_count = window_data.service.get_history_count() as i32;
+        let height = window_data.service.buffer.height as i32;
+        window_data.scroll_manager.max = history_count + height - 1;
+        window_data.scroll_manager.page = height as u32;
 
-        data.scroll_manager.handle_vscroll(wparam.0, lparam.0)
+        window_data.scroll_manager.handle_vscroll(wparam.0, lparam.0)
     };
 
     match action {
         ScrollAction::ScrollTo(pos) => {
-            let mut data = data_arc.lock().unwrap();
-            data.service.scroll_to(pos);
+            let mut window_data = data_arc.lock().unwrap();
+            window_data.service.scroll_to(pos);
         }
         ScrollAction::ScrollBy(delta) => {
-            let mut data = data_arc.lock().unwrap();
-            data.service.scroll_lines(delta);
+            let mut window_data = data_arc.lock().unwrap();
+            window_data.service.scroll_lines(delta);
         }
         _ => {}
     }
@@ -46,13 +46,13 @@ pub fn on_vscroll(hwnd: HWND, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
 pub fn on_mousewheel(hwnd: HWND, wparam: WPARAM) -> LRESULT {
     let data_arc = get_terminal_data();
     let action = {
-        let data = data_arc.lock().unwrap();
-        data.scroll_manager.handle_mousewheel(wparam.0)
+        let window_data = data_arc.lock().unwrap();
+        window_data.scroll_manager.handle_mousewheel(wparam.0)
     };
 
     if let ScrollAction::ScrollBy(lines) = action {
-        let mut data = data_arc.lock().unwrap();
-        data.service.scroll_lines(lines);
+        let mut window_data = data_arc.lock().unwrap();
+        window_data.service.scroll_lines(lines);
     }
 
     update_window_scroll_info(hwnd);
@@ -68,7 +68,7 @@ pub fn on_paint(hwnd: HWND) -> LRESULT {
         let hdc = BeginPaint(hwnd, &mut ps);
 
         let data_arc = get_terminal_data();
-        let mut data = data_arc.lock().unwrap();
+        let mut window_data = data_arc.lock().unwrap();
 
         let mut client_rect = windows::Win32::Foundation::RECT::default();
         let _ = windows::Win32::UI::WindowsAndMessaging::GetClientRect(hwnd, &mut client_rect);
@@ -78,7 +78,7 @@ pub fn on_paint(hwnd: HWND) -> LRESULT {
             ref mut renderer,
             ref composition,
             ..
-        } = *data;
+        } = *window_data;
 
         renderer.render(hdc, &client_rect, &service.buffer, composition.as_ref());
 
@@ -99,15 +99,15 @@ pub fn on_set_focus(hwnd: HWND) -> LRESULT {
     log::info!("WM_SETFOCUS: Focus received, installing keyboard hook");
 
     // Note: TERMINAL_HWND logic was specific to where it's defined.
-    // If we need it, we should move it to infra/input.rs or terminal_data.rs
+    // If we need it, we should move it to infra/input.rs or terminal_window_data.rs
     // But infra/input.rs manages hook instance now.
     // Let's assume infra/input sets its own target hwnd on install.
     // The previous implementation had a separate TERMINAL_HWND in window.rs.
     // For caret creation:
 
     let data_arc = get_terminal_data();
-    let data = data_arc.lock().unwrap();
-    let char_height = data
+    let window_data = data_arc.lock().unwrap();
+    let char_height = window_data
         .renderer
         .get_metrics()
         .map(|m| m.char_height)
@@ -220,10 +220,10 @@ pub fn on_char(hwnd: HWND, wparam: WPARAM) -> LRESULT {
 
     {
         let data_arc = get_terminal_data();
-        let mut data = data_arc.lock().unwrap();
-        data.service.reset_viewport();
+        let mut window_data = data_arc.lock().unwrap();
+        window_data.service.reset_viewport();
         let s = String::from_utf16_lossy(&[char_code]);
-        let _ = data.service.send_input(s.as_bytes());
+        let _ = window_data.service.send_input(s.as_bytes());
     }
     update_window_scroll_info(hwnd);
     unsafe {
@@ -240,9 +240,9 @@ pub fn on_size(hwnd: HWND, lparam: LPARAM) -> LRESULT {
 
     {
         let data_arc = get_terminal_data();
-        let mut data = data_arc.lock().unwrap();
+        let mut window_data = data_arc.lock().unwrap();
 
-        let (char_width, char_height) = if let Some(metrics) = data.renderer.get_metrics() {
+        let (char_width, char_height) = if let Some(metrics) = window_data.renderer.get_metrics() {
             (metrics.base_width, metrics.char_height)
         } else {
             (8, 16)
@@ -253,7 +253,7 @@ pub fn on_size(hwnd: HWND, lparam: LPARAM) -> LRESULT {
 
         log::info!("Resizing ConPTY to cols={}, rows={}", cols, rows);
 
-        data.service.resize(cols as usize, rows as usize);
+        window_data.service.resize(cols as usize, rows as usize);
     }
 
     update_window_scroll_info(hwnd);
@@ -274,8 +274,8 @@ pub fn on_ime_set_context(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM) 
 pub fn on_ime_start_composition(hwnd: HWND) -> LRESULT {
     {
         let data_arc = get_terminal_data();
-        let mut data = data_arc.lock().unwrap();
-        crate::gui::ime::handle_start_composition(hwnd, &mut data.service);
+        let mut window_data = data_arc.lock().unwrap();
+        crate::gui::ime::handle_start_composition(hwnd, &mut window_data.service);
     }
     update_window_scroll_info(hwnd);
 
@@ -285,8 +285,8 @@ pub fn on_ime_start_composition(hwnd: HWND) -> LRESULT {
 pub fn on_ime_composition(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
     let handled = {
         let data_arc = get_terminal_data();
-        let mut data = data_arc.lock().unwrap();
-        let data_inner = &mut *data;
+        let mut window_data = data_arc.lock().unwrap();
+        let data_inner = &mut *window_data;
 
         crate::gui::ime::handle_composition(
             hwnd,
@@ -307,8 +307,8 @@ pub fn on_ime_composition(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM) 
 pub fn on_ime_end_composition(hwnd: HWND) -> LRESULT {
     {
         let data_arc = get_terminal_data();
-        let mut data = data_arc.lock().unwrap();
-        crate::gui::ime::handle_end_composition(hwnd, &mut data.composition);
+        let mut window_data = data_arc.lock().unwrap();
+        crate::gui::ime::handle_end_composition(hwnd, &mut window_data.composition);
     }
     LRESULT(0)
 }
@@ -321,10 +321,10 @@ pub fn on_destroy() -> LRESULT {
     super::cleanup_terminal();
 
     let data_arc = get_terminal_data();
-    let mut data = data_arc.lock().unwrap();
+    let mut window_data = data_arc.lock().unwrap();
 
-    data.window_handle = None;
-    data.renderer.clear_resources();
+    window_data.window_handle = None;
+    window_data.renderer.clear_resources();
 
     log::info!("Terminal resources cleared");
     LRESULT(0)
