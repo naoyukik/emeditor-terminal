@@ -99,7 +99,7 @@ pub fn on_set_focus(hwnd: HWND) -> LRESULT {
     log::info!("WM_SETFOCUS: Focus received, installing keyboard hook");
 
     // Note: TERMINAL_HWND logic was specific to where it's defined.
-    // If we need it, we should move it to infra/input.rs or terminal_window_data.rs
+    // If we need it, we should move it to infra/input.rs or terminal_data.rs
     // But infra/input.rs manages hook instance now.
     // Let's assume infra/input sets its own target hwnd on install.
     // The previous implementation had a separate TERMINAL_HWND in window.rs.
