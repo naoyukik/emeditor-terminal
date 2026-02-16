@@ -1,9 +1,36 @@
 # Implementation Plan - Track 52: ファイル名と構造体名の一致 (Strict Rigid版)
 
 ## Phase 1: 物理構造の監査とマッピング
-- [ ] Task: プロジェクト全域の監査。構造体名とファイル名が一致していない箇所、および `mod.rs` 内にロジックが残っている箇所をリストアップする。
-- [ ] Task: 構造体名の一致を優先する順序を確定させ、依存関係のループが発生しないよう変更順序を計画する。
-- [ ] Task: 変更内容のコミット
+- [x] Task: プロジェクト全域の監査。構造体名とファイル名が一致していない箇所、および `mod.rs` 内にロジックが残っている箇所をリストアップする。
+- [x] Task: 構造体名の一致を優先する順序を確定させ、依存関係のループが発生しないよう変更順序を計画する。
+
+### 監査・マッピング結果 (Phase 1)
+
+| 現在のファイル | 含まれる構造体・型 | 新ファイル名 (サフィックスルール) | レイヤー |
+| :--- | :--- | :--- | :--- |
+| `src/domain/terminal.rs` | `TerminalColor` | `src/domain/model/terminal_color_value.rs` | Domain (Value) |
+| | `TerminalAttribute` | `src/domain/model/terminal_attribute_value.rs` | Domain (Value) |
+| | `Cell` | `src/domain/model/cell_value.rs` | Domain (Value) |
+| | `Cursor` | `src/domain/model/cursor_entity.rs` | Domain (Entity) |
+| | `TerminalBuffer` | `src/domain/model/terminal_buffer_entity.rs` | Domain (Entity) |
+| `src/domain/parser.rs` | `AnsiParser` | `src/domain/service/ansi_parser_domain_service.rs` | Domain Service |
+| `src/domain/input.rs` | `KeyTranslator` (Trait) | `src/domain/repository/key_translator_repository.rs` | Domain Repository |
+| | `VtSequenceTranslator` | `src/domain/service/vt_sequence_translator_domain_service.rs` | Domain Service |
+| `src/domain/model/input.rs`| `Modifiers` | `src/domain/model/input_modifiers_value.rs` | Domain (Value) |
+| | `InputKey` | `src/domain/model/input_key_value.rs` | Domain (Value) |
+| `src/application/service.rs` | `TerminalService` | `src/application/terminal_workflow.rs` | Application (Workflow) |
+| `src/infra/conpty.rs` | `ConPTY` | `src/infra/driver/conpty_io_driver.rs` | Infrastructure (IO Driver) |
+| `src/infra/editor.rs` | `CUSTOM_BAR_INFO` | `src/infra/driver/emeditor_io_driver.rs` | Infrastructure (IO Driver) |
+| `src/infra/input.rs` | `KeyboardHook` | `src/infra/driver/keyboard_io_driver.rs` | Infrastructure (IO Driver) |
+| `src/gui/renderer.rs` | `TerminalRenderer` | `src/gui/driver/terminal_gui_driver.rs` | GUI (GUI Driver) |
+| | `CompositionInfo` | `src/gui/resolver/composition_info_resolver.rs` | GUI (Resolver) |
+| | `TerminalMetrics` | `src/gui/resolver/terminal_metrics_resolver.rs` | GUI (Resolver) |
+| `src/gui/scroll.rs` | `ScrollManager` | `src/gui/driver/scroll_gui_driver.rs` | GUI (GUI Driver) |
+| | `ScrollAction` | `src/gui/resolver/scroll_action_resolver.rs` | GUI (Resolver) |
+| `src/gui/terminal_data.rs` | `TerminalData` | `src/gui/resolver/terminal_window_resolver.rs` | GUI (Resolver) |
+| `src/gui/window/handlers.rs`| (wnd_proc logic) | `src/gui/resolver/window_message_resolver.rs` | GUI (Resolver) |
+
+- [x] Task: 変更内容のコミット
 - [ ] Task: Conductor - User Manual Verification 'Phase 1: マッピング承認' (Protocol in workflow.md)
 
 ## Phase 2: Domain層の物理的隔離 (Inside-Out)

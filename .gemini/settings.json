@@ -140,6 +140,17 @@
             "description": "PowerShellでの&&利用を制限する"
           }
         ]
+      },
+      {
+        "matcher": "write_file|replace_in_file|jetbrains__create_file",
+        "hooks": [
+          {
+            "name": "architecture-guard",
+            "type": "command",
+            "command": "python3 .gemini/hooks/validate_architecture.py",
+            "description": "バイブコーディング時の厳格なファイル命名規則を強制する"
+          }
+        ]
       }
     ],
     "SessionStart": [
