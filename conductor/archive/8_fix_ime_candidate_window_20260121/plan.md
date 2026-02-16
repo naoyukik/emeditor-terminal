@@ -11,7 +11,7 @@
 
 ## Phase 3: Inline Composition Implementation
 - [x] Task: 実装 - `WM_IME_COMPOSITION` ハンドラ内で `ImmGetCompositionStringW` を使用し、未確定文字列を取得するロジックを実装。**取得した文字列の内容と長さをログ出力すること。**
-- [x] Task: 実装 - 未確定文字列を保持する構造体 (`CompositionData`) を `TerminalData` に追加。
+- [x] Task: 実装 - 未確定文字列を保持する構造体 (`CompositionInfo`) を `TerminalData` に追加。
 - [x] Task: 実装 - `WM_PAINT` 処理を修正し、`TerminalData` に未確定文字列が存在する場合、カーソル位置にオーバーレイ描画するロジックを追加。**描画座標と対象文字列をログ出力すること。**
 - [ ] Task: テスト - 未確定文字列を含むバッファの描画テスト。
 - [ ] Task: Conductor - ユーザー手動検証 'Phase 3: Inline Composition Implementation' (Protocol in workflow.md)
