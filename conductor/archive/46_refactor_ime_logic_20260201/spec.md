@@ -12,7 +12,7 @@
     - `WM_IME_COMPOSITION` 等のメッセージ処理ロジック
 - **インターフェース設計**:
     - `ime.rs` はステートレスなヘルパー関数群を提供する。
-    - `wnd_proc` は `TerminalData` のロックを取得した後、必要なデータ（`TerminalService`, `CompositionData` への参照など）を `ime.rs` の関数に渡す。
+    - `wnd_proc` は `TerminalData` のロックを取得した後、必要なデータ（`TerminalService`, `CompositionInfo` への参照など）を `ime.rs` の関数に渡す。
 - **既存機能の維持**:
     - IME入力中の未確定文字列（Composition String）が正しく取得・表示されること。
     - 確定文字列（Result String）が正しく `TerminalService` に送信されること。
@@ -20,15 +20,15 @@
 
 ## Technical Implementation
 - **新規ファイル**: `src/gui/ime.rs` を作成。
-- **データ構造**: `CompositionData` は `src/gui/renderer.rs` に維持する。
+- **データ構造**: `CompositionInfo` は `src/gui/renderer.rs` に維持する。
 - **関数シグネチャ（例）**:
-    ```rust
+    ```text
     // src/gui/ime.rs
     pub fn handle_composition(
         hwnd: HWND,
         lparam: LPARAM,
         service: &mut TerminalService,
-        composition: &mut Option<CompositionData>
+        composition: &mut Option<CompositionInfo>
     ) -> bool; // 処理を行った場合 true, DefWindowProcへ流す場合 false
 
     pub fn handle_start_composition(hwnd: HWND, service: &mut TerminalService);
@@ -45,5 +45,5 @@
 - [ ] `cargo clippy` および `cargo test` がパスすること。
 
 ## Out of Scope
-- `CompositionData` 構造体の定義場所変更（Application層への移動など）。
+- `CompositionInfo` 構造体の定義場所変更（Application層への移動など）。
 - IME以外の入力処理（キーボードフックなど）のリファクタリング。

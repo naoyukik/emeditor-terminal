@@ -20,11 +20,11 @@ impl ConptyRepositoryImpl {
 }
 
 impl TerminalOutputRepository for ConptyRepositoryImpl {
-    fn send_input(&self, data: &[u8]) -> io::Result<()> {
+    fn send_input(&self, input_bytes: &[u8]) -> io::Result<()> {
         let handle = self.conpty.get_input_handle();
         let mut bytes_written = 0;
         unsafe {
-            WriteFile(handle.0, Some(data), Some(&mut bytes_written), None)
+            WriteFile(handle.0, Some(input_bytes), Some(&mut bytes_written), None)
                 .map_err(|e| io::Error::other(e.to_string()))
         }
     }

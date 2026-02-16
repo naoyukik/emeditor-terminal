@@ -116,29 +116,29 @@ extern "system" fn keyboard_hook_proc(code: i32, wparam: WPARAM, lparam: LPARAM)
             if let Some(hwnd) = TARGET_HWND.with(|h| *h.borrow()) {
                 // IMEの状態チェック
                 if !crate::gui::window::is_ime_composing(hwnd) {
-                    let ctrl_pressed = unsafe { GetKeyState(VK_CONTROL.0 as i32) } < 0;
-                    let shift_pressed = unsafe { GetKeyState(VK_SHIFT.0 as i32) } < 0;
-                    let alt_pressed = unsafe { GetKeyState(VK_MENU.0 as i32) } < 0;
+                    let is_ctrl_pressed = unsafe { GetKeyState(VK_CONTROL.0 as i32) } < 0;
+                    let is_shift_pressed = unsafe { GetKeyState(VK_SHIFT.0 as i32) } < 0;
+                    let is_alt_pressed = unsafe { GetKeyState(VK_MENU.0 as i32) } < 0;
 
                     // システムショートカットの除外
-                    if !crate::gui::window::is_system_shortcut(vk_code, alt_pressed) {
+                    if !crate::gui::window::is_system_shortcut(vk_code, is_alt_pressed) {
                         let translator = VtSequenceTranslator::new();
                         let input_key = InputKey::new(
                             vk_code,
                             Modifiers {
-                                ctrl: ctrl_pressed,
-                                shift: shift_pressed,
-                                alt: alt_pressed,
+                                is_ctrl_pressed,
+                                is_shift_pressed,
+                                is_alt_pressed,
                             },
                         );
 
                         if let Some(seq) = translator.translate(input_key) {
                             // 直接ターミナルデータに書き込む
                             let data_arc = crate::gui::terminal_data::get_terminal_data();
-                            let mut data = data_arc.lock().unwrap();
-                            data.service.reset_viewport();
-                            let _ = data.service.send_input(&seq);
-                            drop(data);
+                            let mut window_data = data_arc.lock().unwrap();
+                            window_data.service.reset_viewport();
+                            let _ = window_data.service.send_input(&seq);
+                            drop(window_data);
 
                             // 描画更新を通知（これは安全なPostMessage）
                             unsafe {

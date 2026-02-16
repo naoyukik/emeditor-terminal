@@ -12,12 +12,12 @@ pub enum TerminalColor {
 pub struct TerminalAttribute {
     pub fg: TerminalColor,
     pub bg: TerminalColor,
-    pub bold: bool,
-    pub dim: bool,
-    pub italic: bool,
-    pub underline: bool,
-    pub inverse: bool,
-    pub strikethrough: bool,
+    pub is_bold: bool,
+    pub is_dim: bool,
+    pub is_italic: bool,
+    pub is_underline: bool,
+    pub is_inverse: bool,
+    pub is_strikethrough: bool,
 }
 
 impl Default for TerminalAttribute {
@@ -25,12 +25,12 @@ impl Default for TerminalAttribute {
         Self {
             fg: TerminalColor::Default,
             bg: TerminalColor::Default,
-            bold: false,
-            dim: false,
-            italic: false,
-            underline: false,
-            inverse: false,
-            strikethrough: false,
+            is_bold: false,
+            is_dim: false,
+            is_italic: false,
+            is_underline: false,
+            is_inverse: false,
+            is_strikethrough: false,
         }
     }
 }
@@ -53,7 +53,7 @@ impl Default for Cell {
 pub struct Cursor {
     pub x: usize,
     pub y: usize,
-    pub visible: bool,
+    pub is_visible: bool,
 }
 
 impl Default for Cursor {
@@ -61,7 +61,7 @@ impl Default for Cursor {
         Self {
             x: 0,
             y: 0,
-            visible: true,
+            is_visible: true,
         }
     }
 }
@@ -314,7 +314,7 @@ impl TerminalBuffer {
         &self.lines
     }
     pub fn is_cursor_visible(&self) -> bool {
-        self.cursor.visible
+        self.cursor.is_visible
     }
     pub fn get_cursor_pos(&self) -> (usize, usize) {
         (self.cursor.x, self.cursor.y)
@@ -386,7 +386,7 @@ mod tests {
         let buffer = TerminalBuffer::new(80, 25);
         assert_eq!(buffer.cursor.x, 0);
         assert_eq!(buffer.cursor.y, 0);
-        assert!(buffer.cursor.visible);
+        assert!(buffer.cursor.is_visible);
     }
 
     #[test]
