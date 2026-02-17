@@ -12,9 +12,9 @@ use windows::Win32::UI::WindowsAndMessaging::{
     WS_CLIPSIBLINGS, WS_VISIBLE,
 };
 
-use crate::gui::terminal_data::{get_terminal_data, SendHWND};
-use crate::infra::conpty::{ConPTY, SendHandle};
-use crate::infra::editor::{CUSTOM_BAR_BOTTOM, CUSTOM_BAR_INFO, EE_CUSTOM_BAR_OPEN};
+use crate::gui::resolver::terminal_window_resolver::{get_terminal_data, SendHWND};
+use crate::infra::driver::conpty_io_driver::{ConptyIoDriver, SendHandle};
+use crate::infra::driver::emeditor_io_driver::{CUSTOM_BAR_BOTTOM, CUSTOM_BAR_INFO, EE_CUSTOM_BAR_OPEN};
 use std::ffi::c_void;
 use std::mem::size_of;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -22,7 +22,7 @@ use std::thread;
 use windows::Win32::Storage::FileSystem::ReadFile;
 use windows::Win32::UI::Input::KeyboardAndMouse::{SetFocus, VK_ESCAPE, VK_F4, VK_SPACE, VK_TAB};
 
-pub mod handlers;
+use crate::gui::resolver::window_message_resolver as handlers;
 
 // Custom message for repaint from background thread
 const WM_APP: u32 = 0x8000;
@@ -34,17 +34,17 @@ const CLASS_NAME: PCWSTR = w!("EmEditorTerminalClass");
 // Helper to check if IME is composing (Re-export for handlers if needed, or just keep public)
 // handlers.rs doesn't seem to use this directly, it calls crate::gui::ime::is_composing
 pub fn is_ime_composing(hwnd: HWND) -> bool {
-    crate::gui::ime::is_composing(hwnd)
+    crate::gui::driver::ime_gui_driver::is_composing(hwnd)
 }
 
 fn start_conpty_and_reader_thread(hwnd: HWND, cols: i16, rows: i16) -> bool {
-    match ConPTY::new("pwsh.exe", cols, rows) {
+    match ConptyIoDriver::new("pwsh.exe", cols, rows) {
         Ok(conpty) => {
-            log::info!("ConPTY started successfully with size {}x{}", cols, rows);
+            log::info!("ConptyIoDriver started successfully with size {}x{}", cols, rows);
 
             let data_arc = get_terminal_data();
             let output_handle: SendHandle = conpty.get_output_handle();
-            // ConPTY retains ownership of the handle and closes it on drop.
+            // ConptyIoDriver retains ownership of the handle and closes it on drop.
             // SendHandle is Copy, so we can pass a copy to the thread.
 
             {
@@ -53,7 +53,7 @@ fn start_conpty_and_reader_thread(hwnd: HWND, cols: i16, rows: i16) -> bool {
                 let config_repo = Box::new(crate::infra::repository::emeditor_config_repository_impl::EmEditorConfigRepositoryImpl::new());
                 
                 // 新しいリポジトリでサービスを再構築する（DI）
-                window_data.service = crate::application::TerminalService::new(
+                window_data.service = crate::application::TerminalWorkflow::new(
                     cols as usize,
                     rows as usize,
                     output_repo,
@@ -90,9 +90,9 @@ fn start_conpty_and_reader_thread(hwnd: HWND, cols: i16, rows: i16) -> bool {
                     let raw_bytes = &buffer[..bytes_read as usize];
                     let hex_output: String =
                         raw_bytes.iter().map(|b| format!("{:02X} ", b)).collect();
-                    log::debug!("ConPTY Raw Output ({} bytes): {}", bytes_read, hex_output);
+                    log::debug!("ConptyIoDriver Raw Output ({} bytes): {}", bytes_read, hex_output);
                     let output = String::from_utf8_lossy(raw_bytes);
-                    log::debug!("ConPTY Output: {}", output);
+                    log::debug!("ConptyIoDriver Output: {}", output);
 
                     {
                         let mut window_data = data_arc.lock().unwrap();
@@ -104,12 +104,12 @@ fn start_conpty_and_reader_thread(hwnd: HWND, cols: i16, rows: i16) -> bool {
                         let _ = PostMessageW(send_hwnd.0, WM_APP_REPAINT, WPARAM(0), LPARAM(0));
                     }
                 }
-                log::info!("ConPTY output thread finished");
+                log::info!("ConptyIoDriver output thread finished");
             });
             true
         }
         Err(e) => {
-            log::error!("Failed to start ConPTY: {}", e);
+            log::error!("Failed to start ConptyIoDriver: {}", e);
             false
         }
     }
@@ -260,7 +260,7 @@ pub fn cleanup_terminal() {
     // TerminalServiceが差し替えられる（古いサービスがドロップされる）際に、
     // 内部のリポジトリ経由でConPTYもドロップされる。
     window_data.reset_service();
-    log::info!("TerminalService reset in cleanup_terminal");
+    log::info!("TerminalWorkflow reset in cleanup_terminal");
 }
 
 extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {

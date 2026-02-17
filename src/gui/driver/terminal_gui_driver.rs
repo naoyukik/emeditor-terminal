@@ -39,7 +39,7 @@ pub struct TerminalMetrics {
 /// - `Send` / `Sync` を付与していても、複数スレッドから同じ `HFONT` を同時に GDI API に渡すことは
 ///   想定していません。実際に GDI に対してフォントを選択したり描画に使用したりする操作は、
 ///   適切に同期された単一の UI スレッドで行ってください。
-/// - この型を利用するコード（例: `TerminalRenderer::fonts` など）は、上記の制約を前提として設計されている
+/// - この型を利用するコード（例: `TerminalGuiDriver::fonts` など）は、上記の制約を前提として設計されている
 ///   必要があります。もし将来的にスレッドモデルや GDI の利用方法を変更する場合は、
 ///   ここで述べた前提条件が依然として満たされているか再検証してください。
 pub struct SendHFONT(pub HFONT);
@@ -51,18 +51,18 @@ const STYLE_ITALIC: u32 = 1 << 1;
 const STYLE_UNDERLINE: u32 = 1 << 2;
 const STYLE_STRIKEOUT: u32 = 1 << 3;
 
-pub struct TerminalRenderer {
+pub struct TerminalGuiDriver {
     fonts: HashMap<u32, SendHFONT>,
     metrics: Option<TerminalMetrics>,
 }
 
-impl Default for TerminalRenderer {
+impl Default for TerminalGuiDriver {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl TerminalRenderer {
+impl TerminalGuiDriver {
     pub fn new() -> Self {
         Self {
             fonts: HashMap::new(),
@@ -76,7 +76,7 @@ impl TerminalRenderer {
                 let _ = DeleteObject(HGDIOBJ(send_h_font.0 .0));
             }
         }
-        log::info!("TerminalRenderer: All cached font handles deleted");
+        log::info!("TerminalGuiDriver: All cached font handles deleted");
     }
 
     pub fn get_metrics(&self) -> Option<&TerminalMetrics> {
@@ -129,14 +129,14 @@ impl TerminalRenderer {
             let h_font = CreateFontIndirectW(&lf);
             if h_font.0.is_null() {
                 log::error!(
-                    "TerminalRenderer: Failed to create font for style mask {}",
+                    "TerminalGuiDriver: Failed to create font for style mask {}",
                     style_mask
                 );
 
                 // すでにデフォルトスタイル(0)のフォントがキャッシュされていれば、それにフォールバックする
                 if let Some(default_font) = self.fonts.get(&0) {
                     log::warn!(
-                        "TerminalRenderer: Falling back to cached default font (style mask 0)"
+                        "TerminalGuiDriver: Falling back to cached default font (style mask 0)"
                     );
                     return default_font.0;
                 }
@@ -144,14 +144,14 @@ impl TerminalRenderer {
                 // スタイル付きフォント生成に失敗した場合は、style_mask = 0 のフォント生成を試みる
                 if style_mask != 0 {
                     log::warn!(
-                        "TerminalRenderer: Retrying font creation with style mask 0 as fallback"
+                        "TerminalGuiDriver: Retrying font creation with style mask 0 as fallback"
                     );
                     return self.get_font_for_style(hdc, 0);
                 }
 
                 // style_mask = 0 でも生成に失敗した場合は、最後の手段としてデフォルトハンドルを返す
                 log::error!(
-                    "TerminalRenderer: Failed to create even the default font (style mask 0)"
+                    "TerminalGuiDriver: Failed to create even the default font (style mask 0)"
                 );
                 return HFONT::default();
             }
@@ -465,7 +465,7 @@ impl TerminalRenderer {
                 let _ = SelectObject(hdc, old_pen);
                 let _ = DeleteObject(HGDIOBJ(pen.0));
             } else {
-                log::error!("TerminalRenderer: Failed to create pen for composition underline");
+                log::error!("TerminalGuiDriver: Failed to create pen for composition underline");
             }
         }
     }

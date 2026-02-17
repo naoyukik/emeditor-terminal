@@ -25,7 +25,7 @@ pub struct SendHandle(pub HANDLE);
 unsafe impl Send for SendHandle {}
 unsafe impl Sync for SendHandle {}
 
-pub struct ConPTY {
+pub struct ConptyIoDriver {
     pseudo_console_handle: SendHPCON,
     input_write_pipe_handle: SendHandle,
     output_read_pipe_handle: SendHandle,
@@ -33,7 +33,7 @@ pub struct ConPTY {
     thread_handle: SendHandle,
 }
 
-impl ConPTY {
+impl ConptyIoDriver {
     pub fn new(cmd_line: &str, width: i16, height: i16) -> Result<Self, String> {
         let mut h_pipe_pt_in = INVALID_HANDLE_VALUE;
         let mut h_pipe_in_write = INVALID_HANDLE_VALUE;
@@ -60,7 +60,7 @@ impl ConPTY {
             }
 
             log::info!(
-                "ConPTY pipes created: in_read={:?}, in_write={:?}, out_read={:?}, out_write={:?}",
+                "ConptyIoDriver pipes created: in_read={:?}, in_write={:?}, out_read={:?}, out_write={:?}",
                 h_pipe_pt_in,
                 h_pipe_in_write,
                 h_pipe_out_read,
@@ -162,7 +162,7 @@ impl ConPTY {
                 return Err("Failed to create process".to_string());
             }
 
-            Ok(ConPTY {
+            Ok(ConptyIoDriver {
                 pseudo_console_handle: SendHPCON(h_pcon),
                 input_write_pipe_handle: SendHandle(h_pipe_in_write),
                 output_read_pipe_handle: SendHandle(h_pipe_out_read),
@@ -192,12 +192,12 @@ impl ConPTY {
     }
 }
 
-unsafe impl Send for ConPTY {}
-unsafe impl Sync for ConPTY {}
+unsafe impl Send for ConptyIoDriver {}
+unsafe impl Sync for ConptyIoDriver {}
 
-impl Drop for ConPTY {
+impl Drop for ConptyIoDriver {
     fn drop(&mut self) {
-        log::info!("ConPTY dropping... closing handles.");
+        log::info!("ConptyIoDriver dropping... closing handles.");
         unsafe {
             if self.process_handle.0 != INVALID_HANDLE_VALUE {
                 let _ = CloseHandle(self.process_handle.0);
@@ -209,6 +209,6 @@ impl Drop for ConPTY {
             let _ = CloseHandle(self.input_write_pipe_handle.0);
             let _ = CloseHandle(self.output_read_pipe_handle.0);
         }
-        log::info!("ConPTY dropped.");
+        log::info!("ConptyIoDriver dropped.");
     }
 }

@@ -8,11 +8,11 @@ use windows::Win32::UI::Input::Ime::{
 };
 use windows::Win32::UI::WindowsAndMessaging::SetCaretPos;
 
-use crate::application::TerminalService;
-use crate::gui::renderer::{CompositionInfo, TerminalRenderer};
+use crate::application::TerminalWorkflow;
+use crate::gui::driver::terminal_gui_driver::{CompositionInfo, TerminalGuiDriver};
 
 /// Helper to update IME window position based on the terminal cursor
-pub fn update_window_position(hwnd: HWND, service: &TerminalService, renderer: &TerminalRenderer) {
+pub fn update_window_position(hwnd: HWND, service: &TerminalWorkflow, renderer: &TerminalGuiDriver) {
     if let Some(metrics) = renderer.get_metrics() {
         let (cursor_x, cursor_y) = service.buffer.get_cursor_pos();
         let display_cols = service.buffer.get_display_width_up_to(cursor_y, cursor_x);
@@ -72,8 +72,8 @@ pub fn is_composing(hwnd: HWND) -> bool {
 pub fn handle_composition(
     hwnd: HWND,
     lparam: LPARAM,
-    service: &mut TerminalService,
-    renderer: &TerminalRenderer,
+    service: &mut TerminalWorkflow,
+    renderer: &TerminalGuiDriver,
     composition: &mut Option<CompositionInfo>,
 ) -> bool {
     log::debug!("WM_IME_COMPOSITION: lparam={:?}", lparam);
@@ -97,7 +97,7 @@ pub fn handle_composition(
                     let result_str = String::from_utf16_lossy(&buffer);
                     log::info!("IME Result: '{}'", result_str);
 
-                    // Send result string to ConPTY
+                    // Send result string to ConptyIoDriver
                     let _ = service.send_input(result_str.as_bytes());
 
                     // Clear composition information on commit
@@ -151,7 +151,7 @@ pub fn handle_composition(
     handled
 }
 
-pub fn handle_start_composition(hwnd: HWND, service: &mut TerminalService) {
+pub fn handle_start_composition(hwnd: HWND, service: &mut TerminalWorkflow) {
     log::debug!("WM_IME_STARTCOMPOSITION");
     // Snap on Input for IME
     service.reset_viewport();

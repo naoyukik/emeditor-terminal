@@ -1,6 +1,6 @@
-use crate::gui::scroll::{update_window_scroll_info, ScrollAction};
-use crate::gui::terminal_data::{get_terminal_data, TerminalData};
-use crate::infra::input::KeyboardHook;
+use crate::gui::driver::scroll_gui_driver::{update_window_scroll_info, ScrollAction};
+use crate::gui::resolver::terminal_window_resolver::{get_terminal_data, TerminalWindowResolver};
+use crate::infra::driver::keyboard_io_driver::KeyboardIoDriver;
 use windows::Win32::Foundation::{BOOL, HWND, LPARAM, LRESULT, WPARAM};
 use windows::Win32::Graphics::Gdi::{BeginPaint, EndPaint, InvalidateRect, PAINTSTRUCT};
 use windows::Win32::UI::Input::KeyboardAndMouse::{SetFocus, VK_MENU};
@@ -73,7 +73,7 @@ pub fn on_paint(hwnd: HWND) -> LRESULT {
         let mut client_rect = windows::Win32::Foundation::RECT::default();
         let _ = windows::Win32::UI::WindowsAndMessaging::GetClientRect(hwnd, &mut client_rect);
 
-        let TerminalData {
+        let TerminalWindowResolver {
             ref service,
             ref mut renderer,
             ref composition,
@@ -121,7 +121,7 @@ pub fn on_set_focus(hwnd: HWND) -> LRESULT {
         );
     }
 
-    KeyboardHook::install_global(hwnd);
+    KeyboardIoDriver::install_global(hwnd);
     LRESULT(0)
 }
 
@@ -130,7 +130,7 @@ pub fn on_kill_focus() -> LRESULT {
     unsafe {
         let _ = DestroyCaret();
     }
-    KeyboardHook::uninstall_global();
+    KeyboardIoDriver::uninstall_global();
     LRESULT(0)
 }
 
@@ -144,7 +144,7 @@ pub fn on_syskeydown(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM) -> LR
     let vk_code = wparam.0 as u16;
     log::debug!("WM_SYSKEYDOWN received: 0x{:04X}", vk_code);
 
-    if super::is_system_shortcut(vk_code, true) {
+    if crate::gui::window::is_system_shortcut(vk_code, true) {
         return unsafe { DefWindowProcW(hwnd, msg, wparam, lparam) };
     }
 
@@ -251,7 +251,7 @@ pub fn on_size(hwnd: HWND, lparam: LPARAM) -> LRESULT {
         let cols = (width / char_width).max(1) as i16;
         let rows = (height / char_height).max(1) as i16;
 
-        log::info!("Resizing ConPTY to cols={}, rows={}", cols, rows);
+        log::info!("Resizing ConptyIoDriver to cols={}, rows={}", cols, rows);
 
         window_data.service.resize(cols as usize, rows as usize);
     }
@@ -275,7 +275,7 @@ pub fn on_ime_start_composition(hwnd: HWND) -> LRESULT {
     {
         let data_arc = get_terminal_data();
         let mut window_data = data_arc.lock().unwrap();
-        crate::gui::ime::handle_start_composition(hwnd, &mut window_data.service);
+        crate::gui::driver::ime_gui_driver::handle_start_composition(hwnd, &mut window_data.service);
     }
     update_window_scroll_info(hwnd);
 
@@ -288,7 +288,7 @@ pub fn on_ime_composition(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM) 
         let mut window_data = data_arc.lock().unwrap();
         let data_inner = &mut *window_data;
 
-        crate::gui::ime::handle_composition(
+        crate::gui::driver::ime_gui_driver::handle_composition(
             hwnd,
             lparam,
             &mut data_inner.service,
@@ -308,17 +308,17 @@ pub fn on_ime_end_composition(hwnd: HWND) -> LRESULT {
     {
         let data_arc = get_terminal_data();
         let mut window_data = data_arc.lock().unwrap();
-        crate::gui::ime::handle_end_composition(hwnd, &mut window_data.composition);
+        crate::gui::driver::ime_gui_driver::handle_end_composition(hwnd, &mut window_data.composition);
     }
     LRESULT(0)
 }
 
 pub fn on_destroy() -> LRESULT {
     log::info!("WM_DESTROY: Cleaning up terminal resources");
-    KeyboardHook::uninstall_global();
+    KeyboardIoDriver::uninstall_global();
 
     // 先にグローバルデータをリセット（ConPTY解放を含む）
-    super::cleanup_terminal();
+    crate::gui::window::cleanup_terminal();
 
     let data_arc = get_terminal_data();
     let mut window_data = data_arc.lock().unwrap();

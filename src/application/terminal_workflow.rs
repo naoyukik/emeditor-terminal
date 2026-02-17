@@ -3,7 +3,7 @@ use crate::domain::repository::terminal_output_repository::TerminalOutputReposit
 use crate::domain::service::ansi_parser_domain_service::AnsiParserDomainService;
 use crate::domain::model::terminal_buffer_entity::TerminalBufferEntity;
 
-pub struct TerminalService {
+pub struct TerminalWorkflow {
     pub(crate) buffer: TerminalBufferEntity,
     parser: AnsiParserDomainService,
     output_repo: Box<dyn TerminalOutputRepository>,
@@ -16,7 +16,7 @@ pub struct TerminalService {
     font_size: i32,
 }
 
-impl TerminalService {
+impl TerminalWorkflow {
     pub fn new(
         cols: usize,
         rows: usize,

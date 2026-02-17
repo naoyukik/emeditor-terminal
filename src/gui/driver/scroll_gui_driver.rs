@@ -1,4 +1,4 @@
-use crate::gui::terminal_data::get_terminal_data;
+use crate::gui::resolver::terminal_window_resolver::get_terminal_data;
 use std::mem::size_of;
 use windows::Win32::Foundation::{BOOL, HWND};
 use windows::Win32::UI::WindowsAndMessaging::{
@@ -39,10 +39,10 @@ pub fn update_window_scroll_info(hwnd: HWND) {
     let viewport_offset = window_data.service.get_viewport_offset() as i32;
     let height = window_data.service.buffer.height as i32;
 
-    // Update ScrollManager state
+    // Update ScrollGuiDriver state
     window_data.scroll_manager.min = 0;
     // The scrollable range is [0, history_count]
-    // The ScrollManager uses nMax = history + page - 1 logic internally if needed, or we set it here.
+    // The ScrollGuiDriver uses nMax = history + page - 1 logic internally if needed, or we set it here.
     // Let's align with existing logic: nMax = history_count + page_size - 1
     // And nPos = history_count - viewport_offset
 
@@ -75,14 +75,14 @@ pub enum ScrollAction {
     None,
 }
 
-pub struct ScrollManager {
+pub struct ScrollGuiDriver {
     pub min: i32,
     pub max: i32,
     pub page: u32,
     pub pos: i32,
 }
 
-impl ScrollManager {
+impl ScrollGuiDriver {
     pub fn new() -> Self {
         Self {
             min: 0,
@@ -139,7 +139,7 @@ mod tests {
 
     #[test]
     fn test_new() {
-        let manager = ScrollManager::new();
+        let manager = ScrollGuiDriver::new();
         assert_eq!(manager.min, 0);
         assert_eq!(manager.max, 0);
         assert_eq!(manager.page, 0);
@@ -148,7 +148,7 @@ mod tests {
 
     #[test]
     fn test_handle_vscroll() {
-        let mut manager = ScrollManager::new();
+        let mut manager = ScrollGuiDriver::new();
         manager.page = 10;
         manager.max = 109; // history 100 + page 10 - 1 = 109
 
@@ -179,7 +179,7 @@ mod tests {
 
     #[test]
     fn test_handle_thumbtrack() {
-        let mut manager = ScrollManager::new();
+        let mut manager = ScrollGuiDriver::new();
         manager.page = 10;
         manager.max = 109; // history 100
 
@@ -202,7 +202,7 @@ mod tests {
 
     #[test]
     fn test_handle_mousewheel() {
-        let manager = ScrollManager::new();
+        let manager = ScrollGuiDriver::new();
 
         // Delta 120 (1 notch up) -> 3 lines
         let wparam = (120i16 as u16 as usize) << 16;
