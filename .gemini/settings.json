@@ -138,6 +138,12 @@
             "type": "command",
             "command": "$PYTHON_COMMAND $GEMINI_PROJECT_DIR/.gemini/hooks/detect_double_ampersand.py",
             "description": "PowerShellでの&&利用を制限する"
+          },
+          {
+            "name": "restrict-git-add-all",
+            "type": "command",
+            "command": "$PYTHON_COMMAND $GEMINI_PROJECT_DIR/.gemini/hooks/restrict_git_add_all.py",
+            "description": "git add . や -A を制限する"
           }
         ]
       },
