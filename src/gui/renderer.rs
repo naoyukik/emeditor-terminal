@@ -1,4 +1,4 @@
-use crate::domain::terminal::{TerminalBuffer, TerminalColor};
+use crate::domain::model::terminal_buffer_entity::{TerminalBufferEntity, TerminalColor};
 use std::collections::HashMap;
 use windows::core::{w, PCWSTR};
 use windows::Win32::Foundation::{COLORREF, RECT, SIZE};
@@ -240,7 +240,7 @@ impl TerminalRenderer {
         &mut self,
         hdc: HDC,
         client_rect: &RECT,
-        buffer: &TerminalBuffer,
+        buffer: &TerminalBufferEntity,
         composition: Option<&CompositionInfo>,
     ) {
         let _ = self.get_font_for_style(hdc, 0);
@@ -272,7 +272,7 @@ impl TerminalRenderer {
                         while cell_idx < line.len() && line[cell_idx].attribute == start_attr {
                             let cell = &line[cell_idx];
                             run_text.push(cell.c);
-                            let w = TerminalBuffer::char_display_width(cell.c) as i32 * base_width;
+                            let w = TerminalBufferEntity::char_display_width(cell.c) as i32 * base_width;
                             run_dx.push(w);
                             run_dx.extend(std::iter::repeat_n(
                                 0,
@@ -416,7 +416,7 @@ impl TerminalRenderer {
         let mut comp_dx = Vec::with_capacity(comp_wide.len());
         let mut pixel_width = 0;
         for c in comp.text.chars() {
-            let w = TerminalBuffer::char_display_width(c) as i32 * base_width;
+            let w = TerminalBufferEntity::char_display_width(c) as i32 * base_width;
             comp_dx.push(w);
             comp_dx.extend(std::iter::repeat_n(0, c.len_utf16().saturating_sub(1)));
             pixel_width += w;

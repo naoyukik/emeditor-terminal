@@ -6,29 +6,21 @@
 
 ### 監査・マッピング結果 (Phase 1)
 
+※`mod.rs` の解体およびロジック抽出は Issue #68 へ切り出されたため、本トラックでは既存の独立したファイルのリネームのみを行う。
+
 | 現在のファイル | 含まれる構造体・型 | 新ファイル名 (サフィックスルール) | レイヤー |
 | :--- | :--- | :--- | :--- |
-| `src/domain/terminal.rs` | `TerminalColor` | `src/domain/model/terminal_color_value.rs` | Domain (Value) |
-| | `TerminalAttribute` | `src/domain/model/terminal_attribute_value.rs` | Domain (Value) |
-| | `Cell` | `src/domain/model/cell_value.rs` | Domain (Value) |
-| | `Cursor` | `src/domain/model/cursor_entity.rs` | Domain (Entity) |
-| | `TerminalBuffer` | `src/domain/model/terminal_buffer_entity.rs` | Domain (Entity) |
 | `src/domain/parser.rs` | `AnsiParser` | `src/domain/service/ansi_parser_domain_service.rs` | Domain Service |
-| `src/domain/input.rs` | `KeyTranslator` (Trait) | `src/domain/repository/key_translator_repository.rs` | Domain Repository |
-| | `VtSequenceTranslator` | `src/domain/service/vt_sequence_translator_domain_service.rs` | Domain Service |
-| `src/domain/model/input.rs`| `Modifiers` | `src/domain/model/input_modifiers_value.rs` | Domain (Value) |
-| | `InputKey` | `src/domain/model/input_key_value.rs` | Domain (Value) |
 | `src/application/service.rs` | `TerminalService` | `src/application/terminal_workflow.rs` | Application (Workflow) |
 | `src/infra/conpty.rs` | `ConPTY` | `src/infra/driver/conpty_io_driver.rs` | Infrastructure (IO Driver) |
 | `src/infra/editor.rs` | `CUSTOM_BAR_INFO` | `src/infra/driver/emeditor_io_driver.rs` | Infrastructure (IO Driver) |
 | `src/infra/input.rs` | `KeyboardHook` | `src/infra/driver/keyboard_io_driver.rs` | Infrastructure (IO Driver) |
 | `src/gui/renderer.rs` | `TerminalRenderer` | `src/gui/driver/terminal_gui_driver.rs` | GUI (GUI Driver) |
-| | `CompositionInfo` | `src/gui/resolver/composition_info_resolver.rs` | GUI (Resolver) |
-| | `TerminalMetrics` | `src/gui/resolver/terminal_metrics_resolver.rs` | GUI (Resolver) |
 | `src/gui/scroll.rs` | `ScrollManager` | `src/gui/driver/scroll_gui_driver.rs` | GUI (GUI Driver) |
-| | `ScrollAction` | `src/gui/resolver/scroll_action_resolver.rs` | GUI (Resolver) |
 | `src/gui/terminal_data.rs` | `TerminalData` | `src/gui/resolver/terminal_window_resolver.rs` | GUI (Resolver) |
 | `src/gui/window/handlers.rs`| (wnd_proc logic) | `src/gui/resolver/window_message_resolver.rs` | GUI (Resolver) |
+
+※ `TerminalColor`, `Cell`, `TerminalBufferEntity` 等の細かい Value Object / Entity の抽出も Issue #68 に含める。
 
 - [x] Task: 変更内容のコミット
 - [ ] Task: Conductor - User Manual Verification 'Phase 1: マッピング承認' (Protocol in workflow.md)

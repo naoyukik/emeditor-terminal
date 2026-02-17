@@ -66,7 +66,7 @@ impl Default for Cursor {
     }
 }
 
-pub struct TerminalBuffer {
+pub struct TerminalBufferEntity {
     pub(crate) lines: VecDeque<Vec<Cell>>,
     pub(crate) width: usize,
     pub(crate) height: usize,
@@ -82,7 +82,7 @@ pub struct TerminalBuffer {
     pub(crate) scrollback_limit: usize,
 }
 
-impl TerminalBuffer {
+impl TerminalBufferEntity {
     pub fn new(width: usize, height: usize) -> Self {
         let mut lines = VecDeque::with_capacity(height);
         for _ in 0..height {
@@ -383,7 +383,7 @@ mod tests {
 
     #[test]
     fn test_cursor_initialization() {
-        let buffer = TerminalBuffer::new(80, 25);
+        let buffer = TerminalBufferEntity::new(80, 25);
         assert_eq!(buffer.cursor.x, 0);
         assert_eq!(buffer.cursor.y, 0);
         assert!(buffer.cursor.is_visible);
@@ -391,7 +391,7 @@ mod tests {
 
     #[test]
     fn test_scrollback_history() {
-        let mut buffer = TerminalBuffer::new(10, 3);
+        let mut buffer = TerminalBufferEntity::new(10, 3);
         buffer.scrollback_limit = 5;
 
         // Line 1
@@ -427,7 +427,7 @@ mod tests {
 
     #[test]
     fn test_viewport_logic() {
-        let mut buffer = TerminalBuffer::new(10, 3);
+        let mut buffer = TerminalBufferEntity::new(10, 3);
         buffer.put_char('A');
         buffer.process_normal_char('\n');
         buffer.put_char('B');

@@ -1,5 +1,6 @@
-use crate::domain::input::{KeyTranslator, VtSequenceTranslator};
 use crate::domain::model::input::{InputKey, Modifiers};
+use crate::domain::repository::key_translator_repository::KeyTranslatorRepository;
+use crate::domain::service::vt_sequence_translator_domain_service::VtSequenceTranslatorDomainService;
 use std::cell::RefCell;
 use windows::Win32::Foundation::{HWND, LPARAM, LRESULT, WPARAM};
 use windows::Win32::UI::Input::KeyboardAndMouse::{GetKeyState, VK_CONTROL, VK_MENU, VK_SHIFT};
@@ -122,7 +123,7 @@ extern "system" fn keyboard_hook_proc(code: i32, wparam: WPARAM, lparam: LPARAM)
 
                     // システムショートカットの除外
                     if !crate::gui::window::is_system_shortcut(vk_code, is_alt_pressed) {
-                        let translator = VtSequenceTranslator::new();
+                        let translator = VtSequenceTranslatorDomainService::new();
                         let input_key = InputKey::new(
                             vk_code,
                             Modifiers {

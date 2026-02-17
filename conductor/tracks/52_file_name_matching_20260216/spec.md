@@ -9,9 +9,9 @@
   - Application層: `_workflow.rs`, `_input.rs`, `_result.rs`
   - Domain層: `_entity.rs`, `_value.rs`, `_domain_service.rs`, `_repository.rs`
   - Infrastructure層: `_repository_impl.rs`, `_io_driver.rs`
-- **1ファイル1責務の徹底**:
-  - `mod.rs` 内に存在するロジック、構造体定義、DTO、Entityをすべて独立したファイルへ切り出し、適切なサフィックスを付与する。
-  - `mod.rs` は `mod` 宣言および `pub use` による再エクスポートのみを行う「エントリポイント専用」とする。
+- **構造体とファイル名の完全一致**:
+  - 独立したファイルに存在する構造体について、ファイル名を構造体名の `snake_case` + 接尾辞にリネームする。
+  - ※ `mod.rs` からのロジック抽出、および同一ファイル内の複数構造体の分割は、作業規模を考慮し Issue #68 に切り出された。
 - **Windows API の封印**:
   - `windows` クレートの型が `_gui_driver.rs` および `_io_driver.rs` 以外に漏洩していないか厳格に監査し、必要に応じて内部型への変換ロジックを `_resolver.rs` 等に実装する。
 - **ユビキタス言語の同期**:
