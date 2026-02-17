@@ -17,7 +17,7 @@ AIエージェントに「ノリ」でコードを書かせず、物理的なフ
 | **3.1. Domain Service** | `_domain_service.rs` | Entityに収まらないドメインロジック。 |
 | **3.5. Repository (IF)** | `_repository.rs` | **Trait定義**。Domain層に属し、外部へのデータ要求を定義する。 |
 | **4. Infrastructure** | `_repository_impl.rs` | Repository Traitの具象実装。IO Driverを使用する。 |
-| **4.1. IO Driver** | `_io_driver.rs` | **ConPTY・Editor SDK等の外部操作**。最外周の「手足」。 |
+| **4.1. IO Driver** | `_io_driver.rs` | **ConptyIoDriver・Editor SDK等の外部操作**。最外周の「手足」。 |
 
 ## **2. Windows API (windows-rs) の隔離命令**
 
@@ -44,7 +44,7 @@ Presentation ───→ Application ───→ Domain ←─── Infrastru
     (Resolver)          (Workflow)        (Entity)      (RepositoryImpl)
       │                                                   │
       └─→ [_gui_driver]                                  [_io_driver] ←┘
-          (描画・IME)                                   (ConPTY・Editor)
+          (描画・IME)                                   (ConptyIoDriver・Editor)
 ```
 ※右側のレイヤーは自身より左側のレイヤー（外界に近い側）を知ってはならない。
 
