@@ -1,20 +1,23 @@
 ---
 name: operating-git
-description: Git操作のガイドラインです。Gitコマンドを使用する際の規則が書かれているので、必ずこのスキルを参照してください。
+description: Manage Git workflows including staging, commits, and status. Enforces project-specific rules like prohibiting 'git add .' and mandating folder-level staging for the 'conductor/' directory. Activate this skill before any git commands to ensure compliance with commit conventions.
 ---
 
 # Git操作ガイドライン
 
 ## ステージング規則
 
-**重要**: `git add .` および `git add -A` の使用は禁止。
+**重要**: `git add .` および `git add -A` の使用は厳禁。
 
-- ファイルは必ず個別に指定する
-- `git add` の前後に `git diff` または `git diff --staged` で差分を確認する
+- 原則として、ファイルは必ず個別に指定する。
+- **例外**: `conductor/` 配下のドキュメント類は、管理の整合性を保つためフォルダごと追加すること。
+  - **Good**: `git add conductor/`
+- `git add` の前後に `git diff` または `git diff --staged` で差分を確認すること。
 
 ```bash
 # Good
 git add src/domain/terminal.rs src/application/service.rs
+git add conductor/
 
 # Bad
 git add .

@@ -10,7 +10,7 @@ description: Provides coding conventions for Rust/Win32 projects. Includes namin
 | 対象 | 形式 | 例 |
 |------|------|-----|
 | 変数・関数・モジュール | `snake_case` | `cursor_position_x` |
-| 型 (Struct, Enum, Trait) | `PascalCase` | `TerminalService` |
+| 型 (Struct, Enum, Trait) | `PascalCase` | `TerminalWorkflow` |
 | 定数 | `SCREAMING_SNAKE_CASE` | `MAX_BUFFER_SIZE` |
 | ファイル名 | 構造体名の`snake_case` | `terminal_service.rs` |
 | bool型 | 述語形式 | `is_visible`, `has_focus`, `can_scroll` |

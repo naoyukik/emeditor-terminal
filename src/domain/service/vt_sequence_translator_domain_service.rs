@@ -1,21 +1,22 @@
-pub use crate::domain::model::input::InputKey;
-
-/// キーボード入力の翻訳を行うトレイト
-pub trait KeyTranslator {
-    /// キーイベントを、ターミナルに送信するバイトシーケンスに翻訳する
-    fn translate(&self, key: InputKey) -> Option<Vec<u8>>;
-}
+use crate::domain::model::input::InputKey;
+use crate::domain::repository::key_translator_repository::KeyTranslatorRepository;
 
 /// VTシーケンス（ANSIエスケープシーケンス）への翻訳を行う実装
-pub struct VtSequenceTranslator;
+pub struct VtSequenceTranslatorDomainService;
 
-impl VtSequenceTranslator {
+impl VtSequenceTranslatorDomainService {
     pub fn new() -> Self {
         Self
     }
 }
 
-impl KeyTranslator for VtSequenceTranslator {
+impl Default for VtSequenceTranslatorDomainService {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl KeyTranslatorRepository for VtSequenceTranslatorDomainService {
     fn translate(&self, key: InputKey) -> Option<Vec<u8>> {
         let vk_code = key.vk_code;
         let ctrl = key.modifiers.is_ctrl_pressed;
@@ -173,7 +174,7 @@ mod tests {
 
     #[test]
     fn test_ctrl_combinations() {
-        let translator = VtSequenceTranslator::new();
+        let translator = VtSequenceTranslatorDomainService::new();
         // Ctrl+A -> \x01
         let key_a = InputKey::new(
             0x41,
@@ -199,7 +200,7 @@ mod tests {
 
     #[test]
     fn test_ctrl_alt_combinations() {
-        let translator = VtSequenceTranslator::new();
+        let translator = VtSequenceTranslatorDomainService::new();
         // Ctrl+Alt+A -> Should be None (or distinct if supported)
         let key_ctrl_alt_a = InputKey::new(
             0x41,
@@ -214,7 +215,7 @@ mod tests {
 
     #[test]
     fn test_meta_keys() {
-        let translator = VtSequenceTranslator::new();
+        let translator = VtSequenceTranslatorDomainService::new();
         // Alt+A -> ESC + a
         let key_alt_a = InputKey::new(
             0x41,
@@ -254,7 +255,7 @@ mod tests {
 
     #[test]
     fn test_function_keys() {
-        let translator = VtSequenceTranslator::new();
+        let translator = VtSequenceTranslatorDomainService::new();
         // F1 -> \x1bOP
         let f1 = InputKey::new(0x70, Modifiers::none());
         assert_eq!(translator.translate(f1), Some(b"\x1bOP".to_vec()));
@@ -270,7 +271,7 @@ mod tests {
 
     #[test]
     fn test_special_keys() {
-        let translator = VtSequenceTranslator::new();
+        let translator = VtSequenceTranslatorDomainService::new();
         // Up Arrow
         let up = InputKey::new(0x26, Modifiers::none());
         assert_eq!(translator.translate(up), Some(b"\x1b[A".to_vec()));
@@ -324,7 +325,7 @@ mod tests {
 
     #[test]
     fn test_ignored_keys() {
-        let translator = VtSequenceTranslator::new();
+        let translator = VtSequenceTranslatorDomainService::new();
         // Shift only
         let shift = InputKey::new(
             0x10,

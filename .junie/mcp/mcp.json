@@ -2,7 +2,7 @@
   "mcpServers": {
     "jetbrains": {
       "type": "sse",
-      "url": "http://localhost:64421/sse",
+      "url": "http://localhost:64342/sse",
       "headers": {
         "IJ_MCP_SERVER_PROJECT_PATH": "Z:\\projects\\emeditor-terminal"
       }

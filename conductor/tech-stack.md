@@ -6,7 +6,7 @@
 
 ## Core Technologies
 - **EmEditor SDK (C/C++ Interface)**: プラグインのプラグアンドプレイを実現するためのエントリポイント。
-- **Windows Pseudo Console (ConPTY)**: モダンなターミナル機能を提供するためのバックエンド。`CreatePseudoConsole` を利用し、リッチなTUIをサポート。
+- **Windows Pseudo Console (ConptyIoDriver)**: モダンなターミナル機能を提供するためのバックエンド。`CreatePseudoConsole` を利用し、リッチなTUIをサポート。
 
 ## Libraries & Frameworks (Rust Crates)
 - **windows-rs / winapi**: Windows API へのアクセス。
@@ -22,12 +22,17 @@
 - **rustfmt**: Rust のコードフォーマッタ。
 
 ## Architecture
-**レイヤードアーキテクチャ**を採用し、責務を明確に分離している。
+**厳格な物理隔離レイヤードアーキテクチャ (Strict Rigid Architecture)** を採用し、ファイル名と配置によって境界を強制している。
 - **Dependency Injection (DI)**: コンストラクタ注入により依存関係を管理し、テスト容易性と結合度の低下を実現。
-- **Domain 層 (`src/domain/`)**: 外部に依存しない純粋なビジネスロジック。`TerminalBuffer`（状態）や `AnsiParser`（パースロジック）を管理。
-    - **Repository Trait**: インフラストラクチャへの抽象的なインターフェースを定義。
-- **Application 層 (`src/application/`)**: ドメインロジックの調整役。`TerminalService` がターミナルセッションのライフサイクルやスクロール制御、入力処理を統括する。
-- **Infra 層 (`src/infra/`)**: OS (Win32) や外部 API (ConPTY, EmEditor SDK) との具体的な対話。
-    - **Repository Implementation**: ドメイン層の Trait を具象クラス（`*RepositoryImpl`）として実装。
-- **GUI 層 (`src/gui/`)**: ユーザーインターフェースと描画。`TerminalRenderer` による GDI レンダリングと、Windows メッセージループ（`wnd_proc`）を担当。
+- **Domain 層 (`src/domain/`)**: `windows` クレートに依存しない Pure Rust 領域。
+    - **Entity / Value Object**: `_entity.rs` / `_value.rs`
+    - **Domain Service**: `_domain_service.rs`
+    - **Repository (IF)**: `_repository.rs`
+- **Application 層 (`src/application/`)**: ユースケースの調整。`_workflow.rs`
+- **Infrastructure 層 (`src/infra/`)**: OS/外部 I/O。
+    - **Repository Impl**: `_repository_impl.rs`
+    - **IO Driver**: `_io_driver.rs` (Win32 API を封印)
+- **Presentation / GUI 層 (`src/gui/`)**:
+    - **Resolver**: `_resolver.rs` (OSメッセージ解釈・変換)
+    - **GUI Driver**: `_gui_driver.rs` (描画・IME・Win32操作を封印)
 - **FFI 境界 (`src/lib.rs`)**: EmEditor SDK と Rust の仲介役。

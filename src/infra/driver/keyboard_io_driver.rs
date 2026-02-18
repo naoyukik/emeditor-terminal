@@ -1,5 +1,6 @@
-use crate::domain::input::{KeyTranslator, VtSequenceTranslator};
 use crate::domain::model::input::{InputKey, Modifiers};
+use crate::domain::repository::key_translator_repository::KeyTranslatorRepository;
+use crate::domain::service::vt_sequence_translator_domain_service::VtSequenceTranslatorDomainService;
 use std::cell::RefCell;
 use windows::Win32::Foundation::{HWND, LPARAM, LRESULT, WPARAM};
 use windows::Win32::UI::Input::KeyboardAndMouse::{GetKeyState, VK_CONTROL, VK_MENU, VK_SHIFT};
@@ -14,15 +15,15 @@ const WM_APP_REPAINT: u32 = 0x8001;
 thread_local! {
     static KEYBOARD_HOOK: RefCell<Option<HHOOK>> = const { RefCell::new(None) };
     static TARGET_HWND: RefCell<Option<HWND>> = const { RefCell::new(None) };
-    static HOOK_INSTANCE: RefCell<Option<KeyboardHook>> = const { RefCell::new(None) };
+    static HOOK_INSTANCE: RefCell<Option<KeyboardIoDriver >> = const { RefCell::new(None) };
 }
 
 /// Windowsの低レベルキーボードフックを管理する構造体
-pub struct KeyboardHook {
+pub struct KeyboardIoDriver {
     target_hwnd: HWND,
 }
 
-impl KeyboardHook {
+impl KeyboardIoDriver {
     /// 新しいフック管理インスタンスを作成する
     pub fn new(target_hwnd: HWND) -> Self {
         Self { target_hwnd }
@@ -33,7 +34,7 @@ impl KeyboardHook {
         HOOK_INSTANCE.with(|instance| {
             let mut instance_ref = instance.borrow_mut();
             if instance_ref.is_none() {
-                let hook = KeyboardHook::new(hwnd);
+                let hook = KeyboardIoDriver::new(hwnd);
                 hook.install();
                 *instance_ref = Some(hook);
                 log::info!("Global keyboard hook installed");
@@ -99,7 +100,7 @@ impl KeyboardHook {
     }
 }
 
-impl Drop for KeyboardHook {
+impl Drop for KeyboardIoDriver {
     fn drop(&mut self) {
         self.uninstall();
     }
@@ -122,7 +123,7 @@ extern "system" fn keyboard_hook_proc(code: i32, wparam: WPARAM, lparam: LPARAM)
 
                     // システムショートカットの除外
                     if !crate::gui::window::is_system_shortcut(vk_code, is_alt_pressed) {
-                        let translator = VtSequenceTranslator::new();
+                        let translator = VtSequenceTranslatorDomainService::new();
                         let input_key = InputKey::new(
                             vk_code,
                             Modifiers {
@@ -134,7 +135,7 @@ extern "system" fn keyboard_hook_proc(code: i32, wparam: WPARAM, lparam: LPARAM)
 
                         if let Some(seq) = translator.translate(input_key) {
                             // 直接ターミナルデータに書き込む
-                            let data_arc = crate::gui::terminal_data::get_terminal_data();
+                            let data_arc = crate::gui::resolver::terminal_window_resolver::get_terminal_data();
                             let mut window_data = data_arc.lock().unwrap();
                             window_data.service.reset_viewport();
                             let _ = window_data.service.send_input(&seq);

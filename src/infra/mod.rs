@@ -1,4 +1,2 @@
-pub mod conpty;
-pub mod editor;
-pub mod input;
+pub mod driver;
 pub mod repository;

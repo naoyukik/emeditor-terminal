@@ -1,11 +1,11 @@
-use crate::domain::parser::AnsiParser;
 use crate::domain::repository::configuration_repository::ConfigurationRepository;
 use crate::domain::repository::terminal_output_repository::TerminalOutputRepository;
-use crate::domain::terminal::TerminalBuffer;
+use crate::domain::service::ansi_parser_domain_service::AnsiParserDomainService;
+use crate::domain::model::terminal_buffer_entity::TerminalBufferEntity;
 
-pub struct TerminalService {
-    pub(crate) buffer: TerminalBuffer,
-    parser: AnsiParser,
+pub struct TerminalWorkflow {
+    pub(crate) buffer: TerminalBufferEntity,
+    parser: AnsiParserDomainService,
     output_repo: Box<dyn TerminalOutputRepository>,
     #[allow(dead_code)] // TODO: フォント設定UI実装時に使用予定
     config_repo: Box<dyn ConfigurationRepository>,
@@ -16,7 +16,7 @@ pub struct TerminalService {
     font_size: i32,
 }
 
-impl TerminalService {
+impl TerminalWorkflow {
     pub fn new(
         cols: usize,
         rows: usize,
@@ -27,8 +27,8 @@ impl TerminalService {
         let font_size = config_repo.get_font_size();
 
         Self {
-            buffer: TerminalBuffer::new(cols, rows),
-            parser: AnsiParser::new(),
+            buffer: TerminalBufferEntity::new(cols, rows),
+            parser: AnsiParserDomainService::new(),
             output_repo,
             config_repo,
             font_face,

@@ -1,5 +1,3 @@
-pub mod ime;
-pub mod renderer;
-pub mod scroll;
-pub mod terminal_data;
+pub mod driver;
+pub mod resolver;
 pub mod window;

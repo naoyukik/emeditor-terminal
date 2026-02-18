@@ -1,20 +1,20 @@
 use crate::domain::repository::terminal_output_repository::TerminalOutputRepository;
-use crate::infra::conpty::ConPTY;
+use crate::infra::driver::conpty_io_driver::ConptyIoDriver;
 use std::io;
 use windows::Win32::Storage::FileSystem::WriteFile;
 
 #[allow(dead_code)]
 pub struct ConptyRepositoryImpl {
-    conpty: ConPTY,
+    conpty: ConptyIoDriver,
 }
 
 #[allow(dead_code)]
 impl ConptyRepositoryImpl {
-    pub fn new(conpty: ConPTY) -> Self {
+    pub fn new(conpty: ConptyIoDriver) -> Self {
         Self { conpty }
     }
 
-    pub fn get_conpty(&self) -> &ConPTY {
+    pub fn get_conpty(&self) -> &ConptyIoDriver {
         &self.conpty
     }
 }

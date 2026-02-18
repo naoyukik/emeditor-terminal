@@ -1,10 +1,10 @@
-use crate::domain::terminal::{TerminalAttribute, TerminalBuffer, TerminalColor};
+use crate::domain::model::terminal_buffer_entity::{TerminalAttribute, TerminalBufferEntity, TerminalColor};
 
-pub(crate) struct AnsiParser {
+pub(crate) struct AnsiParserDomainService {
     incomplete_sequence: String,
 }
 
-impl AnsiParser {
+impl AnsiParserDomainService {
     pub(crate) fn new() -> Self {
         Self {
             incomplete_sequence: String::new(),
@@ -12,14 +12,14 @@ impl AnsiParser {
     }
 }
 
-impl Default for AnsiParser {
+impl Default for AnsiParserDomainService {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl AnsiParser {
-    pub(crate) fn parse(&mut self, s: &str, buffer: &mut TerminalBuffer) {
+impl AnsiParserDomainService {
+    pub(crate) fn parse(&mut self, s: &str, buffer: &mut TerminalBufferEntity) {
         let input = if !self.incomplete_sequence.is_empty() {
             let mut combined = std::mem::take(&mut self.incomplete_sequence);
             combined.push_str(s);
@@ -122,7 +122,7 @@ impl AnsiParser {
 
     fn handle_csi(
         &mut self,
-        buffer: &mut TerminalBuffer,
+        buffer: &mut TerminalBufferEntity,
         command: char,
         params: &str,
         _intermediates: &str,
@@ -161,24 +161,24 @@ impl AnsiParser {
                 let mode = params.parse::<usize>().unwrap_or(0);
                 if let Some(line) = buffer.lines.get_mut(buffer.cursor.y) {
                     while line.len() < buffer.width {
-                        line.push(crate::domain::terminal::Cell::default());
+                        line.push(crate::domain::model::terminal_buffer_entity::Cell::default());
                     }
                     match mode {
                         0 => {
                             if buffer.cursor.x < line.len() {
                                 for cell in line.iter_mut().skip(buffer.cursor.x) {
-                                    *cell = crate::domain::terminal::Cell::default();
+                                    *cell = crate::domain::model::terminal_buffer_entity::Cell::default();
                                 }
                             }
                         }
                         1 => {
                             let end = std::cmp::min(buffer.cursor.x + 1, line.len());
                             for cell in line.iter_mut().take(end) {
-                                *cell = crate::domain::terminal::Cell::default();
+                                *cell = crate::domain::model::terminal_buffer_entity::Cell::default();
                             }
                         }
                         2 => {
-                            line.fill(crate::domain::terminal::Cell::default());
+                            line.fill(crate::domain::model::terminal_buffer_entity::Cell::default());
                         }
                         _ => {}
                     }
@@ -192,7 +192,7 @@ impl AnsiParser {
                         let removed_count = end_idx - buffer.cursor.x;
                         line.drain(buffer.cursor.x..end_idx);
                         line.extend(std::iter::repeat_n(
-                            crate::domain::terminal::Cell::default(),
+                            crate::domain::model::terminal_buffer_entity::Cell::default(),
                             removed_count,
                         ));
                     }
@@ -202,12 +202,12 @@ impl AnsiParser {
                 let n = self.parse_csi_param(params, 1);
                 if let Some(line) = buffer.lines.get_mut(buffer.cursor.y) {
                     while line.len() < buffer.width {
-                        line.push(crate::domain::terminal::Cell::default());
+                        line.push(crate::domain::model::terminal_buffer_entity::Cell::default());
                     }
                     if buffer.cursor.x < line.len() {
                         let end_idx = std::cmp::min(buffer.cursor.x + n, line.len());
                         for cell in line.iter_mut().take(end_idx).skip(buffer.cursor.x) {
-                            *cell = crate::domain::terminal::Cell::default();
+                            *cell = crate::domain::model::terminal_buffer_entity::Cell::default();
                         }
                     }
                 }
@@ -238,36 +238,36 @@ impl AnsiParser {
                     0 => {
                         if let Some(line) = buffer.lines.get_mut(buffer.cursor.y) {
                             while line.len() < buffer.width {
-                                line.push(crate::domain::terminal::Cell::default());
+                                line.push(crate::domain::model::terminal_buffer_entity::Cell::default());
                             }
                             for cell in line.iter_mut().skip(buffer.cursor.x) {
-                                *cell = crate::domain::terminal::Cell::default();
+                                *cell = crate::domain::model::terminal_buffer_entity::Cell::default();
                             }
                         }
                         for y in (buffer.cursor.y + 1)..buffer.lines.len() {
                             if let Some(line) = buffer.lines.get_mut(y) {
-                                line.fill(crate::domain::terminal::Cell::default());
+                                line.fill(crate::domain::model::terminal_buffer_entity::Cell::default());
                             }
                         }
                     }
                     1 => {
                         for y in 0..buffer.cursor.y {
                             if let Some(line) = buffer.lines.get_mut(y) {
-                                line.fill(crate::domain::terminal::Cell::default());
+                                line.fill(crate::domain::model::terminal_buffer_entity::Cell::default());
                             }
                         }
                         if let Some(line) = buffer.lines.get_mut(buffer.cursor.y) {
                             while line.len() < buffer.width {
-                                line.push(crate::domain::terminal::Cell::default());
+                                line.push(crate::domain::model::terminal_buffer_entity::Cell::default());
                             }
                             for cell in line.iter_mut().take(buffer.cursor.x + 1) {
-                                *cell = crate::domain::terminal::Cell::default();
+                                *cell = crate::domain::model::terminal_buffer_entity::Cell::default();
                             }
                         }
                     }
                     2 | 3 => {
                         for line in buffer.lines.iter_mut() {
-                            line.fill(crate::domain::terminal::Cell::default());
+                            line.fill(crate::domain::model::terminal_buffer_entity::Cell::default());
                         }
                     }
                     _ => {}
@@ -346,7 +346,7 @@ impl AnsiParser {
         }
     }
 
-    fn handle_sgr(&mut self, buffer: &mut TerminalBuffer, params: &str) {
+    fn handle_sgr(&mut self, buffer: &mut TerminalBufferEntity, params: &str) {
         if params.is_empty() {
             buffer.current_attribute = TerminalAttribute::default();
             return;
@@ -461,7 +461,7 @@ impl AnsiParser {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::domain::terminal::{Cell, TerminalBuffer};
+    use crate::domain::model::terminal_buffer_entity::{Cell, TerminalBufferEntity};
 
     fn line_to_string(line: &[Cell]) -> String {
         line.iter().map(|cell| cell.c).collect()
@@ -469,8 +469,8 @@ mod tests {
 
     #[test]
     fn test_parser_basic() {
-        let mut buffer = TerminalBuffer::new(80, 25);
-        let mut parser = AnsiParser::new();
+        let mut buffer = TerminalBufferEntity::new(80, 25);
+        let mut parser = AnsiParserDomainService::new();
         parser.parse("Hello", &mut buffer);
         let first_line = line_to_string(&buffer.get_lines()[0]);
         assert!(first_line.starts_with("Hello"));
@@ -478,8 +478,8 @@ mod tests {
 
     #[test]
     fn test_sgr_colors() {
-        let mut buffer = TerminalBuffer::new(80, 25);
-        let mut parser = AnsiParser::new();
+        let mut buffer = TerminalBufferEntity::new(80, 25);
+        let mut parser = AnsiParserDomainService::new();
         parser.parse("\x1b[31mRed\x1b[39mDefault", &mut buffer);
         assert_eq!(
             buffer.get_lines()[0][0].attribute.fg,
@@ -493,8 +493,8 @@ mod tests {
 
     #[test]
     fn test_terminal_resize() {
-        let mut buffer = TerminalBuffer::new(10, 5);
-        let mut parser = AnsiParser::new();
+        let mut buffer = TerminalBufferEntity::new(10, 5);
+        let mut parser = AnsiParserDomainService::new();
         parser.parse("Hello CJKあいう", &mut buffer);
         // "Hello CJK" is 9 chars. "あ" is 2 width. Total 11.
         // With width 10, "CJK" might be wrapped or truncated.
