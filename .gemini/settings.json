@@ -148,12 +148,12 @@
         ]
       },
       {
-        "matcher": "write_file|replace_in_file|jetbrains__create_file",
+        "matcher": "run_shell_command|write_file|create_new_file",
         "hooks": [
           {
             "name": "architecture-guard",
             "type": "command",
-            "command": "python3 .gemini/hooks/validate_architecture.py",
+            "command": "$PYTHON_COMMAND $GEMINI_PROJECT_DIR/.gemini/hooks/validate_architecture.py",
             "description": "バイブコーディング時の厳格なファイル命名規則を強制する"
           }
         ]
