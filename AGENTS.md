@@ -12,7 +12,7 @@ https://github.com/naoyukik/emeditor-terminal
 - **Git 操作ガイドライン**: `operating-git` スキルを参照すること。
   - **重要**: `git add .` および `git add -A` の使用は厳禁。ファイルは必ず個別に指定すること。
   - コミットメッセージの形式（Conventional Commits + 日本語による説明 + チケット番号）。
-- **Issue 作成ガイドライン**: [`conductor/github_issue.md`](conductor/github_issue.md)
+- **Issue 作成ガイドライン**: `creating-github-issues` スキルを参照すること。
 - **動作ログ**: `$env:TEMP\emeditor_terminal.log` を確認すること。
 
 ## 開発参考資料
