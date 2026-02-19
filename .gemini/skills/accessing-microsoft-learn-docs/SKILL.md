@@ -1,6 +1,6 @@
 ---
 name: accessing-microsoft-learn-docs
-description: Searches and retrieves Microsoft Learn documentation via MCP Server. Provides access to Windows API, Win32, and related technology references. Use when looking up Windows API functions, system calls, or Microsoft platform documentation.
+description: Investigating official Microsoft Learn documentation for Windows API, Win32 system calls, and platform specifications. This skill provides the ultimate reference for HRESULT codes, GDI functions, and COM interfaces. Mandatory when implementing low-level OS interactions or debugging Windows-specific behavior to ensure alignment with official standards.
 ---
 
 # Microsoft Learn ドキュメント検索

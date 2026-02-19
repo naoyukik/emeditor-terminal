@@ -1,6 +1,6 @@
 ---
 name: operating-git
-description: Manage Git workflows including staging, commits, and status. Enforces project-specific rules like prohibiting 'git add .' and mandating folder-level staging for the 'conductor/' directory. Activate this skill before any git commands to ensure compliance with commit conventions.
+description: Managing Git workflows with zero tolerance for 'git add .' or 'git add -A'. This skill enforces individual file staging and mandatory folder-level staging for the conductor/ directory. It MANDATES that commit messages MUST have a Japanese description part following the type (e.g., 'type: 日本語での説明'). Verify diffs before every commit to ensure atomicity and prevent accidental inclusion of untracked artifacts or secrets.
 ---
 
 # Git操作ガイドライン
@@ -29,29 +29,10 @@ git add -A
 - **原子的なコミット**: 1コミット = 1つの論理的な単位（機能追加、バグ修正、リファクタリング等）
 - **混合禁止**: リファクタリングと機能追加を同じコミットに含めない
 
-## コミットメッセージ形式
+## コミットメッセージの作成
 
-```
-type: 日本語での簡潔な説明（50文字以内）
-
-ref: チケット番号
-```
-
-- **1行目**: 型 (type) と日本語の説明
-- **2行目**: 空行
-- **3行目**: `ref: ` + Issue番号（ブランチ名の先頭数値）。存在しない場合は省略
-
-## Type一覧
-
-| Type | 用途 |
-|------|------|
-| `feat` | 新機能 |
-| `fix` | バグ修正 |
-| `refactor` | リファクタリング |
-| `docs` | ドキュメントのみの変更 |
-| `style` | コードの意味に影響しない変更（空白、フォーマット等） |
-| `test` | テストの追加・修正 |
-| `chore` | ビルドプロセスやツールの変更、依存関係の更新 |
+コミットメッセージの内容および形式については、**必ず `referencing-commit-convention` スキルを参照し、日本語での記述を徹底すること**。
+本スキルは Git 操作の手順とステージングの制約（git add . 禁止等）を司る。
 
 ## 例
 

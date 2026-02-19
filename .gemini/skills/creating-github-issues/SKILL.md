@@ -1,6 +1,6 @@
 ---
 name: creating-github-issues
-description: Assists with GitHub Issue creation. Provides title format and required section templates (Background/Purpose, Tasks, Goal). Use when creating or updating Issues.
+description: Standardizing the creation and management of GitHub Issues. This skill MANDATES the use of a specific title format (type: Japanese Description) and a body template including Background/Purpose, Tasks, and Goal sections. It ensures consistency in tracking work items and facilitates clear communication of intent and success criteria. Use whenever creating or updating Issues to maintain project transparency.
 ---
 
 # GitHub Issue作成ガイドライン
