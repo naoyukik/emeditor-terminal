@@ -3,16 +3,16 @@
 ## Phase 1: Research and Preparation
 現在のスキルの記述と、それらがどのように認識されているかを正確に把握する。
 
-- [ ] Task: 対象スキルの `SKILL.md` の現状を最終確認
-    - [ ] `rust-coding-conventions/SKILL.md`
-    - [ ] `sequential-thinking/SKILL.md`
-    - [ ] `naming-conventions/SKILL.md`
-    - [ ] `conductor-protocol/SKILL.md` の正確なパスを特定
-    - [ ] `accessing-microsoft-learn-docs/SKILL.md`
-    - [ ] `referencing-commit-convention/SKILL.md`
-    - [ ] `operating-git/SKILL.md`
-    - [ ] `japanese-response/SKILL.md`
-- [ ] Task: 改善後の `description` 案を、仕様書（`spec.md`）とキーワードに基づきドラフト作成
+- [x] Task: 対象スキルの `SKILL.md` の現状を最終確認
+    - [x] `rust-coding-conventions/SKILL.md`
+    - [x] `sequential-thinking/SKILL.md`
+    - [x] `naming-conventions/SKILL.md`
+    - [x] `conductor-protocol/SKILL.md` の正確なパスを特定
+    - [x] `accessing-microsoft-learn-docs/SKILL.md`
+    - [x] `referencing-commit-convention/SKILL.md`
+    - [x] `operating-git/SKILL.md`
+    - [x] `japanese-response/SKILL.md`
+- [x] Task: 改善後の `description` 案を、仕様書（`spec.md`）とキーワードに基づきドラフト作成
 - [ ] Task: Conductor - User Manual Verification 'Phase 1: Research and Preparation' (Protocol in workflow.md)
 
 ## Phase 2: Updating Core Skill Descriptions
