@@ -1,6 +1,6 @@
 ---
 name: operating-git
-description: Managing Git workflows with zero tolerance for 'git add .' or 'git add -A'. This skill enforces individual file staging and mandatory folder-level staging for the conductor/ directory. It requires git diff verification before every commit to ensure atomicity and prevent accidental inclusion of untracked artifacts or secrets.
+description: Managing Git workflows with zero tolerance for 'git add .' or 'git add -A'. This skill enforces individual file staging and mandatory folder-level staging for the conductor/ directory. It MANDATES that commit messages MUST have a Japanese description part following the type (e.g., 'type: 日本語での説明'). Verify diffs before every commit to ensure atomicity and prevent accidental inclusion of untracked artifacts or secrets.
 ---
 
 # Git操作ガイドライン

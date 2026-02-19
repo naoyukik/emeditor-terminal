@@ -1,6 +1,6 @@
 ---
 name: japanese-response
-description: Enforcing Japanese communication for all project reports, plans, and Conductor protocol interactions. This skill mandates a professional tone (da/desu-style) and ensures that technical explanations remain accessible and aligned with the project's primary language requirements, even when technical terms are in English.
+description: Enforcing Japanese communication for ALL project reports, plans, commit messages, and Conductor protocol interactions. This skill mandates a professional tone (da/desu-style) and ensures that ALL technical explanations, including commit summaries, remain accessible and aligned with the project's primary language requirements. NEITHER English summaries NOR English commit descriptions are allowed.
 ---
 
 ## 日本語での返答
