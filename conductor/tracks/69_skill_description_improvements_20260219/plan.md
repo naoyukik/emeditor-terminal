@@ -35,12 +35,12 @@
     - [x] `operating-git`
 - [x] Task: 応答・言語系スキルの更新
     - [x] `japanese-response`
-- [ ] Task: Conductor - User Manual Verification 'Phase 3: Updating Tool & Communication Skill Descriptions' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Phase 3: Updating Tool & Communication Skill Descriptions' (Protocol in workflow.md)
 
 ## Phase 4: README Review & Final Verification
 READMEの微調整と、すべてのスキルが意図通りに機能することを確認する。
 
-- [ ] Task: README.md の再点検と必要最小限の修正（Issue #69 の要請に応じる）
-- [ ] Task: 更新されたスキルのロード確認（Gemini CLIによるメタデータ認識の確認）
-- [ ] Task: 全ファイルの差分確認とコミット準備
-- [ ] Task: Conductor - User Manual Verification 'Phase 4: README Review & Final Verification' (Protocol in workflow.md)
+- [x] Task: README.md の再点検と必要最小限の修正（Issue #69 の要請に応じる）
+- [x] Task: 更新されたスキルのロード確認（Gemini CLIによるメタデータ認識の確認）
+- [x] Task: 全ファイルの差分確認とコミット準備
+- [x] Task: Conductor - User Manual Verification 'Phase 4: README Review & Final Verification' (Protocol in workflow.md)
