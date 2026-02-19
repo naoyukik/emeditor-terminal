@@ -13,7 +13,7 @@
     - [x] `operating-git/SKILL.md`
     - [x] `japanese-response/SKILL.md`
 - [x] Task: 改善後の `description` 案を、仕様書（`spec.md`）とキーワードに基づきドラフト作成
-- [ ] Task: Conductor - User Manual Verification 'Phase 1: Research and Preparation' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Phase 1: Research and Preparation' (Protocol in workflow.md)
 
 ## Phase 2: Updating Core Skill Descriptions
 主要な規約とプロトコルに関するスキルの `description` を更新する。
@@ -51,4 +51,4 @@ READMEの微調整と、すべてのスキルが意図通りに機能するこ�
 - [x] Task: `referencing-commit-convention` の `description` を日本語強制を強調する内容に再修正
 - [x] Task: `operating-git` の `description` を再修正
 - [x] Task: `japanese-response` の `description` を再修正
-- [ ] Task: Conductor - User Manual Verification 'Phase 5: Strengthening Japanese Commit Message Enforcement' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Phase 5: Strengthening Japanese Commit Message Enforcement' (Protocol in workflow.md)
