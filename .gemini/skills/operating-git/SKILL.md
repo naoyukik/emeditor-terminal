@@ -1,6 +1,6 @@
 ---
 name: operating-git
-description: Manage Git workflows including staging, commits, and status. Enforces project-specific rules like prohibiting 'git add .' and mandating folder-level staging for the 'conductor/' directory. Activate this skill before any git commands to ensure compliance with commit conventions.
+description: Managing Git workflows with zero tolerance for 'git add .' or 'git add -A'. This skill enforces individual file staging and mandatory folder-level staging for the conductor/ directory. It requires git diff verification before every commit to ensure atomicity and prevent accidental inclusion of untracked artifacts or secrets.
 ---
 
 # Git操作ガイドライン

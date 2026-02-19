@@ -1,6 +1,6 @@
 ---
 name: referencing-commit-convention
-description: Provides strict commit message conventions based on 'conductor/git.md'. Enforces the format 'type: 日本語での説明' and 'ref: チケット番号'. This skill MUST be used when preparing or displaying commit messages to ensure a consistent and understandable change history.
+description: Standardizing project history through strict commit message conventions. This skill enforces the 'type: Description (in Japanese)' and 'ref: IssueNumber' format. It ensures every commit is atomic and follows the Conventional Commits specification, facilitating a transparent and navigable audit trail.
 ---
 このスキルはコミットメッセージの作成を支援する。
 

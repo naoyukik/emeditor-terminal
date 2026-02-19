@@ -24,17 +24,17 @@
 - [x] Task: 思考・プロトコル系スキルの更新
     - [x] `sequential-thinking`
     - [x] `conductor-protocol`
-- [ ] Task: Conductor - User Manual Verification 'Phase 2: Updating Core Skill Descriptions' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Phase 2: Updating Core Skill Descriptions' (Protocol in workflow.md)
 
 ## Phase 3: Updating Tool & Communication Skill Descriptions
 外部ツール連携とコミュニケーションに関するスキルの `description` を更新する。
 
-- [ ] Task: ツール・Git操作系スキルの更新
-    - [ ] `accessing-microsoft-learn-docs`
-    - [ ] `referencing-commit-convention`
-    - [ ] `operating-git`
-- [ ] Task: 応答・言語系スキルの更新
-    - [ ] `japanese-response`
+- [x] Task: ツール・Git操作系スキルの更新
+    - [x] `accessing-microsoft-learn-docs`
+    - [x] `referencing-commit-convention`
+    - [x] `operating-git`
+- [x] Task: 応答・言語系スキルの更新
+    - [x] `japanese-response`
 - [ ] Task: Conductor - User Manual Verification 'Phase 3: Updating Tool & Communication Skill Descriptions' (Protocol in workflow.md)
 
 ## Phase 4: README Review & Final Verification

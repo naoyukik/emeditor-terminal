@@ -1,6 +1,6 @@
 ---
 name: japanese-response
-description: Always respond in Japanese when using Conductor commands
+description: Enforcing Japanese communication for all project reports, plans, and Conductor protocol interactions. This skill mandates a professional tone (da/desu-style) and ensures that technical explanations remain accessible and aligned with the project's primary language requirements, even when technical terms are in English.
 ---
 
 ## 日本語での返答
