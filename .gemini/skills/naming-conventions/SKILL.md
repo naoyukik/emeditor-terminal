@@ -1,6 +1,6 @@
 ---
 name: naming-conventions
-description: ファイル作成や関数実装時に参照する各種命名規約。ファイル名、構造体/列挙型/トレイト、関数、変数/フィールドを新規作成・リファクタリングを行う際には必ず確認すること。
+description: Enforcing strict naming standards during refactoring or new entity creation. This skill dictates snake_case for functions/variables, PascalCase for types, and predicate forms (is_xxx) for booleans. It aligns codebase with Domain-Driven Design (DDD) terminology as defined in the ubiquitous language dictionary, ensuring consistency across all modules.
 ---
 
 # 各種命名規約

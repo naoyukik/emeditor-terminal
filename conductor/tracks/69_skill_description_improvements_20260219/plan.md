@@ -18,12 +18,12 @@
 ## Phase 2: Updating Core Skill Descriptions
 主要な規約とプロトコルに関するスキルの `description` を更新する。
 
-- [ ] Task: 開発規約系スキルの更新
-    - [ ] `rust-coding-conventions`
-    - [ ] `naming-conventions`
-- [ ] Task: 思考・プロトコル系スキルの更新
-    - [ ] `sequential-thinking`
-    - [ ] `conductor-protocol`
+- [x] Task: 開発規約系スキルの更新
+    - [x] `rust-coding-conventions`
+    - [x] `naming-conventions`
+- [x] Task: 思考・プロトコル系スキルの更新
+    - [x] `sequential-thinking`
+    - [x] `conductor-protocol`
 - [ ] Task: Conductor - User Manual Verification 'Phase 2: Updating Core Skill Descriptions' (Protocol in workflow.md)
 
 ## Phase 3: Updating Tool & Communication Skill Descriptions

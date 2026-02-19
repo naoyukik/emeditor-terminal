@@ -1,6 +1,6 @@
 ---
 name: conductor-protocol
-description: Conductorフレームワークに基づく仕様駆動開発（Spec-Driven Development）の実行プロトコル。新規トラック作成、ファイル解決、コードレビュー等の厳格な手順を規定する。Conductor関連の操作を行う際に必ず有効化せよ。
+description: Executing Spec-Driven Development (SDD) via the Conductor framework. This skill governs track initialization, spec.md/plan.md creation, and the Universal File Resolution Protocol. It mandates strict adherence to phase transition protocols, user manual verification, and checkpointing. Required for all high-level task management and architectural decision-making.
 ---
 
 # **Conductor Protocol**

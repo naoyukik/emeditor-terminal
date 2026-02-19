@@ -1,6 +1,6 @@
 ---
 name: rust-coding-conventions
-description: Provides coding conventions for Rust/Win32 projects. Includes naming rules, layered architecture, safety guidelines, and test strategy. Use when writing or reviewing code.
+description: Mastering Rust/Win32 development by enforcing strict layered architecture (GUI -> App -> Domain <- Infra) and Win32 API isolation. This skill mandates pure Rust domains, RAII-based resource management to prevent GDI leaks, and explicit safety comments for unsafe blocks. Use during code implementation or review to ensure dependency direction and memory safety.
 ---
 
 # Rust/Win32 コーディング規約
