@@ -1,6 +1,6 @@
 ---
 name: sequential-thinking
-description: Reasoning through complex engineering problems using a structured "think" tool. This skill is mandatory before any tool execution or plan generation to verify hypotheses and break down ambiguous requirements into logical steps. It enhances meta-cognition, ensuring every action is grounded in deliberate analysis and multi-step planning.
+description: Reasoning through complex engineering problems using a structured "think" tool. This skill is used to analyze ambiguous requirements, verify hypotheses, or break down multi-step tasks into logical components. It enhances meta-cognition by providing a dedicated space for deliberate analysis and reflective problem-solving when navigating intricate technical challenges.
 ---
 
 ## "sequential-thinking" as "think" tool
