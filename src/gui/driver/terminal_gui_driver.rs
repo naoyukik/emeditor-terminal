@@ -70,6 +70,10 @@ impl TerminalGuiDriver {
         }
     }
 
+    fn rgb_to_colorref(rgb: &crate::domain::model::color_theme_value::RgbColor) -> COLORREF {
+        COLORREF(rgb.r as u32 | ((rgb.g as u32) << 8) | ((rgb.b as u32) << 16))
+    }
+
     pub fn clear_resources(&mut self) {
         for (_, send_h_font) in self.fonts.drain() {
             unsafe {
@@ -186,16 +190,16 @@ impl TerminalGuiDriver {
         match color {
             TerminalColor::Default => {
                 let rgb = if is_background {
-                    theme.default_bg
+                    &theme.default_bg
                 } else {
-                    theme.default_fg
+                    &theme.default_fg
                 };
-                COLORREF(rgb.r as u32 | ((rgb.g as u32) << 8) | ((rgb.b as u32) << 16))
+                Self::rgb_to_colorref(rgb)
             }
             TerminalColor::Ansi(n) => self.ansi_to_colorref(n, theme),
             TerminalColor::Xterm(n) => self.xterm_to_colorref(n, theme),
             TerminalColor::Rgb(r, g, b) => {
-                COLORREF(r as u32 | ((g as u32) << 8) | ((b as u32) << 16))
+                Self::rgb_to_colorref(&crate::domain::model::color_theme_value::RgbColor::new(r, g, b))
             }
         }
     }
@@ -206,8 +210,7 @@ impl TerminalGuiDriver {
         theme: &crate::domain::model::color_theme_value::ColorTheme,
     ) -> COLORREF {
         let idx = if n < 16 { n as usize } else { 15 };
-        let rgb = theme.ansi_palette[idx];
-        COLORREF(rgb.r as u32 | ((rgb.g as u32) << 8) | ((rgb.b as u32) << 16))
+        Self::rgb_to_colorref(&theme.ansi_palette[idx])
     }
 
     fn xterm_to_colorref(
@@ -380,14 +383,7 @@ impl TerminalGuiDriver {
                         bottom: current_y + char_height,
                     };
                     let bg_color = theme.default_bg;
-                    SetBkColor(
-                        hdc,
-                        COLORREF(
-                            bg_color.r as u32
-                                | ((bg_color.g as u32) << 8)
-                                | ((bg_color.b as u32) << 16),
-                        ),
-                    );
+                    SetBkColor(hdc, Self::rgb_to_colorref(&bg_color));
                     let _ = ExtTextOutW(
                         hdc,
                         x_offset,
@@ -435,14 +431,7 @@ impl TerminalGuiDriver {
                     bottom: client_rect.bottom,
                 };
                 let bg_color = theme.default_bg;
-                SetBkColor(
-                    hdc,
-                    COLORREF(
-                        bg_color.r as u32
-                            | ((bg_color.g as u32) << 8)
-                            | ((bg_color.b as u32) << 16),
-                    ),
-                );
+                SetBkColor(hdc, Self::rgb_to_colorref(&bg_color));
                 let _ = ExtTextOutW(
                     hdc,
                     0,
@@ -488,18 +477,8 @@ impl TerminalGuiDriver {
         unsafe {
             let bg_color = theme.default_bg;
             let fg_color = theme.default_fg;
-            SetBkColor(
-                hdc,
-                COLORREF(
-                    bg_color.r as u32 | ((bg_color.g as u32) << 8) | ((bg_color.b as u32) << 16),
-                ),
-            );
-            SetTextColor(
-                hdc,
-                COLORREF(
-                    fg_color.r as u32 | ((fg_color.g as u32) << 8) | ((fg_color.b as u32) << 16),
-                ),
-            );
+            SetBkColor(hdc, Self::rgb_to_colorref(&bg_color));
+            SetTextColor(hdc, Self::rgb_to_colorref(&fg_color));
             let _ = ExtTextOutW(
                 hdc,
                 x,
@@ -543,7 +522,6 @@ impl TerminalGuiDriver {
 mod tests {
     use super::*;
     use crate::domain::model::color_theme_value::ColorTheme;
-    use windows::Win32::Foundation::COLORREF;
 
     #[test]
     fn test_color_to_colorref() {
@@ -552,35 +530,14 @@ mod tests {
 
         // Default background
         let bg_ref = driver.color_to_colorref(TerminalColor::Default, true, &theme);
-        assert_eq!(
-            bg_ref,
-            COLORREF(
-                theme.default_bg.r as u32
-                    | ((theme.default_bg.g as u32) << 8)
-                    | ((theme.default_bg.b as u32) << 16)
-            )
-        );
+        assert_eq!(bg_ref, TerminalGuiDriver::rgb_to_colorref(&theme.default_bg));
 
         // Default foreground
         let fg_ref = driver.color_to_colorref(TerminalColor::Default, false, &theme);
-        assert_eq!(
-            fg_ref,
-            COLORREF(
-                theme.default_fg.r as u32
-                    | ((theme.default_fg.g as u32) << 8)
-                    | ((theme.default_fg.b as u32) << 16)
-            )
-        );
+        assert_eq!(fg_ref, TerminalGuiDriver::rgb_to_colorref(&theme.default_fg));
 
         // ANSI 1 (Red)
         let red_ref = driver.color_to_colorref(TerminalColor::Ansi(1), false, &theme);
-        assert_eq!(
-            red_ref,
-            COLORREF(
-                theme.ansi_palette[1].r as u32
-                    | ((theme.ansi_palette[1].g as u32) << 8)
-                    | ((theme.ansi_palette[1].b as u32) << 16)
-            )
-        );
+        assert_eq!(red_ref, TerminalGuiDriver::rgb_to_colorref(&theme.ansi_palette[1]));
     }
 }
