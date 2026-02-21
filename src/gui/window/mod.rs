@@ -9,7 +9,7 @@ use windows::Win32::UI::WindowsAndMessaging::{
     WM_IME_ENDCOMPOSITION, WM_IME_SETCONTEXT, WM_IME_STARTCOMPOSITION, WM_KEYDOWN, WM_KEYUP,
     WM_KILLFOCUS, WM_LBUTTONDOWN, WM_MOUSEWHEEL, WM_PAINT, WM_SETFOCUS, WM_SIZE, WM_SYSCHAR,
     WM_SYSCOMMAND, WM_SYSKEYDOWN, WM_SYSKEYUP, WM_VSCROLL, WNDCLASSW, WS_CHILD, WS_CLIPCHILDREN,
-    WS_CLIPSIBLINGS, WS_VISIBLE,
+    WS_CLIPSIBLINGS, WS_VISIBLE, WM_ERASEBKGND,
 };
 
 use crate::gui::resolver::terminal_window_resolver::{get_terminal_data, SendHWND};
@@ -299,6 +299,7 @@ extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM
         WM_IME_STARTCOMPOSITION => handlers::on_ime_start_composition(hwnd),
         WM_IME_COMPOSITION => handlers::on_ime_composition(hwnd, msg, wparam, lparam),
         WM_IME_ENDCOMPOSITION => handlers::on_ime_end_composition(hwnd),
+        WM_ERASEBKGND => LRESULT(1),
         WM_DESTROY => handlers::on_destroy(),
         _ => unsafe { DefWindowProcW(hwnd, msg, wparam, lparam) },
     }

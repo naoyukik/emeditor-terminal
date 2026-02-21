@@ -2,7 +2,10 @@ use crate::gui::driver::scroll_gui_driver::{update_window_scroll_info, ScrollAct
 use crate::gui::resolver::terminal_window_resolver::{get_terminal_data, TerminalWindowResolver};
 use crate::infra::driver::keyboard_io_driver::KeyboardIoDriver;
 use windows::Win32::Foundation::{BOOL, HWND, LPARAM, LRESULT, WPARAM};
-use windows::Win32::Graphics::Gdi::{BeginPaint, EndPaint, InvalidateRect, PAINTSTRUCT};
+use windows::Win32::Graphics::Gdi::{
+    BeginPaint, BitBlt, CreateCompatibleBitmap, CreateCompatibleDC, DeleteDC, DeleteObject,
+    EndPaint, InvalidateRect, PAINTSTRUCT, SRCCOPY,
+};
 use windows::Win32::UI::Input::KeyboardAndMouse::{SetFocus, VK_MENU};
 use windows::Win32::UI::WindowsAndMessaging::{
     CreateCaret, DefWindowProcW, DestroyCaret, DLGC_WANTALLKEYS,
