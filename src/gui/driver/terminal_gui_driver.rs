@@ -177,48 +177,46 @@ impl TerminalGuiDriver {
         }
     }
 
-    fn color_to_colorref(&self, color: TerminalColor, is_background: bool) -> COLORREF {
+    fn color_to_colorref(
+        &self,
+        color: TerminalColor,
+        is_background: bool,
+        theme: &crate::domain::model::color_theme_value::ColorTheme,
+    ) -> COLORREF {
         match color {
             TerminalColor::Default => {
-                if is_background {
-                    COLORREF(0x00000000) // Black
+                let rgb = if is_background {
+                    theme.default_bg
                 } else {
-                    COLORREF(0x00FFFFFF) // White
-                }
+                    theme.default_fg
+                };
+                COLORREF(rgb.r as u32 | ((rgb.g as u32) << 8) | ((rgb.b as u32) << 16))
             }
-            TerminalColor::Ansi(n) => self.ansi_to_colorref(n),
-            TerminalColor::Xterm(n) => self.xterm_to_colorref(n),
+            TerminalColor::Ansi(n) => self.ansi_to_colorref(n, theme),
+            TerminalColor::Xterm(n) => self.xterm_to_colorref(n, theme),
             TerminalColor::Rgb(r, g, b) => {
                 COLORREF(r as u32 | ((g as u32) << 8) | ((b as u32) << 16))
             }
         }
     }
 
-    fn ansi_to_colorref(&self, n: u8) -> COLORREF {
-        match n {
-            0 => COLORREF(0x00000000),  // Black
-            1 => COLORREF(0x00000080),  // Red
-            2 => COLORREF(0x00008000),  // Green
-            3 => COLORREF(0x00008080),  // Yellow
-            4 => COLORREF(0x00800000),  // Blue
-            5 => COLORREF(0x00800080),  // Magenta
-            6 => COLORREF(0x00808000),  // Cyan
-            7 => COLORREF(0x00C0C0C0),  // White/Gray
-            8 => COLORREF(0x00808080),  // Bright Black (Gray)
-            9 => COLORREF(0x000000FF),  // Bright Red
-            10 => COLORREF(0x0000FF00), // Bright Green
-            11 => COLORREF(0x0000FFFF), // Bright Yellow
-            12 => COLORREF(0x00FF0000), // Bright Blue
-            13 => COLORREF(0x00FF00FF), // Bright Magenta
-            14 => COLORREF(0x00FFFF00), // Bright Cyan
-            15 => COLORREF(0x00FFFFFF), // Bright White
-            _ => COLORREF(0x00FFFFFF),
-        }
+    fn ansi_to_colorref(
+        &self,
+        n: u8,
+        theme: &crate::domain::model::color_theme_value::ColorTheme,
+    ) -> COLORREF {
+        let idx = if n < 16 { n as usize } else { 15 };
+        let rgb = theme.ansi_palette[idx];
+        COLORREF(rgb.r as u32 | ((rgb.g as u32) << 8) | ((rgb.b as u32) << 16))
     }
 
-    fn xterm_to_colorref(&self, n: u8) -> COLORREF {
+    fn xterm_to_colorref(
+        &self,
+        n: u8,
+        theme: &crate::domain::model::color_theme_value::ColorTheme,
+    ) -> COLORREF {
         match n {
-            0..=15 => self.ansi_to_colorref(n),
+            0..=15 => self.ansi_to_colorref(n, theme),
             16..=231 => {
                 let idx = n - 16;
                 let r_idx = idx / 36;
@@ -242,6 +240,7 @@ impl TerminalGuiDriver {
         client_rect: &RECT,
         buffer: &TerminalBufferEntity,
         composition: Option<&CompositionInfo>,
+        theme: &crate::domain::model::color_theme_value::ColorTheme,
     ) {
         let _ = self.get_font_for_style(hdc, 0);
 
@@ -272,7 +271,8 @@ impl TerminalGuiDriver {
                         while cell_idx < line.len() && line[cell_idx].attribute == start_attr {
                             let cell = &line[cell_idx];
                             run_text.push(cell.c);
-                            let w = TerminalBufferEntity::char_display_width(cell.c) as i32 * base_width;
+                            let w = TerminalBufferEntity::char_display_width(cell.c) as i32
+                                * base_width;
                             run_dx.push(w);
                             run_dx.extend(std::iter::repeat_n(
                                 0,
@@ -320,8 +320,20 @@ impl TerminalGuiDriver {
                                 start_attr.bg
                             };
 
-                            let mut fg_colorref = self.color_to_colorref(fg, false);
-                            let bg_colorref = self.color_to_colorref(bg, true);
+                            let mut fg_colorref = self.color_to_colorref(fg, false, theme);
+                            let bg_colorref = self.color_to_colorref(bg, true, theme);
+
+                            // PowerShell等でよくある「青系背景＋白文字」のコントラストが低く読めない問題の対策
+                            if bg == TerminalColor::Ansi(4) || bg == TerminalColor::Ansi(12) // Blue
+                                || bg == TerminalColor::Ansi(6) || bg == TerminalColor::Ansi(14) // Cyan
+                            {
+                                if fg == TerminalColor::Default
+                                    || fg == TerminalColor::Ansi(7)
+                                    || fg == TerminalColor::Ansi(15)
+                                {
+                                    fg_colorref = self.color_to_colorref(TerminalColor::Default, true, theme);
+                                }
+                            }
 
                             // Dim属性が有効な場合は、COLORREFのRGB成分を用いて輝度を低減する
                             if start_attr.is_dim {
@@ -362,7 +374,15 @@ impl TerminalGuiDriver {
                         right: client_rect.right,
                         bottom: current_y + char_height,
                     };
-                    SetBkColor(hdc, COLORREF(0x00000000));
+                    let bg_color = theme.default_bg;
+                    SetBkColor(
+                        hdc,
+                        COLORREF(
+                            bg_color.r as u32
+                                | ((bg_color.g as u32) << 8)
+                                | ((bg_color.b as u32) << 16),
+                        ),
+                    );
                     let _ = ExtTextOutW(
                         hdc,
                         x_offset,
@@ -387,6 +407,7 @@ impl TerminalGuiDriver {
                             char_height,
                             base_width,
                             comp,
+                            theme,
                         );
                     } else if buffer.is_cursor_visible() {
                         let rect = RECT {
@@ -400,6 +421,34 @@ impl TerminalGuiDriver {
                 }
                 current_y += char_height;
             }
+
+            if current_y < client_rect.bottom {
+                let fill_rect = RECT {
+                    left: 0,
+                    top: current_y,
+                    right: client_rect.right,
+                    bottom: client_rect.bottom,
+                };
+                let bg_color = theme.default_bg;
+                SetBkColor(
+                    hdc,
+                    COLORREF(
+                        bg_color.r as u32
+                            | ((bg_color.g as u32) << 8)
+                            | ((bg_color.b as u32) << 16),
+                    ),
+                );
+                let _ = ExtTextOutW(
+                    hdc,
+                    0,
+                    current_y,
+                    ETO_OPTIONS(ETO_OPAQUE.0),
+                    Some(&fill_rect),
+                    PCWSTR::null(),
+                    0,
+                    None,
+                );
+            }
         }
     }
 
@@ -411,6 +460,7 @@ impl TerminalGuiDriver {
         char_height: i32,
         base_width: i32,
         comp: &CompositionInfo,
+        theme: &crate::domain::model::color_theme_value::ColorTheme,
     ) {
         let comp_wide: Vec<u16> = comp.text.encode_utf16().collect();
         let mut comp_dx = Vec::with_capacity(comp_wide.len());
@@ -430,8 +480,20 @@ impl TerminalGuiDriver {
         };
 
         unsafe {
-            SetBkColor(hdc, COLORREF(0x00000000));
-            SetTextColor(hdc, COLORREF(0x00FFFFFF));
+            let bg_color = theme.default_bg;
+            let fg_color = theme.default_fg;
+            SetBkColor(
+                hdc,
+                COLORREF(
+                    bg_color.r as u32 | ((bg_color.g as u32) << 8) | ((bg_color.b as u32) << 16),
+                ),
+            );
+            SetTextColor(
+                hdc,
+                COLORREF(
+                    fg_color.r as u32 | ((fg_color.g as u32) << 8) | ((fg_color.b as u32) << 16),
+                ),
+            );
             let _ = ExtTextOutW(
                 hdc,
                 x,
@@ -468,5 +530,51 @@ impl TerminalGuiDriver {
                 log::error!("TerminalGuiDriver: Failed to create pen for composition underline");
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::domain::model::color_theme_value::ColorTheme;
+    use windows::Win32::Foundation::COLORREF;
+
+    #[test]
+    fn test_color_to_colorref() {
+        let driver = TerminalGuiDriver::new();
+        let theme = ColorTheme::one_half_dark();
+
+        // Default background
+        let bg_ref = driver.color_to_colorref(TerminalColor::Default, true, &theme);
+        assert_eq!(
+            bg_ref,
+            COLORREF(
+                theme.default_bg.r as u32
+                    | ((theme.default_bg.g as u32) << 8)
+                    | ((theme.default_bg.b as u32) << 16)
+            )
+        );
+
+        // Default foreground
+        let fg_ref = driver.color_to_colorref(TerminalColor::Default, false, &theme);
+        assert_eq!(
+            fg_ref,
+            COLORREF(
+                theme.default_fg.r as u32
+                    | ((theme.default_fg.g as u32) << 8)
+                    | ((theme.default_fg.b as u32) << 16)
+            )
+        );
+
+        // ANSI 1 (Red)
+        let red_ref = driver.color_to_colorref(TerminalColor::Ansi(1), false, &theme);
+        assert_eq!(
+            red_ref,
+            COLORREF(
+                theme.ansi_palette[1].r as u32
+                    | ((theme.ansi_palette[1].g as u32) << 8)
+                    | ((theme.ansi_palette[1].b as u32) << 16)
+            )
+        );
     }
 }

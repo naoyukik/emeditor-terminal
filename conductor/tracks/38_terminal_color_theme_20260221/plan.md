@@ -39,13 +39,13 @@
 - [x] Task: Commit Phase 2 changes
 
 ## Phase 3: GUI/描画処理へのテーマ適応
-- [ ] Task: GDI描画ロジックの改修
-    - [ ] `src/gui/driver/` 内の描画処理（背景クリア、文字描画）において、ハードコードされている色を `ColorTheme` の背景色・文字色に置き換える。
-    - [ ] SGRシーケンス（30-37, 40-47等）からRGB値へのマッピング処理を、`ColorTheme` の16色パレットを参照するように改修する。
-- [ ] Task: GUI層のユニットテスト修正
-    - [ ] SGRシーケンスをパースした結果が、テーマのパレットと一致することを検証するテストを追加・修正する。
-- [ ] Task: Conductor - ユーザー手動検証 'Phase 3: GUI/描画処理へのテーマ適応' (Protocol in workflow.md)
-- [ ] Task: Commit Phase 3 changes
+- [x] Task: GDI描画ロジックの改修
+    - [x] `src/gui/driver/` 内の描画処理（背景クリア、文字描画）において、ハードコードされている色を `ColorTheme` の背景色・文字色に置き換える。
+    - [x] SGRシーケンス（30-37, 40-47等）からRGB値へのマッピング処理を、`ColorTheme` の16色パレットを参照するように改修する。
+- [x] Task: GUI層のユニットテスト修正
+    - [x] SGRシーケンスをパースした結果が、テーマのパレットと一致することを検証するテストを追加・修正する。
+- [x] Task: Conductor - ユーザー手動検証 'Phase 3: GUI/描画処理へのテーマ適応' (Protocol in workflow.md)
+- [x] Task: Commit Phase 3 changes
 
 ## Phase 4: 最終動作確認と調整
 - [ ] Task: 実際のEmEditor上での動作検証
