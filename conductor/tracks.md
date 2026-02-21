@@ -4,5 +4,5 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 ---
 
-- [ ] **Track: feat: ターミナル配色のテーマ対応および改善**
+- [x] **Track: feat: ターミナル配色のテーマ対応および改善**
 *Link: [./tracks/38_terminal_color_theme_20260221/](./tracks/38_terminal_color_theme_20260221/)*
