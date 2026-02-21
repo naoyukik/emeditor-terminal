@@ -1,15 +1,15 @@
 # 実装計画: ターミナル配色のテーマ対応および改善 (Issue #38)
 
 ## Phase 0: SDKを通じた構成保存方法の調査
-- [ ] Task: `sdk/` 以下の調査
-    - [ ] EmEditorプラグインとして設定（Themeや各種config等）を永続化するための標準的な手段（レジストリ、専用API、iniファイルなど）を調査する。
-    - [ ] EmEditorのワークスペース機能（`.code-workspace`）に対応するAPIが提供されているか調査する。
-    - [ ] `sdk/` 配下のヘッダファイルやサンプルコードを確認する。
-    - [ ] 調査結果をこのトラックのドキュメント（必要であれば新ファイル）にまとめる。
-- [ ] Task: 構成保存方針の決定
-    - [ ] 調査結果に基づき、本トラックで実装する「構成情報のロード処理（Phase 2）」の設計方針（ハードコード、独自ファイル、またはEmEditor標準設定APIの利用）を決定する。
-- [ ] Task: Conductor - ユーザー手動検証 'Phase 0: SDKを通じた構成保存方法の調査' (Protocol in workflow.md)
-- [ ] Task: Commit Phase 0 changes
+- [x] Task: `sdk/` 以下の調査
+    - [x] EmEditorプラグインとして設定（Themeや各種config等）を永続化するための標準的な手段（レジストリ、専用API、iniファイルなど）を調査する。
+    - [x] EmEditorのワークスペース機能（`.code-workspace`）に対応するAPIが提供されているか調査する。
+    - [x] `sdk/` 配下のヘッダファイルやサンプルコードを確認する。
+    - [x] 調査結果をこのトラックのドキュメント（必要であれば新ファイル）にまとめる。
+- [x] Task: 構成保存方針の決定
+    - [x] 調査結果に基づき、本トラックで実装する「構成情報のロード処理（Phase 2）」の設計方針（ハードコード、独自ファイル、またはEmEditor標準設定APIの利用）を決定する。
+- [x] Task: Conductor - ユーザー手動検証 'Phase 0: SDKを通じた構成保存方法の調査' (Protocol in workflow.md)
+- [x] Task: Commit Phase 0 changes
 
 ## Phase 1: テーマモデルと設定の定義 (Domain Layer)
 - [ ] Task: テーマ情報のドメインエンティティの作成
