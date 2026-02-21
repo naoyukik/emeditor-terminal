@@ -28,15 +28,15 @@
 - [x] Task: Commit Phase 1 changes
 
 ## Phase 2: 設定のロード処理と Application 層の適応
-- [ ] Task: 構成情報のロード処理 (Infrastructure/Application Layer)
-    - [ ] 設定ファイルから `TerminalConfig` を読み込むロジックを実装する。今回は単純なハードコード設定、または簡易的な設定ファイルでの切り替えとする。
-    - [ ] 起動時に構成情報を読み込み、適切な `ColorTheme` を生成・取得する処理を実装する。
-- [ ] Task: Service/Workflow の改修
-    - [ ] `TerminalService` 等の初期化時に `ColorTheme` または `TerminalConfig` の情報を受け渡せるようコンストラクタ等を修正する。
-- [ ] Task: Application層のユニットテスト修正
-    - [ ] 追加された引数に対するモック・スタブ対応を行う。
-- [ ] Task: Conductor - ユーザー手動検証 'Phase 2: 設定のロード処理と Application 層の適応' (Protocol in workflow.md)
-- [ ] Task: Commit Phase 2 changes
+- [x] Task: 構成情報のロード処理 (Infrastructure/Application Layer)
+    - [x] 設定ファイルから `TerminalConfig` を読み込むロジックを実装する。今回は単純なハードコード設定、または簡易的な設定ファイルでの切り替えとする。
+    - [x] 起動時に構成情報を読み込み、適切な `ColorTheme` を生成・取得する処理を実装する。
+- [x] Task: Service/Workflow の改修
+    - [x] `TerminalService` 等の初期化時に `ColorTheme` または `TerminalConfig` の情報を受け渡せるようコンストラクタ等を修正する。
+- [x] Task: Application層のユニットテスト修正
+    - [x] 追加された引数に対するモック・スタブ対応を行う。
+- [x] Task: Conductor - ユーザー手動検証 'Phase 2: 設定のロード処理と Application 層の適応' (Protocol in workflow.md)
+- [x] Task: Commit Phase 2 changes
 
 ## Phase 3: GUI/描画処理へのテーマ適応
 - [ ] Task: GDI描画ロジックの改修
