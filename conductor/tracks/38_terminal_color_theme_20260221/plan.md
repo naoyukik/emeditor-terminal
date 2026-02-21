@@ -12,20 +12,20 @@
 - [x] Task: Commit Phase 0 changes
 
 ## Phase 1: テーマモデルと設定の定義 (Domain Layer)
-- [ ] Task: テーマ情報のドメインエンティティの作成
-    - [ ] `src/domain/model/color_theme.rs`（または類似のDDDに基づく命名）を新規作成する。
-    - [ ] `ColorTheme` 構造体を定義し、背景色、文字色、16色パレットを保持させる。
-    - [ ] RGB値を表す `Color` バリューオブジェクトを定義、または既存のものを利用する。
-- [ ] Task: Solarized テーマの実装
-    - [ ] `ColorTheme::solarized_dark()` などのファクトリメソッドを実装し、パレットのRGB値を定義する。
-    - [ ] `ColorTheme::solarized_light()` の実装を追加する。
-    - [ ] `ColorTheme::default()` の実装を追加する（既存の配色または標準ANSIカラー）。
-- [ ] Task: 構成読み込みのための設定インターフェース定義
-    - [ ] ターミナルの設定を表すエンティティ（例: `TerminalConfig`）を定義し、選択されているテーマの種類を保持できるようにする。
-- [ ] Task: Domain層のユニットテスト追加
-    - [ ] 各テーマが期待する色情報を保持しているか検証するテストを追加する。
-- [ ] Task: Conductor - ユーザー手動検証 'Phase 1: テーマモデルと設定の定義 (Domain Layer)' (Protocol in workflow.md)
-- [ ] Task: Commit Phase 1 changes
+- [x] Task: テーマ情報のドメインエンティティの作成
+    - [x] `src/domain/model/color_theme.rs`（または類似のDDDに基づく命名）を新規作成する。
+    - [x] `ColorTheme` 構造体を定義し、背景色、文字色、16色パレットを保持させる。
+    - [x] RGB値を表す `Color` バリューオブジェクトを定義、または既存のものを利用する。
+- [x] Task: Solarized テーマの実装
+    - [x] `ColorTheme::solarized_dark()` などのファクトリメソッドを実装し、パレットのRGB値を定義する。
+    - [x] `ColorTheme::solarized_light()` の実装を追加する。
+    - [x] `ColorTheme::default()` の実装を追加する（既存の配色または標準ANSIカラー）。
+- [x] Task: 構成読み込みのための設定インターフェース定義
+    - [x] ターミナルの設定を表すエンティティ（例: `TerminalConfig`）を定義し、選択されているテーマの種類を保持できるようにする。
+- [x] Task: Domain層のユニットテスト追加
+    - [x] 各テーマが期待する色情報を保持しているか検証するテストを追加する。
+- [x] Task: Conductor - ユーザー手動検証 'Phase 1: テーマモデルと設定の定義 (Domain Layer)' (Protocol in workflow.md)
+- [x] Task: Commit Phase 1 changes
 
 ## Phase 2: 設定のロード処理と Application 層の適応
 - [ ] Task: 構成情報のロード処理 (Infrastructure/Application Layer)
