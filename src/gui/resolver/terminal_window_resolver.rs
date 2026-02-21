@@ -1,6 +1,6 @@
 use crate::application::TerminalWorkflow;
-use crate::gui::driver::terminal_gui_driver::{CompositionInfo, TerminalGuiDriver};
 use crate::gui::driver::scroll_gui_driver::ScrollGuiDriver;
+use crate::gui::driver::terminal_gui_driver::{CompositionInfo, TerminalGuiDriver};
 use crate::infra::repository::conpty_repository_impl::DummyOutputRepository;
 use crate::infra::repository::emeditor_config_repository_impl::EmEditorConfigRepositoryImpl;
 use std::sync::{Arc, Mutex, OnceLock};

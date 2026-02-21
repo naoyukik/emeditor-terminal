@@ -1,4 +1,6 @@
-use crate::domain::model::terminal_buffer_entity::{TerminalAttribute, TerminalBufferEntity, TerminalColor};
+use crate::domain::model::terminal_buffer_entity::{
+    TerminalAttribute, TerminalBufferEntity, TerminalColor,
+};
 
 pub(crate) struct AnsiParserDomainService {
     incomplete_sequence: String,
@@ -167,14 +169,17 @@ impl AnsiParserDomainService {
                         0 => {
                             if buffer.cursor.x < line.len() {
                                 for cell in line.iter_mut().skip(buffer.cursor.x) {
-                                    *cell = crate::domain::model::terminal_buffer_entity::Cell::default();
+                                    *cell =
+                                        crate::domain::model::terminal_buffer_entity::Cell::default(
+                                        );
                                 }
                             }
                         }
                         1 => {
                             let end = std::cmp::min(buffer.cursor.x + 1, line.len());
                             for cell in line.iter_mut().take(end) {
-                                *cell = crate::domain::model::terminal_buffer_entity::Cell::default();
+                                *cell =
+                                    crate::domain::model::terminal_buffer_entity::Cell::default();
                             }
                         }
                         2 => {
@@ -238,30 +243,40 @@ impl AnsiParserDomainService {
                     0 => {
                         if let Some(line) = buffer.lines.get_mut(buffer.cursor.y) {
                             while line.len() < buffer.width {
-                                line.push(crate::domain::model::terminal_buffer_entity::Cell::default());
+                                line.push(
+                                    crate::domain::model::terminal_buffer_entity::Cell::default(),
+                                );
                             }
                             for cell in line.iter_mut().skip(buffer.cursor.x) {
-                                *cell = crate::domain::model::terminal_buffer_entity::Cell::default();
+                                *cell =
+                                    crate::domain::model::terminal_buffer_entity::Cell::default();
                             }
                         }
                         for y in (buffer.cursor.y + 1)..buffer.lines.len() {
                             if let Some(line) = buffer.lines.get_mut(y) {
-                                line.fill(crate::domain::model::terminal_buffer_entity::Cell::default());
+                                line.fill(
+                                    crate::domain::model::terminal_buffer_entity::Cell::default(),
+                                );
                             }
                         }
                     }
                     1 => {
                         for y in 0..buffer.cursor.y {
                             if let Some(line) = buffer.lines.get_mut(y) {
-                                line.fill(crate::domain::model::terminal_buffer_entity::Cell::default());
+                                line.fill(
+                                    crate::domain::model::terminal_buffer_entity::Cell::default(),
+                                );
                             }
                         }
                         if let Some(line) = buffer.lines.get_mut(buffer.cursor.y) {
                             while line.len() < buffer.width {
-                                line.push(crate::domain::model::terminal_buffer_entity::Cell::default());
+                                line.push(
+                                    crate::domain::model::terminal_buffer_entity::Cell::default(),
+                                );
                             }
                             for cell in line.iter_mut().take(buffer.cursor.x + 1) {
-                                *cell = crate::domain::model::terminal_buffer_entity::Cell::default();
+                                *cell =
+                                    crate::domain::model::terminal_buffer_entity::Cell::default();
                             }
                         }
                     }

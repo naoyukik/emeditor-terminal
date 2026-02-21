@@ -12,7 +12,11 @@ use crate::application::TerminalWorkflow;
 use crate::gui::driver::terminal_gui_driver::{CompositionInfo, TerminalGuiDriver};
 
 /// Helper to update IME window position based on the terminal cursor
-pub fn update_window_position(hwnd: HWND, service: &TerminalWorkflow, renderer: &TerminalGuiDriver) {
+pub fn update_window_position(
+    hwnd: HWND,
+    service: &TerminalWorkflow,
+    renderer: &TerminalGuiDriver,
+) {
     if let Some(metrics) = renderer.get_metrics() {
         let (cursor_x, cursor_y) = service.buffer.get_cursor_pos();
         let display_cols = service.buffer.get_display_width_up_to(cursor_y, cursor_x);
