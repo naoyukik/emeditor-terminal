@@ -21,7 +21,9 @@ pub fn on_vscroll(hwnd: HWND, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
         window_data.scroll_manager.max = history_count + height - 1;
         window_data.scroll_manager.page = height as u32;
 
-        window_data.scroll_manager.handle_vscroll(wparam.0, lparam.0)
+        window_data
+            .scroll_manager
+            .handle_vscroll(wparam.0, lparam.0)
     };
 
     match action {
@@ -80,7 +82,13 @@ pub fn on_paint(hwnd: HWND) -> LRESULT {
             ..
         } = *window_data;
 
-        renderer.render(hdc, &client_rect, &service.buffer, composition.as_ref());
+        renderer.render(
+            hdc,
+            &client_rect,
+            &service.buffer,
+            composition.as_ref(),
+            &service.color_theme,
+        );
 
         let _ = EndPaint(hwnd, &ps);
     }
@@ -275,7 +283,10 @@ pub fn on_ime_start_composition(hwnd: HWND) -> LRESULT {
     {
         let data_arc = get_terminal_data();
         let mut window_data = data_arc.lock().unwrap();
-        crate::gui::driver::ime_gui_driver::handle_start_composition(hwnd, &mut window_data.service);
+        crate::gui::driver::ime_gui_driver::handle_start_composition(
+            hwnd,
+            &mut window_data.service,
+        );
     }
     update_window_scroll_info(hwnd);
 
@@ -308,7 +319,10 @@ pub fn on_ime_end_composition(hwnd: HWND) -> LRESULT {
     {
         let data_arc = get_terminal_data();
         let mut window_data = data_arc.lock().unwrap();
-        crate::gui::driver::ime_gui_driver::handle_end_composition(hwnd, &mut window_data.composition);
+        crate::gui::driver::ime_gui_driver::handle_end_composition(
+            hwnd,
+            &mut window_data.composition,
+        );
     }
     LRESULT(0)
 }

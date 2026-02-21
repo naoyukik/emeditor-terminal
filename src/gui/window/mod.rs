@@ -14,7 +14,9 @@ use windows::Win32::UI::WindowsAndMessaging::{
 
 use crate::gui::resolver::terminal_window_resolver::{get_terminal_data, SendHWND};
 use crate::infra::driver::conpty_io_driver::{ConptyIoDriver, SendHandle};
-use crate::infra::driver::emeditor_io_driver::{CUSTOM_BAR_BOTTOM, CUSTOM_BAR_INFO, EE_CUSTOM_BAR_OPEN};
+use crate::infra::driver::emeditor_io_driver::{
+    CUSTOM_BAR_BOTTOM, CUSTOM_BAR_INFO, EE_CUSTOM_BAR_OPEN,
+};
 use std::ffi::c_void;
 use std::mem::size_of;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -40,7 +42,11 @@ pub fn is_ime_composing(hwnd: HWND) -> bool {
 fn start_conpty_and_reader_thread(hwnd: HWND, cols: i16, rows: i16) -> bool {
     match ConptyIoDriver::new("pwsh.exe", cols, rows) {
         Ok(conpty) => {
-            log::info!("ConptyIoDriver started successfully with size {}x{}", cols, rows);
+            log::info!(
+                "ConptyIoDriver started successfully with size {}x{}",
+                cols,
+                rows
+            );
 
             let data_arc = get_terminal_data();
             let output_handle: SendHandle = conpty.get_output_handle();
@@ -49,9 +55,13 @@ fn start_conpty_and_reader_thread(hwnd: HWND, cols: i16, rows: i16) -> bool {
 
             {
                 let mut window_data = data_arc.lock().unwrap();
-                let output_repo = Box::new(crate::infra::repository::conpty_repository_impl::ConptyRepositoryImpl::new(conpty));
+                let output_repo = Box::new(
+                    crate::infra::repository::conpty_repository_impl::ConptyRepositoryImpl::new(
+                        conpty,
+                    ),
+                );
                 let config_repo = Box::new(crate::infra::repository::emeditor_config_repository_impl::EmEditorConfigRepositoryImpl::new());
-                
+
                 // 新しいリポジトリでサービスを再構築する（DI）
                 window_data.service = crate::application::TerminalWorkflow::new(
                     cols as usize,
@@ -90,7 +100,11 @@ fn start_conpty_and_reader_thread(hwnd: HWND, cols: i16, rows: i16) -> bool {
                     let raw_bytes = &buffer[..bytes_read as usize];
                     let hex_output: String =
                         raw_bytes.iter().map(|b| format!("{:02X} ", b)).collect();
-                    log::debug!("ConptyIoDriver Raw Output ({} bytes): {}", bytes_read, hex_output);
+                    log::debug!(
+                        "ConptyIoDriver Raw Output ({} bytes): {}",
+                        bytes_read,
+                        hex_output
+                    );
                     let output = String::from_utf8_lossy(raw_bytes);
                     log::debug!("ConptyIoDriver Output: {}", output);
 

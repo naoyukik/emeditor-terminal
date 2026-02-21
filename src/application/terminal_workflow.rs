@@ -1,7 +1,9 @@
+use crate::domain::model::color_theme_value::ColorTheme;
+use crate::domain::model::terminal_buffer_entity::TerminalBufferEntity;
+use crate::domain::model::terminal_config_value::TerminalConfig;
 use crate::domain::repository::configuration_repository::ConfigurationRepository;
 use crate::domain::repository::terminal_output_repository::TerminalOutputRepository;
 use crate::domain::service::ansi_parser_domain_service::AnsiParserDomainService;
-use crate::domain::model::terminal_buffer_entity::TerminalBufferEntity;
 
 pub struct TerminalWorkflow {
     pub(crate) buffer: TerminalBufferEntity,
@@ -14,6 +16,9 @@ pub struct TerminalWorkflow {
     font_face: String,
     #[allow(dead_code)] // TODO: フォント設定UI実装時に使用予定
     font_size: i32,
+    #[allow(dead_code)]
+    pub(crate) config: TerminalConfig,
+    pub(crate) color_theme: ColorTheme,
 }
 
 impl TerminalWorkflow {
@@ -25,6 +30,8 @@ impl TerminalWorkflow {
     ) -> Self {
         let font_face = config_repo.get_font_face();
         let font_size = config_repo.get_font_size();
+        let config = config_repo.get_terminal_config();
+        let color_theme = config.get_color_theme();
 
         Self {
             buffer: TerminalBufferEntity::new(cols, rows),
@@ -33,6 +40,8 @@ impl TerminalWorkflow {
             config_repo,
             font_face,
             font_size,
+            config,
+            color_theme,
         }
     }
 
