@@ -1,0 +1,8 @@
+{
+  "track_id": "22_drawing_optimization_20260221",
+  "type": "improvement",
+  "status": "new",
+  "created_at": "2026-02-21T11:45:00Z",
+  "updated_at": "2026-02-21T11:45:00Z",
+  "description": "Issue #22: 描画の最適化とちらつき防止 (GDI ダブルバッファリング)"
+}
