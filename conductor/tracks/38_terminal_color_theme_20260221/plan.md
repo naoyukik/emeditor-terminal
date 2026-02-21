@@ -9,6 +9,7 @@
 - [ ] Task: 構成保存方針の決定
     - [ ] 調査結果に基づき、本トラックで実装する「構成情報のロード処理（Phase 2）」の設計方針（ハードコード、独自ファイル、またはEmEditor標準設定APIの利用）を決定する。
 - [ ] Task: Conductor - ユーザー手動検証 'Phase 0: SDKを通じた構成保存方法の調査' (Protocol in workflow.md)
+- [ ] Task: Commit Phase 0 changes
 
 ## Phase 1: テーマモデルと設定の定義 (Domain Layer)
 - [ ] Task: テーマ情報のドメインエンティティの作成
@@ -24,6 +25,7 @@
 - [ ] Task: Domain層のユニットテスト追加
     - [ ] 各テーマが期待する色情報を保持しているか検証するテストを追加する。
 - [ ] Task: Conductor - ユーザー手動検証 'Phase 1: テーマモデルと設定の定義 (Domain Layer)' (Protocol in workflow.md)
+- [ ] Task: Commit Phase 1 changes
 
 ## Phase 2: 設定のロード処理と Application 層の適応
 - [ ] Task: 構成情報のロード処理 (Infrastructure/Application Layer)
@@ -34,6 +36,7 @@
 - [ ] Task: Application層のユニットテスト修正
     - [ ] 追加された引数に対するモック・スタブ対応を行う。
 - [ ] Task: Conductor - ユーザー手動検証 'Phase 2: 設定のロード処理と Application 層の適応' (Protocol in workflow.md)
+- [ ] Task: Commit Phase 2 changes
 
 ## Phase 3: GUI/描画処理へのテーマ適応
 - [ ] Task: GDI描画ロジックの改修
@@ -42,6 +45,7 @@
 - [ ] Task: GUI層のユニットテスト修正
     - [ ] SGRシーケンスをパースした結果が、テーマのパレットと一致することを検証するテストを追加・修正する。
 - [ ] Task: Conductor - ユーザー手動検証 'Phase 3: GUI/描画処理へのテーマ適応' (Protocol in workflow.md)
+- [ ] Task: Commit Phase 3 changes
 
 ## Phase 4: 最終動作確認と調整
 - [ ] Task: 実際のEmEditor上での動作検証
@@ -52,3 +56,4 @@
 - [ ] Task: 不要なコードの削除とクリーンアップ
     - [ ] 古いハードコードされた色の定義や未使用の変数を削除する。
 - [ ] Task: Conductor - ユーザー手動検証 'Phase 4: 最終動作確認と調整' (Protocol in workflow.md)
+- [ ] Task: Commit Phase 4 changes
