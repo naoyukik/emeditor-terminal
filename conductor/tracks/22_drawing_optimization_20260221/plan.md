@@ -3,10 +3,10 @@
 ## Phase 0: 調査とドキュメント参照
 Microsoft Learn の公式ドキュメントから、GDI ダブルバッファリングと `WM_ERASEBKGND` に関するベストプラクティスを調査する。
 
-- [ ] Task: `microsoft_docs_search` を使用して、GDI のダブルバッファリング、`WM_PAINT` におけるメモリDC、`WM_ERASEBKGND` によるフリッカー回避に関する情報を収集する。
-- [ ] Task: 調査結果を元に、実装における注意点（リソースリーク防止、`BitBlt` 等）を整理する。
-- [ ] Task: Conductor - User Manual Verification 'Phase 0' (Protocol in workflow.md)
-- [ ] Task: Commit: `docs(conductor): Phase 0 - Research results`
+- [x] Task: `microsoft_docs_search` を使用して、GDI のダブルバッファリング、`WM_PAINT` におけるメモリDC、`WM_ERASEBKGND` によるフリッカー回避に関する情報を収集する。
+- [x] Task: 調査結果を元に、実装における注意点（リソースリーク防止、`BitBlt` 等）を整理する。
+- [x] Task: Conductor - User Manual Verification 'Phase 0' (Protocol in workflow.md)
+- [x] Task: Commit: `docs(conductor): Phase 0 - Research results`
 
 ## Phase 1: 準備とメッセージハンドルの修正
 描画最適化の基盤として、背景消去の抑制（WM_ERASEBKGND）を導入する。
