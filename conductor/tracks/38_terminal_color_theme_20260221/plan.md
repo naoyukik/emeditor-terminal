@@ -48,12 +48,12 @@
 - [x] Task: Commit Phase 3 changes
 
 ## Phase 4: 最終動作確認と調整
-- [ ] Task: 実際のEmEditor上での動作検証
-    - [ ] プラグインをビルドし、EmEditor上でターミナルを起動して、テーマ（Solarized Dark等）が正しく適用されているか目視確認する。
-    - [ ] ターミナル上でlsコマンド（ディレクトリ色等）を実行し、ANSIカラーがパレット通りに描画されるか確認する。
-- [ ] Task: テーマ切り替えのテスト
-    - [ ] コード上の設定値を変更して再ビルドし、別のテーマ（Solarized Light等）が適用されることを確認する。
-- [ ] Task: 不要なコードの削除とクリーンアップ
-    - [ ] 古いハードコードされた色の定義や未使用の変数を削除する。
-- [ ] Task: Conductor - ユーザー手動検証 'Phase 4: 最終動作確認と調整' (Protocol in workflow.md)
-- [ ] Task: Commit Phase 4 changes
+- [x] Task: 実際のEmEditor上での動作検証
+    - [x] プラグインをビルドし、EmEditor上でターミナルを起動して、テーマ（Solarized Dark等 -> One Half Darkを採用）が正しく適用されているか目視確認する。
+    - [x] ターミナル上でlsコマンド（ディレクトリ色等）を実行し、ANSIカラーがパレット通りに描画されるか確認する。
+- [x] Task: テーマ切り替えのテスト
+    - [x] コード上の設定値を変更して再ビルドし、別のテーマ（Solarized Light等 -> One Half Lightを採用）が適用されることを確認する。
+- [x] Task: 不要なコードの削除とクリーンアップ
+    - [x] 古いハードコードされた色の定義や未使用の変数を削除する。
+- [x] Task: Conductor - ユーザー手動検証 'Phase 4: 最終動作確認と調整' (Protocol in workflow.md)
+- [x] Task: Commit Phase 4 changes

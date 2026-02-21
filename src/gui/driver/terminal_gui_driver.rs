@@ -324,15 +324,20 @@ impl TerminalGuiDriver {
                             let bg_colorref = self.color_to_colorref(bg, true, theme);
 
                             // PowerShell等でよくある「青系背景＋白文字」のコントラストが低く読めない問題の対策
-                            if bg == TerminalColor::Ansi(4) || bg == TerminalColor::Ansi(12) // Blue
-                                || bg == TerminalColor::Ansi(6) || bg == TerminalColor::Ansi(14) // Cyan
-                            {
-                                if fg == TerminalColor::Default
+                            if (bg == TerminalColor::Ansi(4) || bg == TerminalColor::Ansi(12) // Blue
+                                || bg == TerminalColor::Ansi(6) || bg == TerminalColor::Ansi(14)) // Cyan
+                                && (fg == TerminalColor::Default
                                     || fg == TerminalColor::Ansi(7)
-                                    || fg == TerminalColor::Ansi(15)
-                                {
-                                    fg_colorref = self.color_to_colorref(TerminalColor::Default, true, theme);
-                                }
+                                    || fg == TerminalColor::Ansi(15))
+                            {
+                                fg_colorref = self.color_to_colorref(TerminalColor::Default, true, theme);
+                            }
+
+                            // 白系背景に白文字が指定された場合の対策（One Half Light等）
+                            if (bg == TerminalColor::Default || bg == TerminalColor::Ansi(7) || bg == TerminalColor::Ansi(15))
+                                && (fg == TerminalColor::Ansi(7) || fg == TerminalColor::Ansi(15))
+                            {
+                                fg_colorref = self.color_to_colorref(TerminalColor::Default, false, theme);
                             }
 
                             // Dim属性が有効な場合は、COLORREFのRGB成分を用いて輝度を低減する
@@ -452,6 +457,7 @@ impl TerminalGuiDriver {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn render_composition(
         &self,
         hdc: HDC,
