@@ -27,6 +27,6 @@ Microsoft Learn の公式ドキュメントから、GDI ダブルバッファリ
 ## Phase 3: 検証と最適化
 描画品質とパフォーマンスの最終確認を行う。
 
-- [ ] Task: 実機テストを実施し、フリッカー消失、リサイズ時の品質、リソースリークがないかを確認する。
-- [ ] Task: Conductor - User Manual Verification 'Phase 3' (Protocol in workflow.md)
-- [ ] Task: Commit: `chore(conductor): Complete track #22`
+- [x] Task: 実機テストを実施し、フリッカー消失、リサイズ時の品質、リソースリークがないかを確認する。
+- [x] Task: Conductor - User Manual Verification 'Phase 3' (Protocol in workflow.md)
+- [x] Task: Commit: `chore(conductor): Complete track #22`
