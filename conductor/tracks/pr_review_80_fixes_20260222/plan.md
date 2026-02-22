@@ -12,12 +12,12 @@
 ## Phase 2: メッセージ処理の最適化
 ウィンドウメッセージハンドラ側の修正を行う。
 
-- [ ] Task: `src/gui/resolver/window_message_resolver.rs` の `on_size` 内の `InvalidateRect` 引数を修正する。
-- [ ] Task: Conductor - User Manual Verification 'Phase 2' (Protocol in workflow.md)
-- [ ] Task: Commit: `perf(gui): Optimize InvalidateRect calls in WM_SIZE`
+- [x] Task: `src/gui/resolver/window_message_resolver.rs` の `on_size` 内の `InvalidateRect` 引数を修正する。
+- [x] Task: Conductor - User Manual Verification 'Phase 2' (Protocol in workflow.md)
+- [x] Task: Commit: `perf(gui): Optimize InvalidateRect calls in WM_SIZE`
 
 ## Phase 3: 最終確認
-- [ ] Task: 全体ビルドと動作確認を実施。
-- [ ] Task: PR #80 への反映。
-- [ ] Task: Conductor - User Manual Verification 'Phase 3' (Protocol in workflow.md)
-- [ ] Task: Commit: `chore(conductor): Complete PR #80 review fixes`
+- [x] Task: 全体ビルドと動作確認を実施。
+- [x] Task: PR #80 への反映。
+- [x] Task: Conductor - User Manual Verification 'Phase 3' (Protocol in workflow.md)
+- [x] Task: Commit: `chore(conductor): Complete PR #80 review fixes`
