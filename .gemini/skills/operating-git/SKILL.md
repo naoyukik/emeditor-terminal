@@ -34,7 +34,12 @@ git add -A
 コミットメッセージの内容および形式については、**必ず `referencing-commit-convention` スキルを参照し、日本語での記述を徹底すること**。
 本スキルは Git 操作の手順とステージングの制約（git add . 禁止等）を司る。
 
-## 例
+### co-authored-byトレーラー設定
+コミットするときは、コミットメッセージの末尾に次の`Co-authored-byトレーラー`を加えてあなたが作業したことを分かるようにしてください。
+
+- Gemini CLI: `Co-Authored-By: gemini-cli <218195315+gemini-cli@users.noreply.github.com>`
+
+### 例
 
 ブランチ名: `23-add-scrollback-buffer`
 
@@ -42,4 +47,7 @@ git add -A
 feat: スクロールバックバッファのinterfaceを追加
 
 ref: 23
+
+Co-Authored-By: gemini-cli <218195315+gemini-cli@users.noreply.github.com>
 ```
+
