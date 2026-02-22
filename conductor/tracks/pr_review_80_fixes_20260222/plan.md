@@ -3,11 +3,11 @@
 ## Phase 1: レンダラーの堅牢化
 `TerminalGuiDriver::render` 内部の GDI 操作に対するチェックを追加する。
 
-- [ ] Task: `SelectObject` の戻り値を検証し、失敗時にログ出力して早期リターンする。
-- [ ] Task: 背景クリア処理において、ブラシ作成失敗時のフォールバック処理を実装する。
-- [ ] Task: `BitBlt` の戻り値をチェックし、失敗時にログ出力する。
-- [ ] Task: Conductor - User Manual Verification 'Phase 1' (Protocol in workflow.md)
-- [ ] Task: Commit: `fix(gui): Strengthen GDI error handling in renderer`
+- [x] Task: `SelectObject` の戻り値を検証し、失敗時にログ出力して早期リターンする。
+- [x] Task: 背景クリア処理において、ブラシ作成失敗時のフォールバック処理を実装する。
+- [x] Task: `BitBlt` の戻り値をチェックし、失敗時にログ出力する。
+- [x] Task: Conductor - User Manual Verification 'Phase 1' (Protocol in workflow.md)
+- [x] Task: Commit: `fix(gui): Strengthen GDI error handling in renderer`
 
 ## Phase 2: メッセージ処理の最適化
 ウィンドウメッセージハンドラ側の修正を行う。
