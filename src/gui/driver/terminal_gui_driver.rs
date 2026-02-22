@@ -52,6 +52,8 @@ const STYLE_ITALIC: u32 = 1 << 1;
 const STYLE_UNDERLINE: u32 = 1 << 2;
 const STYLE_STRIKEOUT: u32 = 1 << 3;
 
+const HGDI_ERROR_VALUE: isize = -1;
+
 /// RAII guard for memory DC to ensure `DeleteDC` is called on drop.
 /// This MUST only be used with DCs created via `CreateCompatibleDC`.
 struct CreatedDcGuard(HDC);
@@ -72,6 +74,31 @@ impl Drop for GdiObjectGuard {
         if !self.0 .0.is_null() {
             unsafe {
                 let _ = DeleteObject(self.0);
+            }
+        }
+    }
+}
+
+/// RAII guard to ensure `SelectObject` restores the previous object on drop.
+///
+/// GDI の `SelectObject` は以前選択されていたオブジェクトを返すため、
+/// それを保持しておき、スコープを抜ける際に元の状態に復元するために使用します。
+struct SelectedObjectGuard {
+    hdc: HDC,
+    prev_obj: HGDIOBJ,
+}
+
+impl SelectedObjectGuard {
+    fn new(hdc: HDC, prev_obj: HGDIOBJ) -> Self {
+        Self { hdc, prev_obj }
+    }
+}
+
+impl Drop for SelectedObjectGuard {
+    fn drop(&mut self) {
+        if !self.prev_obj.0.is_null() && self.prev_obj.0 != HGDI_ERROR_VALUE as *mut _ {
+            unsafe {
+                let _ = SelectObject(self.hdc, self.prev_obj);
             }
         }
     }
