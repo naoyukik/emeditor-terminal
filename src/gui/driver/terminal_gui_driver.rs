@@ -215,6 +215,8 @@ impl TerminalGuiDriver {
 
             if self.metrics.is_none() {
                 let old_font = SelectObject(hdc, HGDIOBJ(h_font.0));
+                let _font_guard = SelectedObjectGuard::new(hdc, old_font);
+
                 let mut tm = TEXTMETRICW::default();
                 let _ = GetTextMetricsW(hdc, &mut tm);
 
@@ -314,20 +316,21 @@ impl TerminalGuiDriver {
             }
             let _dc_guard = CreatedDcGuard(h_mem_dc);
 
-            let h_bm = CreateCompatibleBitmap(hdc, width, height);
-            if h_bm.0.is_null() {
-                log::error!("TerminalGuiDriver: Failed to create compatible bitmap");
-                return;
-            }
-            let _bm_guard = GdiObjectGuard(HGDIOBJ(h_bm.0));
+                let h_bm = CreateCompatibleBitmap(hdc, width, height);
+                if h_bm.0.is_null() {
+                    log::error!("TerminalGuiDriver: Failed to create compatible bitmap");
+                    return;
+                }
+                let _bm_guard = GdiObjectGuard(HGDIOBJ(h_bm.0));
 
-            let h_old_bm = SelectObject(h_mem_dc, HGDIOBJ(h_bm.0));
-            if h_old_bm.0.is_null() || h_old_bm.0 == -1isize as *mut _ {
-                log::error!("TerminalGuiDriver: Failed to select bitmap into memory DC");
-                return;
-            }
+                let h_old_bm = SelectObject(h_mem_dc, HGDIOBJ(h_bm.0));
+                if h_old_bm.0.is_null() || h_old_bm.0 == HGDI_ERROR_VALUE as *mut _ {
+                    log::error!("TerminalGuiDriver: Failed to select bitmap into memory DC");
+                    return;
+                }
+                let _bm_select_guard = SelectedObjectGuard::new(h_mem_dc, h_old_bm);
 
-            // オフスクリーン描画の実行
+                // オフスクリーン描画の実行
             self.render_internal(
                 h_mem_dc,
                 client_rect,
@@ -354,7 +357,7 @@ impl TerminalGuiDriver {
             }
 
             // 以前のビットマップを戻す（GDIの作法）
-            SelectObject(h_mem_dc, h_old_bm);
+            // SelectedObjectGuard (_bm_select_guard) によって自動的に行われる
             // _dc_guard と _bm_guard がスコープを抜ける際に自動的に解放される
         }
     }
@@ -373,8 +376,8 @@ impl TerminalGuiDriver {
         unsafe {
             let h_brush = CreateSolidBrush(bg_colorref);
             if !h_brush.0.is_null() {
+                let _brush_guard = GdiObjectGuard(HGDIOBJ(h_brush.0));
                 FillRect(hdc, client_rect, h_brush);
-                let _ = DeleteObject(HGDIOBJ(h_brush.0));
             } else {
                 log::error!("TerminalGuiDriver: Failed to create solid brush for background clear; falling back to ExtTextOutW with ETO_OPAQUE");
                 SetBkColor(hdc, bg_colorref);
@@ -457,6 +460,7 @@ impl TerminalGuiDriver {
 
                             let h_font = self.get_font_for_style(hdc, style_mask);
                             let old_font = SelectObject(hdc, HGDIOBJ(h_font.0));
+                            let _font_guard = SelectedObjectGuard::new(hdc, old_font);
 
                             let fg = if start_attr.is_inverse {
                                 start_attr.bg
@@ -513,8 +517,6 @@ impl TerminalGuiDriver {
                                 wide_run.len() as u32,
                                 Some(run_dx.as_ptr()),
                             );
-
-                            let _ = SelectObject(hdc, old_font);
                         }
 
                         x_offset += run_pixel_width;
@@ -643,7 +645,10 @@ impl TerminalGuiDriver {
             );
 
             if !pen.0.is_null() {
+                let _pen_guard = GdiObjectGuard(HGDIOBJ(pen.0));
                 let old_pen = SelectObject(hdc, HGDIOBJ(pen.0));
+                let _pen_select_guard = SelectedObjectGuard::new(hdc, old_pen);
+
                 let _ = windows::Win32::Graphics::Gdi::MoveToEx(
                     hdc,
                     comp_rect.left,
@@ -655,8 +660,6 @@ impl TerminalGuiDriver {
                     comp_rect.right,
                     comp_rect.bottom - 1,
                 );
-                let _ = SelectObject(hdc, old_pen);
-                let _ = DeleteObject(HGDIOBJ(pen.0));
             } else {
                 log::error!("TerminalGuiDriver: Failed to create pen for composition underline");
             }
