@@ -30,3 +30,10 @@ Microsoft Learn の公式ドキュメントから、GDI ダブルバッファリ
 - [x] Task: 実機テストを実施し、フリッカー消失、リサイズ時の品質、リソースリークがないかを確認する。
 - [x] Task: Conductor - User Manual Verification 'Phase 3' (Protocol in workflow.md)
 - [x] Task: Commit: `chore(conductor): Complete track #22`
+
+## Phase: Review Fixes (指摘事項の修正)
+コードレビューで指摘されたリソース管理の堅牢化を行う。
+
+- [x] Task: GDI オブジェクト用の RAII ラッパー（`MemoryDcGuard` 等）を導入し、リソースリークを防止する。
+- [x] Task: `BitBlt` の座標指定に関する意図をコメントで明確化する。
+- [x] Task: Apply review suggestions

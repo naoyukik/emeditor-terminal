@@ -52,6 +52,30 @@ const STYLE_ITALIC: u32 = 1 << 1;
 const STYLE_UNDERLINE: u32 = 1 << 2;
 const STYLE_STRIKEOUT: u32 = 1 << 3;
 
+/// RAII guard for memory DC to ensure `DeleteDC` is called on drop.
+struct MemoryDcGuard(HDC);
+impl Drop for MemoryDcGuard {
+    fn drop(&mut self) {
+        if !self.0 .0.is_null() {
+            unsafe {
+                let _ = DeleteDC(self.0);
+            }
+        }
+    }
+}
+
+/// RAII guard for GDI objects (like HBITMAP) to ensure `DeleteObject` is called on drop.
+struct GdiObjectGuard(HGDIOBJ);
+impl Drop for GdiObjectGuard {
+    fn drop(&mut self) {
+        if !self.0 .0.is_null() {
+            unsafe {
+                let _ = DeleteObject(self.0);
+            }
+        }
+    }
+}
+
 pub struct TerminalGuiDriver {
     fonts: HashMap<u32, SendHFONT>,
     metrics: Option<TerminalMetrics>,
@@ -260,13 +284,14 @@ impl TerminalGuiDriver {
                 log::error!("TerminalGuiDriver: Failed to create compatible DC");
                 return;
             }
+            let _dc_guard = MemoryDcGuard(h_mem_dc);
 
             let h_bm = CreateCompatibleBitmap(hdc, width, height);
             if h_bm.0.is_null() {
                 log::error!("TerminalGuiDriver: Failed to create compatible bitmap");
-                let _ = DeleteDC(h_mem_dc);
                 return;
             }
+            let _bm_guard = GdiObjectGuard(HGDIOBJ(h_bm.0));
 
             let h_old_bm = SelectObject(h_mem_dc, HGDIOBJ(h_bm.0));
 
@@ -280,6 +305,8 @@ impl TerminalGuiDriver {
             );
 
             // ウィンドウDCへの一括転送
+            // メモリビットマップは常に (0, 0) からクライアント領域サイズ分作成されているため、
+            // 転送元座標には (0, 0) を指定する。
             let _ = BitBlt(
                 hdc,
                 client_rect.left,
@@ -292,10 +319,9 @@ impl TerminalGuiDriver {
                 SRCCOPY,
             );
 
-            // リソースの解放
+            // 以前のビットマップを戻す（GDIの作法）
             SelectObject(h_mem_dc, h_old_bm);
-            let _ = DeleteObject(HGDIOBJ(h_bm.0));
-            let _ = DeleteDC(h_mem_dc);
+            // _dc_guard と _bm_guard がスコープを抜ける際に自動的に解放される
         }
     }
 
