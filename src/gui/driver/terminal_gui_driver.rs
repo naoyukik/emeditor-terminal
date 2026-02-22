@@ -295,6 +295,10 @@ impl TerminalGuiDriver {
             let _bm_guard = GdiObjectGuard(HGDIOBJ(h_bm.0));
 
             let h_old_bm = SelectObject(h_mem_dc, HGDIOBJ(h_bm.0));
+            if h_old_bm.0.is_null() || h_old_bm.0 == -1isize as *mut _ {
+                log::error!("TerminalGuiDriver: Failed to select bitmap into memory DC");
+                return;
+            }
 
             // オフスクリーン描画の実行
             self.render_internal(
@@ -308,7 +312,7 @@ impl TerminalGuiDriver {
             // ウィンドウDCへの一括転送
             // メモリビットマップは常に (0, 0) からクライアント領域サイズ分作成されているため、
             // 転送元座標には (0, 0) を指定する。
-            let _ = BitBlt(
+            if let Err(e) = BitBlt(
                 hdc,
                 client_rect.left,
                 client_rect.top,
@@ -318,7 +322,9 @@ impl TerminalGuiDriver {
                 0,
                 0,
                 SRCCOPY,
-            );
+            ) {
+                log::error!("TerminalGuiDriver: BitBlt failed: {}", e);
+            }
 
             // 以前のビットマップを戻す（GDIの作法）
             SelectObject(h_mem_dc, h_old_bm);
@@ -342,6 +348,19 @@ impl TerminalGuiDriver {
             if !h_brush.0.is_null() {
                 FillRect(hdc, client_rect, h_brush);
                 let _ = DeleteObject(HGDIOBJ(h_brush.0));
+            } else {
+                log::error!("TerminalGuiDriver: Failed to create solid brush for background clear; falling back to ExtTextOutW with ETO_OPAQUE");
+                SetBkColor(hdc, bg_colorref);
+                let _ = ExtTextOutW(
+                    hdc,
+                    client_rect.left,
+                    client_rect.top,
+                    ETO_OPAQUE,
+                    Some(client_rect),
+                    PCWSTR::null(),
+                    0,
+                    None,
+                );
             }
         }
 
