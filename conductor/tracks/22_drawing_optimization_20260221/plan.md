@@ -36,4 +36,6 @@ Microsoft Learn の公式ドキュメントから、GDI ダブルバッファリ
 
 - [x] Task: GDI オブジェクト用の RAII ラッパー（`MemoryDcGuard` 等）を導入し、リソースリークを防止する。
 - [x] Task: `BitBlt` の座標指定に関する意図をコメントで明確化する。
-- [x] Task: Apply review suggestions
+- [ ] Task: `render_internal` の冒頭でメモリ DC 全体をデフォルト背景色で塗りつぶし、描画ノイズを完全に排除する。
+- [ ] Task: `MemoryDcGuard` を `CreatedDcGuard` にリネームし、`DeleteDC` 専用であることを明示する。
+- [ ] Task: Apply review suggestions

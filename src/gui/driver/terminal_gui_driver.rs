@@ -3,12 +3,12 @@ use std::collections::HashMap;
 use windows::core::{w, PCWSTR};
 use windows::Win32::Foundation::{COLORREF, RECT, SIZE};
 use windows::Win32::Graphics::Gdi::{
-    BitBlt, CreateCompatibleBitmap, CreateCompatibleDC, CreateFontIndirectW, DeleteDC,
-    DeleteObject, ExtTextOutW, GetTextExtentPoint32W, GetTextMetricsW, InvertRect, SelectObject,
-    SetBkColor, SetTextColor, CLIP_DEFAULT_PRECIS, DEFAULT_CHARSET, DEFAULT_QUALITY, ETO_OPAQUE,
-    ETO_OPTIONS, FF_MODERN, FIXED_PITCH, FONT_CHARSET, FONT_CLIP_PRECISION, FONT_OUTPUT_PRECISION,
-    FONT_QUALITY, FW_BOLD, FW_NORMAL, HDC, HFONT, HGDIOBJ, LOGFONTW, OUT_DEFAULT_PRECIS, SRCCOPY,
-    TEXTMETRICW,
+    BitBlt, CreateCompatibleBitmap, CreateCompatibleDC, CreateFontIndirectW, CreateSolidBrush,
+    DeleteDC, DeleteObject, ExtTextOutW, FillRect, GetTextExtentPoint32W, GetTextMetricsW,
+    InvertRect, SelectObject, SetBkColor, SetTextColor, CLIP_DEFAULT_PRECIS, DEFAULT_CHARSET,
+    DEFAULT_QUALITY, ETO_OPAQUE, ETO_OPTIONS, FF_MODERN, FIXED_PITCH, FONT_CHARSET,
+    FONT_CLIP_PRECISION, FONT_OUTPUT_PRECISION, FONT_QUALITY, FW_BOLD, FW_NORMAL, HDC, HFONT,
+    HGDIOBJ, LOGFONTW, OUT_DEFAULT_PRECIS, SRCCOPY, TEXTMETRICW,
 };
 
 #[derive(Clone, Debug)]
@@ -53,8 +53,9 @@ const STYLE_UNDERLINE: u32 = 1 << 2;
 const STYLE_STRIKEOUT: u32 = 1 << 3;
 
 /// RAII guard for memory DC to ensure `DeleteDC` is called on drop.
-struct MemoryDcGuard(HDC);
-impl Drop for MemoryDcGuard {
+/// This MUST only be used with DCs created via `CreateCompatibleDC`.
+struct CreatedDcGuard(HDC);
+impl Drop for CreatedDcGuard {
     fn drop(&mut self) {
         if !self.0 .0.is_null() {
             unsafe {
@@ -284,7 +285,7 @@ impl TerminalGuiDriver {
                 log::error!("TerminalGuiDriver: Failed to create compatible DC");
                 return;
             }
-            let _dc_guard = MemoryDcGuard(h_mem_dc);
+            let _dc_guard = CreatedDcGuard(h_mem_dc);
 
             let h_bm = CreateCompatibleBitmap(hdc, width, height);
             if h_bm.0.is_null() {
@@ -334,6 +335,16 @@ impl TerminalGuiDriver {
         composition: Option<&CompositionInfo>,
         theme: &crate::domain::model::color_theme_value::ColorTheme,
     ) {
+        // 描画前にメモリDC全体をデフォルト背景色でクリアし、未初期化領域のノイズを防止する
+        let bg_colorref = self.color_to_colorref(TerminalColor::Default, true, theme);
+        unsafe {
+            let h_brush = CreateSolidBrush(bg_colorref);
+            if !h_brush.0.is_null() {
+                FillRect(hdc, client_rect, h_brush);
+                let _ = DeleteObject(HGDIOBJ(h_brush.0));
+            }
+        }
+
         let _ = self.get_font_for_style(hdc, 0);
 
         let metrics = match &self.metrics {
