@@ -19,9 +19,9 @@ Microsoft Learn の公式ドキュメントから、GDI ダブルバッファリ
 ## Phase 2: ダブルバッファリングの実装
 `TerminalGuiDriver::render` をダブルバッファリングに対応させる。
 
-- [ ] Task: `TerminalGuiDriver::render` にダブルバッファリングロジックを実装し、オフスクリーン描画を実現する。
-- [ ] Task: `src/gui/resolver/window_message_resolver.rs` の `on_paint` を修正し、新しいレンダリング・フローを適用する。
-- [ ] Task: Conductor - User Manual Verification 'Phase 2' (Protocol in workflow.md)
+- [x] Task: `TerminalGuiDriver::render` にダブルバッファリングロジックを実装し、オフスクリーン描画を実現する。
+- [x] Task: `src/gui/resolver/window_message_resolver.rs` の `on_paint` を修正し、新しいレンダリング・フローを適用する。
+- [x] Task: Conductor - User Manual Verification 'Phase 2' (Protocol in workflow.md)
 - [ ] Task: Commit: `feat(gui): Implement GDI double buffering in renderer`
 
 ## Phase 3: 検証と最適化

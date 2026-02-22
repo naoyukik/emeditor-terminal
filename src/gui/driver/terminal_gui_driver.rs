@@ -3,11 +3,12 @@ use std::collections::HashMap;
 use windows::core::{w, PCWSTR};
 use windows::Win32::Foundation::{COLORREF, RECT, SIZE};
 use windows::Win32::Graphics::Gdi::{
-    CreateFontIndirectW, DeleteObject, ExtTextOutW, GetTextExtentPoint32W, GetTextMetricsW,
-    InvertRect, SelectObject, SetBkColor, SetTextColor, CLIP_DEFAULT_PRECIS, DEFAULT_CHARSET,
-    DEFAULT_QUALITY, ETO_OPAQUE, ETO_OPTIONS, FF_MODERN, FIXED_PITCH, FONT_CHARSET,
-    FONT_CLIP_PRECISION, FONT_OUTPUT_PRECISION, FONT_QUALITY, FW_BOLD, FW_NORMAL, HDC, HFONT,
-    HGDIOBJ, LOGFONTW, OUT_DEFAULT_PRECIS, TEXTMETRICW,
+    BitBlt, CreateCompatibleBitmap, CreateCompatibleDC, CreateFontIndirectW, DeleteDC,
+    DeleteObject, ExtTextOutW, GetTextExtentPoint32W, GetTextMetricsW, InvertRect, SelectObject,
+    SetBkColor, SetTextColor, CLIP_DEFAULT_PRECIS, DEFAULT_CHARSET, DEFAULT_QUALITY, ETO_OPAQUE,
+    ETO_OPTIONS, FF_MODERN, FIXED_PITCH, FONT_CHARSET, FONT_CLIP_PRECISION, FONT_OUTPUT_PRECISION,
+    FONT_QUALITY, FW_BOLD, FW_NORMAL, HDC, HFONT, HGDIOBJ, LOGFONTW, OUT_DEFAULT_PRECIS, SRCCOPY,
+    TEXTMETRICW,
 };
 
 #[derive(Clone, Debug)]
@@ -238,6 +239,68 @@ impl TerminalGuiDriver {
     }
 
     pub fn render(
+        &mut self,
+        hdc: HDC,
+        client_rect: &RECT,
+        buffer: &TerminalBufferEntity,
+        composition: Option<&CompositionInfo>,
+        theme: &crate::domain::model::color_theme_value::ColorTheme,
+    ) {
+        let width = client_rect.right - client_rect.left;
+        let height = client_rect.bottom - client_rect.top;
+
+        if width <= 0 || height <= 0 {
+            return;
+        }
+
+        unsafe {
+            // ダブルバッファリングのためのメモリDCとビットマップの作成
+            let h_mem_dc = CreateCompatibleDC(hdc);
+            if h_mem_dc.0.is_null() {
+                log::error!("TerminalGuiDriver: Failed to create compatible DC");
+                return;
+            }
+
+            let h_bm = CreateCompatibleBitmap(hdc, width, height);
+            if h_bm.0.is_null() {
+                log::error!("TerminalGuiDriver: Failed to create compatible bitmap");
+                let _ = DeleteDC(h_mem_dc);
+                return;
+            }
+
+            let h_old_bm = SelectObject(h_mem_dc, HGDIOBJ(h_bm.0));
+
+            // オフスクリーン描画の実行
+            self.render_internal(
+                h_mem_dc,
+                client_rect,
+                buffer,
+                composition,
+                theme,
+            );
+
+            // ウィンドウDCへの一括転送
+            let _ = BitBlt(
+                hdc,
+                client_rect.left,
+                client_rect.top,
+                width,
+                height,
+                h_mem_dc,
+                0,
+                0,
+                SRCCOPY,
+            );
+
+            // リソースの解放
+            SelectObject(h_mem_dc, h_old_bm);
+            let _ = DeleteObject(HGDIOBJ(h_bm.0));
+            let _ = DeleteDC(h_mem_dc);
+        }
+    }
+
+    /// 実際の描画ロジック（メモリDCに対して実行される）
+    fn render_internal(
         &mut self,
         hdc: HDC,
         client_rect: &RECT,
