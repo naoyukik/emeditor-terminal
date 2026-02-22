@@ -11,10 +11,10 @@ Microsoft Learn の公式ドキュメントから、GDI ダブルバッファリ
 ## Phase 1: 準備とメッセージハンドルの修正
 描画最適化の基盤として、背景消去の抑制（WM_ERASEBKGND）を導入する。
 
-- [ ] Task: `src/gui/window/mod.rs` において `WM_ERASEBKGND` をハンドルし、背景消去を抑制する。
-- [ ] Task: `src/gui/resolver/window_message_resolver.rs` に必要な GDI 関数のインポートを追加する。
-- [ ] Task: Conductor - User Manual Verification 'Phase 1' (Protocol in workflow.md)
-- [ ] Task: Commit: `fix(gui): Handle WM_ERASEBKGND to suppress flicker`
+- [x] Task: `src/gui/window/mod.rs` において `WM_ERASEBKGND` をハンドルし、背景消去を抑制する。
+- [x] Task: `src/gui/resolver/window_message_resolver.rs` に必要な GDI 関数のインポートを追加する。
+- [x] Task: Conductor - User Manual Verification 'Phase 1' (Protocol in workflow.md)
+- [x] Task: Commit: `fix(gui): Handle WM_ERASEBKGND to suppress flicker`
 
 ## Phase 2: ダブルバッファリングの実装
 `TerminalGuiDriver::render` をダブルバッファリングに対応させる。
