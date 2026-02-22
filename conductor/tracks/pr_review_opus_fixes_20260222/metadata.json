@@ -1,0 +1,8 @@
+{
+  "track_id": "pr_review_opus_fixes_20260222",
+  "type": "bug",
+  "status": "new",
+  "created_at": "2026-02-22T11:00:00Z",
+  "updated_at": "2026-02-22T11:00:00Z",
+  "description": "Opus 4.6 レビュー指摘（GDIリソース管理の修正等）への対応"
+}
