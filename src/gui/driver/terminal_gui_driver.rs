@@ -228,7 +228,6 @@ impl TerminalGuiDriver {
                     char_height: tm.tmHeight,
                     base_width: size.cx,
                 });
-                let _ = SelectObject(hdc, old_font);
             }
 
             self.fonts.insert(style_mask, SendHFONT(h_font));
@@ -253,9 +252,9 @@ impl TerminalGuiDriver {
             }
             TerminalColor::Ansi(n) => self.ansi_to_colorref(n, theme),
             TerminalColor::Xterm(n) => self.xterm_to_colorref(n, theme),
-            TerminalColor::Rgb(r, g, b) => {
-                Self::rgb_to_colorref(&crate::domain::model::color_theme_value::RgbColor::new(r, g, b))
-            }
+            TerminalColor::Rgb(r, g, b) => Self::rgb_to_colorref(
+                &crate::domain::model::color_theme_value::RgbColor::new(r, g, b),
+            ),
         }
     }
 
@@ -316,28 +315,22 @@ impl TerminalGuiDriver {
             }
             let _dc_guard = CreatedDcGuard(h_mem_dc);
 
-                let h_bm = CreateCompatibleBitmap(hdc, width, height);
-                if h_bm.0.is_null() {
-                    log::error!("TerminalGuiDriver: Failed to create compatible bitmap");
-                    return;
-                }
-                let _bm_guard = GdiObjectGuard(HGDIOBJ(h_bm.0));
+            let h_bm = CreateCompatibleBitmap(hdc, width, height);
+            if h_bm.0.is_null() {
+                log::error!("TerminalGuiDriver: Failed to create compatible bitmap");
+                return;
+            }
+            let _bm_guard = GdiObjectGuard(HGDIOBJ(h_bm.0));
 
-                let h_old_bm = SelectObject(h_mem_dc, HGDIOBJ(h_bm.0));
-                if h_old_bm.0.is_null() || h_old_bm.0 == HGDI_ERROR_VALUE as *mut _ {
-                    log::error!("TerminalGuiDriver: Failed to select bitmap into memory DC");
-                    return;
-                }
-                let _bm_select_guard = SelectedObjectGuard::new(h_mem_dc, h_old_bm);
+            let h_old_bm = SelectObject(h_mem_dc, HGDIOBJ(h_bm.0));
+            if h_old_bm.0.is_null() || h_old_bm.0 == HGDI_ERROR_VALUE as *mut _ {
+                log::error!("TerminalGuiDriver: Failed to select bitmap into memory DC");
+                return;
+            }
+            let _bm_select_guard = SelectedObjectGuard::new(h_mem_dc, h_old_bm);
 
-                // オフスクリーン描画の実行
-            self.render_internal(
-                h_mem_dc,
-                client_rect,
-                buffer,
-                composition,
-                theme,
-            );
+            // オフスクリーン描画の実行
+            self.render_internal(h_mem_dc, client_rect, buffer, composition, theme);
 
             // ウィンドウDCへの一括転送
             // メモリビットマップは常に (0, 0) からクライアント領域サイズ分作成されているため、
@@ -483,14 +476,18 @@ impl TerminalGuiDriver {
                                     || fg == TerminalColor::Ansi(7)
                                     || fg == TerminalColor::Ansi(15))
                             {
-                                fg_colorref = self.color_to_colorref(TerminalColor::Default, true, theme);
+                                fg_colorref =
+                                    self.color_to_colorref(TerminalColor::Default, true, theme);
                             }
 
                             // 白系背景に白文字が指定された場合の対策（One Half Light等）
-                            if (bg == TerminalColor::Default || bg == TerminalColor::Ansi(7) || bg == TerminalColor::Ansi(15))
+                            if (bg == TerminalColor::Default
+                                || bg == TerminalColor::Ansi(7)
+                                || bg == TerminalColor::Ansi(15))
                                 && (fg == TerminalColor::Ansi(7) || fg == TerminalColor::Ansi(15))
                             {
-                                fg_colorref = self.color_to_colorref(TerminalColor::Default, false, theme);
+                                fg_colorref =
+                                    self.color_to_colorref(TerminalColor::Default, false, theme);
                             }
 
                             // Dim属性が有効な場合は、COLORREFのRGB成分を用いて輝度を低減する
@@ -679,14 +676,23 @@ mod tests {
 
         // Default background
         let bg_ref = driver.color_to_colorref(TerminalColor::Default, true, &theme);
-        assert_eq!(bg_ref, TerminalGuiDriver::rgb_to_colorref(&theme.default_bg));
+        assert_eq!(
+            bg_ref,
+            TerminalGuiDriver::rgb_to_colorref(&theme.default_bg)
+        );
 
         // Default foreground
         let fg_ref = driver.color_to_colorref(TerminalColor::Default, false, &theme);
-        assert_eq!(fg_ref, TerminalGuiDriver::rgb_to_colorref(&theme.default_fg));
+        assert_eq!(
+            fg_ref,
+            TerminalGuiDriver::rgb_to_colorref(&theme.default_fg)
+        );
 
         // ANSI 1 (Red)
         let red_ref = driver.color_to_colorref(TerminalColor::Ansi(1), false, &theme);
-        assert_eq!(red_ref, TerminalGuiDriver::rgb_to_colorref(&theme.ansi_palette[1]));
+        assert_eq!(
+            red_ref,
+            TerminalGuiDriver::rgb_to_colorref(&theme.ansi_palette[1])
+        );
     }
 }
