@@ -8,6 +8,7 @@ description: Operates JetBrains IDEs (IntelliJ, etc.) via MCP. Supports project 
 2. **推測より確認**: ファイル構造やシンボル情報は必ず `list_directory_tree` や `get_symbol_info` で裏付けを取れ。
 3. **精密な外科手術**: 編集は `replace_text_in_file` で最小限の差分のみを適用せよ。
 4. **構造的整合性**: 名前変更には必ず `rename_refactoring` を用い、テキスト置換を避けよ。
+5. **execute_terminal_command**: 基本的に使用しない。`run_sell_command` でどうしても実行できない場合のみ、ユーザーに確認を取ってから使用すること。
 
 # ツール・カタログ（Toolbox Reference）
 

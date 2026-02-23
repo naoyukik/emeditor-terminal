@@ -265,6 +265,9 @@ pub fn on_size(hwnd: HWND, lparam: LPARAM) -> LRESULT {
     }
 
     update_window_scroll_info(hwnd);
+    unsafe {
+        let _ = InvalidateRect(hwnd, None, BOOL(0));
+    }
     LRESULT(0)
 }
 

@@ -23,7 +23,7 @@ prompt = """
     !{git diff main..HEAD -- . ':(exclude)package-lock.json' ':(exclude)yarn.lock' ':(exclude)*.lock'}
 
 2. Issueの確認
-チケット番号が存在する場合、Issueを確認するため GitHub MCP Serverの `issue_read` コマンドを使用してissueの内容を取得すること
+チケット番号が存在する場合、Issueを確認するため必ず **GitHub MCP Server** の **issue_read** コマンドを使用してissueの内容を取得すること。
 
 3. 推論と構築 (Reasoning)
 取得した情報を以下の優先順位で統合し、PRの内容を構築せよ。
@@ -37,6 +37,7 @@ prompt = """
 
     * **PRタイトル**: 変更内容の要点を的確に表現したタイトルを生成する。
     * **PR本文**: 読み込んだテンプレートに基づき、変更の概要、背景、詳細などを具体的に記述する。テンプレートがない場合は適当に作る。
+    * **Issue連携**: 関連するIssueを自動的に閉じるため、本文内に必ず `Closes #チケット番号` (または `Fixes`, `Resolves`) の形式で記述を含めること。
     * チケット番号の頭には `#` を付与する。
 
 5. コマンド生成

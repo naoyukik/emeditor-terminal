@@ -1,6 +1,7 @@
 use super::color_theme_value::ColorTheme;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[allow(dead_code)]
 pub enum ThemeType {
     Campbell,
     OneHalfDark,

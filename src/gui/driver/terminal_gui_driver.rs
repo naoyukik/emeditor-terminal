@@ -3,11 +3,12 @@ use std::collections::HashMap;
 use windows::core::{w, PCWSTR};
 use windows::Win32::Foundation::{COLORREF, RECT, SIZE};
 use windows::Win32::Graphics::Gdi::{
-    CreateFontIndirectW, DeleteObject, ExtTextOutW, GetTextExtentPoint32W, GetTextMetricsW,
+    BitBlt, CreateCompatibleBitmap, CreateCompatibleDC, CreateFontIndirectW, CreateSolidBrush,
+    DeleteDC, DeleteObject, ExtTextOutW, FillRect, GetTextExtentPoint32W, GetTextMetricsW,
     InvertRect, SelectObject, SetBkColor, SetTextColor, CLIP_DEFAULT_PRECIS, DEFAULT_CHARSET,
     DEFAULT_QUALITY, ETO_OPAQUE, ETO_OPTIONS, FF_MODERN, FIXED_PITCH, FONT_CHARSET,
     FONT_CLIP_PRECISION, FONT_OUTPUT_PRECISION, FONT_QUALITY, FW_BOLD, FW_NORMAL, HDC, HFONT,
-    HGDIOBJ, LOGFONTW, OUT_DEFAULT_PRECIS, TEXTMETRICW,
+    HGDIOBJ, LOGFONTW, OUT_DEFAULT_PRECIS, SRCCOPY, TEXTMETRICW,
 };
 
 #[derive(Clone, Debug)]
@@ -50,6 +51,58 @@ const STYLE_BOLD: u32 = 1 << 0;
 const STYLE_ITALIC: u32 = 1 << 1;
 const STYLE_UNDERLINE: u32 = 1 << 2;
 const STYLE_STRIKEOUT: u32 = 1 << 3;
+
+const HGDI_ERROR_VALUE: isize = -1;
+
+/// RAII guard for memory DC to ensure `DeleteDC` is called on drop.
+/// This MUST only be used with DCs created via `CreateCompatibleDC`.
+struct CreatedDcGuard(HDC);
+impl Drop for CreatedDcGuard {
+    fn drop(&mut self) {
+        if !self.0 .0.is_null() {
+            unsafe {
+                let _ = DeleteDC(self.0);
+            }
+        }
+    }
+}
+
+/// RAII guard for GDI objects (like HBITMAP) to ensure `DeleteObject` is called on drop.
+struct GdiObjectGuard(HGDIOBJ);
+impl Drop for GdiObjectGuard {
+    fn drop(&mut self) {
+        if !self.0 .0.is_null() {
+            unsafe {
+                let _ = DeleteObject(self.0);
+            }
+        }
+    }
+}
+
+/// RAII guard to ensure `SelectObject` restores the previous object on drop.
+///
+/// GDI の `SelectObject` は以前選択されていたオブジェクトを返すため、
+/// それを保持しておき、スコープを抜ける際に元の状態に復元するために使用します。
+struct SelectedObjectGuard {
+    hdc: HDC,
+    prev_obj: HGDIOBJ,
+}
+
+impl SelectedObjectGuard {
+    fn new(hdc: HDC, prev_obj: HGDIOBJ) -> Self {
+        Self { hdc, prev_obj }
+    }
+}
+
+impl Drop for SelectedObjectGuard {
+    fn drop(&mut self) {
+        if !self.prev_obj.0.is_null() && self.prev_obj.0 != HGDI_ERROR_VALUE as *mut _ {
+            unsafe {
+                let _ = SelectObject(self.hdc, self.prev_obj);
+            }
+        }
+    }
+}
 
 pub struct TerminalGuiDriver {
     fonts: HashMap<u32, SendHFONT>,
@@ -162,6 +215,8 @@ impl TerminalGuiDriver {
 
             if self.metrics.is_none() {
                 let old_font = SelectObject(hdc, HGDIOBJ(h_font.0));
+                let _font_guard = SelectedObjectGuard::new(hdc, old_font);
+
                 let mut tm = TEXTMETRICW::default();
                 let _ = GetTextMetricsW(hdc, &mut tm);
 
@@ -173,7 +228,6 @@ impl TerminalGuiDriver {
                     char_height: tm.tmHeight,
                     base_width: size.cx,
                 });
-                let _ = SelectObject(hdc, old_font);
             }
 
             self.fonts.insert(style_mask, SendHFONT(h_font));
@@ -198,9 +252,9 @@ impl TerminalGuiDriver {
             }
             TerminalColor::Ansi(n) => self.ansi_to_colorref(n, theme),
             TerminalColor::Xterm(n) => self.xterm_to_colorref(n, theme),
-            TerminalColor::Rgb(r, g, b) => {
-                Self::rgb_to_colorref(&crate::domain::model::color_theme_value::RgbColor::new(r, g, b))
-            }
+            TerminalColor::Rgb(r, g, b) => Self::rgb_to_colorref(
+                &crate::domain::model::color_theme_value::RgbColor::new(r, g, b),
+            ),
         }
     }
 
@@ -245,6 +299,94 @@ impl TerminalGuiDriver {
         composition: Option<&CompositionInfo>,
         theme: &crate::domain::model::color_theme_value::ColorTheme,
     ) {
+        let width = client_rect.right - client_rect.left;
+        let height = client_rect.bottom - client_rect.top;
+
+        if width <= 0 || height <= 0 {
+            return;
+        }
+
+        unsafe {
+            // ダブルバッファリングのためのメモリDCとビットマップの作成
+            let h_mem_dc = CreateCompatibleDC(hdc);
+            if h_mem_dc.0.is_null() {
+                log::error!("TerminalGuiDriver: Failed to create compatible DC");
+                return;
+            }
+            let _dc_guard = CreatedDcGuard(h_mem_dc);
+
+            let h_bm = CreateCompatibleBitmap(hdc, width, height);
+            if h_bm.0.is_null() {
+                log::error!("TerminalGuiDriver: Failed to create compatible bitmap");
+                return;
+            }
+            let _bm_guard = GdiObjectGuard(HGDIOBJ(h_bm.0));
+
+            let h_old_bm = SelectObject(h_mem_dc, HGDIOBJ(h_bm.0));
+            if h_old_bm.0.is_null() || h_old_bm.0 == HGDI_ERROR_VALUE as *mut _ {
+                log::error!("TerminalGuiDriver: Failed to select bitmap into memory DC");
+                return;
+            }
+            let _bm_select_guard = SelectedObjectGuard::new(h_mem_dc, h_old_bm);
+
+            // オフスクリーン描画の実行
+            self.render_internal(h_mem_dc, client_rect, buffer, composition, theme);
+
+            // ウィンドウDCへの一括転送
+            // メモリビットマップは常に (0, 0) からクライアント領域サイズ分作成されているため、
+            // 転送元座標には (0, 0) を指定する。
+            if let Err(e) = BitBlt(
+                hdc,
+                client_rect.left,
+                client_rect.top,
+                width,
+                height,
+                h_mem_dc,
+                0,
+                0,
+                SRCCOPY,
+            ) {
+                log::error!("TerminalGuiDriver: BitBlt failed: {}", e);
+            }
+
+            // 以前のビットマップを戻す（GDIの作法）
+            // SelectedObjectGuard (_bm_select_guard) によって自動的に行われる
+            // _dc_guard と _bm_guard がスコープを抜ける際に自動的に解放される
+        }
+    }
+
+    /// 実際の描画ロジック（メモリDCに対して実行される）
+    fn render_internal(
+        &mut self,
+        hdc: HDC,
+        client_rect: &RECT,
+        buffer: &TerminalBufferEntity,
+        composition: Option<&CompositionInfo>,
+        theme: &crate::domain::model::color_theme_value::ColorTheme,
+    ) {
+        // 描画前にメモリDC全体をデフォルト背景色でクリアし、未初期化領域のノイズを防止する
+        let bg_colorref = self.color_to_colorref(TerminalColor::Default, true, theme);
+        unsafe {
+            let h_brush = CreateSolidBrush(bg_colorref);
+            if !h_brush.0.is_null() {
+                let _brush_guard = GdiObjectGuard(HGDIOBJ(h_brush.0));
+                FillRect(hdc, client_rect, h_brush);
+            } else {
+                log::error!("TerminalGuiDriver: Failed to create solid brush for background clear; falling back to ExtTextOutW with ETO_OPAQUE");
+                SetBkColor(hdc, bg_colorref);
+                let _ = ExtTextOutW(
+                    hdc,
+                    client_rect.left,
+                    client_rect.top,
+                    ETO_OPAQUE,
+                    Some(client_rect),
+                    PCWSTR::null(),
+                    0,
+                    None,
+                );
+            }
+        }
+
         let _ = self.get_font_for_style(hdc, 0);
 
         let metrics = match &self.metrics {
@@ -311,6 +453,7 @@ impl TerminalGuiDriver {
 
                             let h_font = self.get_font_for_style(hdc, style_mask);
                             let old_font = SelectObject(hdc, HGDIOBJ(h_font.0));
+                            let _font_guard = SelectedObjectGuard::new(hdc, old_font);
 
                             let fg = if start_attr.is_inverse {
                                 start_attr.bg
@@ -333,14 +476,18 @@ impl TerminalGuiDriver {
                                     || fg == TerminalColor::Ansi(7)
                                     || fg == TerminalColor::Ansi(15))
                             {
-                                fg_colorref = self.color_to_colorref(TerminalColor::Default, true, theme);
+                                fg_colorref =
+                                    self.color_to_colorref(TerminalColor::Default, true, theme);
                             }
 
                             // 白系背景に白文字が指定された場合の対策（One Half Light等）
-                            if (bg == TerminalColor::Default || bg == TerminalColor::Ansi(7) || bg == TerminalColor::Ansi(15))
+                            if (bg == TerminalColor::Default
+                                || bg == TerminalColor::Ansi(7)
+                                || bg == TerminalColor::Ansi(15))
                                 && (fg == TerminalColor::Ansi(7) || fg == TerminalColor::Ansi(15))
                             {
-                                fg_colorref = self.color_to_colorref(TerminalColor::Default, false, theme);
+                                fg_colorref =
+                                    self.color_to_colorref(TerminalColor::Default, false, theme);
                             }
 
                             // Dim属性が有効な場合は、COLORREFのRGB成分を用いて輝度を低減する
@@ -367,8 +514,6 @@ impl TerminalGuiDriver {
                                 wide_run.len() as u32,
                                 Some(run_dx.as_ptr()),
                             );
-
-                            let _ = SelectObject(hdc, old_font);
                         }
 
                         x_offset += run_pixel_width;
@@ -497,7 +642,10 @@ impl TerminalGuiDriver {
             );
 
             if !pen.0.is_null() {
+                let _pen_guard = GdiObjectGuard(HGDIOBJ(pen.0));
                 let old_pen = SelectObject(hdc, HGDIOBJ(pen.0));
+                let _pen_select_guard = SelectedObjectGuard::new(hdc, old_pen);
+
                 let _ = windows::Win32::Graphics::Gdi::MoveToEx(
                     hdc,
                     comp_rect.left,
@@ -509,8 +657,6 @@ impl TerminalGuiDriver {
                     comp_rect.right,
                     comp_rect.bottom - 1,
                 );
-                let _ = SelectObject(hdc, old_pen);
-                let _ = DeleteObject(HGDIOBJ(pen.0));
             } else {
                 log::error!("TerminalGuiDriver: Failed to create pen for composition underline");
             }
@@ -530,14 +676,23 @@ mod tests {
 
         // Default background
         let bg_ref = driver.color_to_colorref(TerminalColor::Default, true, &theme);
-        assert_eq!(bg_ref, TerminalGuiDriver::rgb_to_colorref(&theme.default_bg));
+        assert_eq!(
+            bg_ref,
+            TerminalGuiDriver::rgb_to_colorref(&theme.default_bg)
+        );
 
         // Default foreground
         let fg_ref = driver.color_to_colorref(TerminalColor::Default, false, &theme);
-        assert_eq!(fg_ref, TerminalGuiDriver::rgb_to_colorref(&theme.default_fg));
+        assert_eq!(
+            fg_ref,
+            TerminalGuiDriver::rgb_to_colorref(&theme.default_fg)
+        );
 
         // ANSI 1 (Red)
         let red_ref = driver.color_to_colorref(TerminalColor::Ansi(1), false, &theme);
-        assert_eq!(red_ref, TerminalGuiDriver::rgb_to_colorref(&theme.ansi_palette[1]));
+        assert_eq!(
+            red_ref,
+            TerminalGuiDriver::rgb_to_colorref(&theme.ansi_palette[1])
+        );
     }
 }
