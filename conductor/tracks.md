@@ -4,5 +4,5 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 ---
 
-- [ ] **Track: fix: edit等のアプリケーションにおける表示ずれの修正**
+- [x] **Track: fix: edit等のアプリケーションにおける表示ずれの修正**
 *Link: [./tracks/83_fix_edit_rendering_20260223/](./tracks/83_fix_edit_rendering_20260223/)*

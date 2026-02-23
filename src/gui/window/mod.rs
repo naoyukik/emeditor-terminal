@@ -105,12 +105,10 @@ fn start_conpty_and_reader_thread(hwnd: HWND, cols: i16, rows: i16) -> bool {
                         bytes_read,
                         hex_output
                     );
-                    let output = String::from_utf8_lossy(raw_bytes);
-                    log::debug!("ConptyIoDriver Output: {}", output);
 
                     {
                         let mut window_data = data_arc.lock().unwrap();
-                        window_data.service.process_output(&output);
+                        window_data.service.process_output(raw_bytes);
                     }
 
                     // Trigger repaint via PostMessage (thread-safe)

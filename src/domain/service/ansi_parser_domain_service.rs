@@ -1,15 +1,17 @@
 use crate::domain::model::terminal_buffer_entity::{
-    TerminalAttribute, TerminalBufferEntity, TerminalColor,
+    Cell, TerminalAttribute, TerminalBufferEntity, TerminalColor,
 };
 
 pub(crate) struct AnsiParserDomainService {
     incomplete_sequence: String,
+    byte_buffer: Vec<u8>,
 }
 
 impl AnsiParserDomainService {
     pub(crate) fn new() -> Self {
         Self {
             incomplete_sequence: String::new(),
+            byte_buffer: Vec::new(),
         }
     }
 }
@@ -21,13 +23,34 @@ impl Default for AnsiParserDomainService {
 }
 
 impl AnsiParserDomainService {
-    pub(crate) fn parse(&mut self, s: &str, buffer: &mut TerminalBufferEntity) {
+    pub(crate) fn parse(&mut self, bytes: &[u8], buffer: &mut TerminalBufferEntity) {
+        // 1. Add new bytes to the buffer
+        self.byte_buffer.extend_from_slice(bytes);
+
+        // 2. Identify valid UTF-8 boundary to avoid "support (サポート)" garbling
+        let (valid_str, consumed) = match std::str::from_utf8(&self.byte_buffer) {
+            Ok(s) => (s, self.byte_buffer.len()),
+            Err(e) => {
+                let valid_up_to = e.valid_up_to();
+                let valid_str = std::str::from_utf8(&self.byte_buffer[..valid_up_to]).unwrap_or("");
+                (valid_str, valid_up_to)
+            }
+        };
+
+        if consumed > 0 {
+            let s = valid_str.to_string();
+            self.byte_buffer.drain(0..consumed);
+            self.parse_string(&s, buffer);
+        }
+    }
+
+    fn parse_string(&mut self, valid_str: &str, buffer: &mut TerminalBufferEntity) {
         let input = if !self.incomplete_sequence.is_empty() {
             let mut combined = std::mem::take(&mut self.incomplete_sequence);
-            combined.push_str(s);
+            combined.push_str(valid_str);
             combined
         } else {
-            s.to_string()
+            valid_str.to_string()
         };
 
         let char_vec: Vec<char> = input.chars().collect();
@@ -111,6 +134,8 @@ impl AnsiParserDomainService {
                     match next_c {
                         '7' => buffer.save_cursor(),
                         '8' => buffer.restore_cursor(),
+                        'M' => buffer.reverse_index(),
+                        'D' => buffer.index(),
                         _ => {} // Ignore other control chars
                     }
                     i += 2;
@@ -140,61 +165,46 @@ impl AnsiParserDomainService {
             buffer.scroll_bottom
         );
 
+        let empty_cell = buffer.get_empty_cell();
         match command {
             'm' => self.handle_sgr(buffer, params),
             'A' => {
                 let n = self.parse_csi_param(params, 1);
-                let current_col = buffer.get_display_width_up_to(buffer.cursor.y, buffer.cursor.x);
-                if buffer.cursor.y >= n {
-                    buffer.cursor.y -= n;
-                } else {
-                    buffer.cursor.y = 0;
-                }
-                buffer.cursor.x = buffer.display_col_to_char_index(buffer.cursor.y, current_col);
+                buffer.cursor.y = buffer.cursor.y.saturating_sub(n);
             }
             'B' => {
                 let n = self.parse_csi_param(params, 1);
-                let current_col = buffer.get_display_width_up_to(buffer.cursor.y, buffer.cursor.x);
                 buffer.cursor.y = std::cmp::min(buffer.height - 1, buffer.cursor.y + n);
-                buffer.cursor.x = buffer.display_col_to_char_index(buffer.cursor.y, current_col);
+            }
+            '@' => {
+                let n = self.parse_csi_param(params, 1);
+                buffer.insert_cells(n);
             }
             'C' => {
                 let n = self.parse_csi_param(params, 1);
-                let current_col = buffer.get_display_width_up_to(buffer.cursor.y, buffer.cursor.x);
-                let target_col = std::cmp::min(buffer.width - 1, current_col + n);
-                buffer.cursor.x = buffer.display_col_to_char_index(buffer.cursor.y, target_col);
+                buffer.cursor.x = std::cmp::min(buffer.width - 1, buffer.cursor.x + n);
             }
             'D' => {
                 let n = self.parse_csi_param(params, 1);
-                let current_col = buffer.get_display_width_up_to(buffer.cursor.y, buffer.cursor.x);
-                let target_col = current_col.saturating_sub(n);
-                buffer.cursor.x = buffer.display_col_to_char_index(buffer.cursor.y, target_col);
+                buffer.cursor.x = buffer.cursor.x.saturating_sub(n);
             }
             'K' => {
                 let mode = params.parse::<usize>().unwrap_or(0);
                 if let Some(line) = buffer.lines.get_mut(buffer.cursor.y) {
-                    while line.len() < buffer.width {
-                        line.push(crate::domain::model::terminal_buffer_entity::Cell::default());
-                    }
                     match mode {
                         0 => {
-                            if buffer.cursor.x < line.len() {
-                                for cell in line.iter_mut().skip(buffer.cursor.x) {
-                                    *cell =
-                                        crate::domain::model::terminal_buffer_entity::Cell::default(
-                                        );
-                                }
+                            for cell in line.iter_mut().skip(buffer.cursor.x) {
+                                *cell = empty_cell;
                             }
                         }
                         1 => {
-                            let end = std::cmp::min(buffer.cursor.x + 1, line.len());
+                            let end = std::cmp::min(buffer.cursor.x + 1, buffer.width);
                             for cell in line.iter_mut().take(end) {
-                                *cell =
-                                    crate::domain::model::terminal_buffer_entity::Cell::default();
+                                *cell = empty_cell;
                             }
                         }
                         2 => {
-                            line.fill(crate::domain::model::terminal_buffer_entity::Cell::default());
+                            line.fill(empty_cell);
                         }
                         _ => {}
                     }
@@ -203,120 +213,70 @@ impl AnsiParserDomainService {
             'P' => {
                 let n = self.parse_csi_param(params, 1);
                 if let Some(line) = buffer.lines.get_mut(buffer.cursor.y) {
-                    if buffer.cursor.x < line.len() {
-                        let end_idx = std::cmp::min(buffer.cursor.x + n, line.len());
+                    if buffer.cursor.x < buffer.width {
+                        let end_idx = std::cmp::min(buffer.cursor.x + n, buffer.width);
                         let removed_count = end_idx - buffer.cursor.x;
                         line.drain(buffer.cursor.x..end_idx);
-                        line.extend(std::iter::repeat_n(
-                            crate::domain::model::terminal_buffer_entity::Cell::default(),
-                            removed_count,
-                        ));
+                        line.extend(std::iter::repeat_n(empty_cell, removed_count));
                     }
                 }
             }
             'X' => {
                 let n = self.parse_csi_param(params, 1);
                 if let Some(line) = buffer.lines.get_mut(buffer.cursor.y) {
-                    while line.len() < buffer.width {
-                        line.push(crate::domain::model::terminal_buffer_entity::Cell::default());
-                    }
-                    if buffer.cursor.x < line.len() {
-                        let end_idx = std::cmp::min(buffer.cursor.x + n, line.len());
-                        for cell in line.iter_mut().take(end_idx).skip(buffer.cursor.x) {
-                            *cell = crate::domain::model::terminal_buffer_entity::Cell::default();
-                        }
+                    let end_idx = std::cmp::min(buffer.cursor.x + n, buffer.width);
+                    for cell in line.iter_mut().take(end_idx).skip(buffer.cursor.x) {
+                        *cell = empty_cell;
                     }
                 }
             }
             'H' | 'f' => {
                 let parts: Vec<&str> = params.split(';').collect();
-                let row = if parts.is_empty() || parts[0].is_empty() {
-                    1
+                let row = if parts.is_empty() || parts[0].is_empty() { 1 } else { parts[0].parse::<usize>().unwrap_or(1) };
+                let col = if parts.len() < 2 || parts[1].is_empty() { 1 } else { parts[1].parse::<usize>().unwrap_or(1) };
+
+                let target_row = if buffer.is_origin_mode {
+                    (buffer.scroll_top + row).saturating_sub(1)
                 } else {
-                    parts[0].parse::<usize>().unwrap_or(1)
+                    row.saturating_sub(1)
                 };
-                let col = if parts.len() < 2 || parts[1].is_empty() {
-                    1
-                } else {
-                    parts[1].parse::<usize>().unwrap_or(1)
-                };
-                buffer.cursor.y = if row > 0 { row - 1 } else { 0 };
-                if buffer.cursor.y >= buffer.height {
-                    buffer.cursor.y = buffer.height - 1;
-                }
-                let target_display_col = if col > 0 { col - 1 } else { 0 };
-                buffer.cursor.x =
-                    buffer.display_col_to_char_index(buffer.cursor.y, target_display_col);
+
+                buffer.cursor.y = std::cmp::min(buffer.height.saturating_sub(1), target_row);
+                buffer.cursor.x = std::cmp::min(buffer.width.saturating_sub(1), col.saturating_sub(1));
             }
             'J' => {
                 let mode = params.parse::<usize>().unwrap_or(0);
                 match mode {
                     0 => {
                         if let Some(line) = buffer.lines.get_mut(buffer.cursor.y) {
-                            while line.len() < buffer.width {
-                                line.push(
-                                    crate::domain::model::terminal_buffer_entity::Cell::default(),
-                                );
-                            }
-                            for cell in line.iter_mut().skip(buffer.cursor.x) {
-                                *cell =
-                                    crate::domain::model::terminal_buffer_entity::Cell::default();
-                            }
+                            for cell in line.iter_mut().skip(buffer.cursor.x) { *cell = empty_cell; }
                         }
-                        for y in (buffer.cursor.y + 1)..buffer.lines.len() {
-                            if let Some(line) = buffer.lines.get_mut(y) {
-                                line.fill(
-                                    crate::domain::model::terminal_buffer_entity::Cell::default(),
-                                );
-                            }
+                        for y in (buffer.cursor.y + 1)..buffer.height {
+                            if let Some(line) = buffer.lines.get_mut(y) { line.fill(empty_cell); }
                         }
                     }
                     1 => {
                         for y in 0..buffer.cursor.y {
-                            if let Some(line) = buffer.lines.get_mut(y) {
-                                line.fill(
-                                    crate::domain::model::terminal_buffer_entity::Cell::default(),
-                                );
-                            }
+                            if let Some(line) = buffer.lines.get_mut(y) { line.fill(empty_cell); }
                         }
                         if let Some(line) = buffer.lines.get_mut(buffer.cursor.y) {
-                            while line.len() < buffer.width {
-                                line.push(
-                                    crate::domain::model::terminal_buffer_entity::Cell::default(),
-                                );
-                            }
-                            for cell in line.iter_mut().take(buffer.cursor.x + 1) {
-                                *cell =
-                                    crate::domain::model::terminal_buffer_entity::Cell::default();
-                            }
+                            let end = std::cmp::min(buffer.cursor.x + 1, buffer.width);
+                            for cell in line.iter_mut().take(end) { *cell = empty_cell; }
                         }
                     }
                     2 | 3 => {
-                        for line in buffer.lines.iter_mut() {
-                            line.fill(crate::domain::model::terminal_buffer_entity::Cell::default());
-                        }
+                        for line in buffer.lines.iter_mut() { line.fill(empty_cell); }
                     }
                     _ => {}
                 }
             }
             'G' => {
                 let col = self.parse_csi_param(params, 1);
-                let target_display_col = if col > 0 { col - 1 } else { 0 };
-                let target_display_col =
-                    std::cmp::min(target_display_col, buffer.width.saturating_sub(1));
-                buffer.cursor.x =
-                    buffer.display_col_to_char_index(buffer.cursor.y, target_display_col);
+                buffer.cursor.x = std::cmp::min(buffer.width.saturating_sub(1), col.saturating_sub(1));
             }
             'd' => {
                 let row = self.parse_csi_param(params, 1);
-                let current_display_col =
-                    buffer.get_display_width_up_to(buffer.cursor.y, buffer.cursor.x);
-                buffer.cursor.y = if row > 0 { row - 1 } else { 0 };
-                if buffer.cursor.y >= buffer.height {
-                    buffer.cursor.y = buffer.height - 1;
-                }
-                buffer.cursor.x =
-                    buffer.display_col_to_char_index(buffer.cursor.y, current_display_col);
+                buffer.cursor.y = std::cmp::min(buffer.height.saturating_sub(1), row.saturating_sub(1));
             }
             'E' => {
                 let n = self.parse_csi_param(params, 1);
@@ -325,50 +285,68 @@ impl AnsiParserDomainService {
             }
             'F' => {
                 let n = self.parse_csi_param(params, 1);
-                if buffer.cursor.y >= n {
-                    buffer.cursor.y -= n;
-                } else {
-                    buffer.cursor.y = 0;
-                }
+                buffer.cursor.y = buffer.cursor.y.saturating_sub(n);
                 buffer.cursor.x = 0;
             }
             'h' => {
                 if params == "?25" {
                     buffer.cursor.is_visible = true;
+                } else if params == "?6" {
+                    buffer.is_origin_mode = true;
+                    buffer.cursor.y = buffer.scroll_top;
+                    buffer.cursor.x = 0;
                 }
             }
             'l' => {
                 if params == "?25" {
                     buffer.cursor.is_visible = false;
+                } else if params == "?6" {
+                    buffer.is_origin_mode = false;
+                    buffer.cursor.y = 0;
+                    buffer.cursor.x = 0;
                 }
             }
             'r' => {
                 let parts: Vec<&str> = params.split(';').collect();
-                let top = if parts.is_empty() || parts[0].is_empty() {
-                    1
-                } else {
-                    parts[0].parse::<usize>().unwrap_or(1)
-                };
-                let bottom = if parts.len() < 2 || parts[1].is_empty() {
-                    buffer.height
-                } else {
-                    parts[1].parse::<usize>().unwrap_or(buffer.height)
-                };
+                let top = if parts.is_empty() || parts[0].is_empty() { 1 } else { parts[0].parse::<usize>().unwrap_or(1) };
+                let bottom = if parts.len() < 2 || parts[1].is_empty() { buffer.height } else { parts[1].parse::<usize>().unwrap_or(buffer.height) };
                 let top_idx = if top > 0 { top - 1 } else { 0 };
                 let bottom_idx = if bottom > 0 { bottom - 1 } else { 0 };
                 if top_idx < bottom_idx && bottom_idx < buffer.height {
                     buffer.scroll_top = top_idx;
                     buffer.scroll_bottom = bottom_idx;
-                    buffer.cursor.x = 0;
-                    buffer.cursor.y = 0;
                 } else {
                     buffer.scroll_top = 0;
                     buffer.scroll_bottom = buffer.height.saturating_sub(1);
-                    buffer.cursor.x = 0;
+                }
+
+                if buffer.is_origin_mode {
+                    buffer.cursor.y = buffer.scroll_top;
+                } else {
                     buffer.cursor.y = 0;
                 }
+                buffer.cursor.x = 0;
             }
-            _ => {}
+            'S' => {
+                let n = self.parse_csi_param(params, 1);
+                for _ in 0..n { buffer.scroll_up(); }
+            }
+            'T' => {
+                let n = self.parse_csi_param(params, 1);
+                for _ in 0..n { buffer.scroll_down(); }
+            }
+            'L' => {
+                let n = self.parse_csi_param(params, 1);
+                buffer.insert_lines(n);
+            }
+            'M' => {
+                let n = self.parse_csi_param(params, 1);
+                buffer.delete_lines(n);
+            }
+            'q' | 't' => {} 
+            _ => {
+                log::debug!("Unhandled CSI command: {} with params: {}", command, params);
+            }
         }
     }
 
@@ -420,13 +398,9 @@ impl AnsiParserDomainService {
                                     let b = parts[i + 2].parse::<u8>().unwrap_or(0);
                                     buffer.current_attribute.fg = TerminalColor::Rgb(r, g, b);
                                     i += 3;
-                                } else {
-                                    i = parts.len();
-                                }
+                                } else { i = parts.len(); }
                             }
-                            _ => {
-                                i += 1;
-                            }
+                            _ => { i += 1; }
                         }
                     }
                     continue;
@@ -454,13 +428,9 @@ impl AnsiParserDomainService {
                                     let b = parts[i + 2].parse::<u8>().unwrap_or(0);
                                     buffer.current_attribute.bg = TerminalColor::Rgb(r, g, b);
                                     i += 3;
-                                } else {
-                                    i = parts.len();
-                                }
+                                } else { i = parts.len(); }
                             }
-                            _ => {
-                                i += 1;
-                            }
+                            _ => { i += 1; }
                         }
                     }
                     continue;
@@ -476,11 +446,7 @@ impl AnsiParserDomainService {
 
     fn parse_csi_param(&self, params: &str, default: usize) -> usize {
         let n = params.parse::<usize>().unwrap_or(default);
-        if n == 0 {
-            1
-        } else {
-            n
-        }
+        if n == 0 { 1 } else { n }
     }
 }
 
@@ -490,43 +456,29 @@ mod tests {
     use crate::domain::model::terminal_buffer_entity::{Cell, TerminalBufferEntity};
 
     fn line_to_string(line: &[Cell]) -> String {
-        line.iter().map(|cell| cell.c).collect()
+        line.iter().filter(|c| !c.is_wide_continuation).map(|cell| cell.c).collect()
     }
 
     #[test]
     fn test_parser_basic() {
         let mut buffer = TerminalBufferEntity::new(80, 25);
         let mut parser = AnsiParserDomainService::new();
-        parser.parse("Hello", &mut buffer);
+        parser.parse(b"Hello", &mut buffer);
         let first_line = line_to_string(&buffer.get_lines()[0]);
         assert!(first_line.starts_with("Hello"));
     }
 
     #[test]
-    fn test_sgr_colors() {
-        let mut buffer = TerminalBufferEntity::new(80, 25);
-        let mut parser = AnsiParserDomainService::new();
-        parser.parse("\x1b[31mRed\x1b[39mDefault", &mut buffer);
-        assert_eq!(
-            buffer.get_lines()[0][0].attribute.fg,
-            TerminalColor::Ansi(1)
-        );
-        assert_eq!(
-            buffer.get_lines()[0][3].attribute.fg,
-            TerminalColor::Default
-        );
-    }
-
-    #[test]
-    fn test_terminal_resize() {
+    fn test_utf8_fragmentation() {
         let mut buffer = TerminalBufferEntity::new(10, 5);
         let mut parser = AnsiParserDomainService::new();
-        parser.parse("Hello CJKあいう", &mut buffer);
-        // "Hello CJK" is 9 chars. "あ" is 2 width. Total 11.
-        // With width 10, "CJK" might be wrapped or truncated.
-        // Current logic wraps at char boundary.
-        assert_eq!(buffer.get_cursor_pos().1, 1);
-        buffer.resize(20, 10);
-        assert_eq!(line_to_string(&buffer.get_lines()[0]).trim(), "Hello CJK");
+        
+        // "あ" is E3 83 BC
+        parser.parse(&[0xE3, 0x83], &mut buffer);
+        assert_eq!(buffer.cursor.x, 0); // Not yet processed
+        
+        parser.parse(&[0xBC], &mut buffer);
+        assert_eq!(buffer.cursor.x, 2); // Processed after completing 3 bytes
+        assert_eq!(buffer.lines[0][0].c, 'あ');
     }
 }

@@ -21,28 +21,6 @@ pub struct TerminalMetrics {
     pub base_width: i32,
 }
 
-/// Wrapper around a Windows `HFONT` handle that is treated as `Send` and `Sync`.
-///
-/// この型は Win32 GDI のフォントハンドル `HFONT` をラップし、Rust の型システム上は
-/// `Send` / `Sync` として扱えるようにするためのものです。これは **ハンドル値を別スレッドに
-/// 移動・共有できる** ことを許可するだけであり、GDI オブジェクト自体のスレッド安全性を
-/// 高めるものではありません。
-///
-/// # Safety
-///
-/// - `HFONT` を含む GDI オブジェクトは、一般に「作成・選択・描画・破棄」といった GDI 関数の
-///   呼び出しを UI スレッド（メッセージループを持つスレッド）から行うことが前提です。
-///   `SendHFONT` 自体はスレッド間で移動可能ですが、**GDI 関数の呼び出しは UI スレッドに
-///   制限される** という前提を守る必要があります。
-/// - `SendHFONT` は `HFONT` の所有権を表す単純なラッパーであり、`DeleteObject` による解放は
-///   呼び出し側の責務です。`HFONT` を最後に使用したスレッド / コンテキストにおいて、
-///   必ず `DeleteObject` を一度だけ呼び出してください。
-/// - `Send` / `Sync` を付与していても、複数スレッドから同じ `HFONT` を同時に GDI API に渡すことは
-///   想定していません。実際に GDI に対してフォントを選択したり描画に使用したりする操作は、
-///   適切に同期された単一の UI スレッドで行ってください。
-/// - この型を利用するコード（例: `TerminalGuiDriver::fonts` など）は、上記の制約を前提として設計されている
-///   必要があります。もし将来的にスレッドモデルや GDI の利用方法を変更する場合は、
-///   ここで述べた前提条件が依然として満たされているか再検証してください。
 pub struct SendHFONT(pub HFONT);
 unsafe impl Send for SendHFONT {}
 unsafe impl Sync for SendHFONT {}
@@ -54,52 +32,29 @@ const STYLE_STRIKEOUT: u32 = 1 << 3;
 
 const HGDI_ERROR_VALUE: isize = -1;
 
-/// RAII guard for memory DC to ensure `DeleteDC` is called on drop.
-/// This MUST only be used with DCs created via `CreateCompatibleDC`.
 struct CreatedDcGuard(HDC);
 impl Drop for CreatedDcGuard {
-    fn drop(&mut self) {
-        if !self.0 .0.is_null() {
-            unsafe {
-                let _ = DeleteDC(self.0);
-            }
-        }
-    }
+    fn drop(&mut self) { if !self.0 .0.is_null() { unsafe { let _ = DeleteDC(self.0); } } }
 }
 
-/// RAII guard for GDI objects (like HBITMAP) to ensure `DeleteObject` is called on drop.
 struct GdiObjectGuard(HGDIOBJ);
 impl Drop for GdiObjectGuard {
-    fn drop(&mut self) {
-        if !self.0 .0.is_null() {
-            unsafe {
-                let _ = DeleteObject(self.0);
-            }
-        }
-    }
+    fn drop(&mut self) { if !self.0 .0.is_null() { unsafe { let _ = DeleteObject(self.0); } } }
 }
 
-/// RAII guard to ensure `SelectObject` restores the previous object on drop.
-///
-/// GDI の `SelectObject` は以前選択されていたオブジェクトを返すため、
-/// それを保持しておき、スコープを抜ける際に元の状態に復元するために使用します。
 struct SelectedObjectGuard {
     hdc: HDC,
     prev_obj: HGDIOBJ,
 }
 
 impl SelectedObjectGuard {
-    fn new(hdc: HDC, prev_obj: HGDIOBJ) -> Self {
-        Self { hdc, prev_obj }
-    }
+    fn new(hdc: HDC, prev_obj: HGDIOBJ) -> Self { Self { hdc, prev_obj } }
 }
 
 impl Drop for SelectedObjectGuard {
     fn drop(&mut self) {
         if !self.prev_obj.0.is_null() && self.prev_obj.0 != HGDI_ERROR_VALUE as *mut _ {
-            unsafe {
-                let _ = SelectObject(self.hdc, self.prev_obj);
-            }
+            unsafe { let _ = SelectObject(self.hdc, self.prev_obj); }
         }
     }
 }
@@ -110,17 +65,12 @@ pub struct TerminalGuiDriver {
 }
 
 impl Default for TerminalGuiDriver {
-    fn default() -> Self {
-        Self::new()
-    }
+    fn default() -> Self { Self::new() }
 }
 
 impl TerminalGuiDriver {
     pub fn new() -> Self {
-        Self {
-            fonts: HashMap::new(),
-            metrics: None,
-        }
+        Self { fonts: HashMap::new(), metrics: None }
     }
 
     fn rgb_to_colorref(rgb: &crate::domain::model::color_theme_value::RgbColor) -> COLORREF {
@@ -129,9 +79,7 @@ impl TerminalGuiDriver {
 
     pub fn clear_resources(&mut self) {
         for (_, send_h_font) in self.fonts.drain() {
-            unsafe {
-                let _ = DeleteObject(HGDIOBJ(send_h_font.0 .0));
-            }
+            unsafe { let _ = DeleteObject(HGDIOBJ(send_h_font.0 .0)); }
         }
         log::info!("TerminalGuiDriver: All cached font handles deleted");
     }
@@ -141,33 +89,15 @@ impl TerminalGuiDriver {
     }
 
     fn get_font_for_style(&mut self, hdc: HDC, style_mask: u32) -> HFONT {
-        if let Some(font) = self.fonts.get(&style_mask) {
-            return font.0;
-        }
+        if let Some(font) = self.fonts.get(&style_mask) { return font.0; }
 
         unsafe {
             let mut lf = LOGFONTW {
                 lfHeight: 16,
-                lfWeight: if (style_mask & STYLE_BOLD) != 0 {
-                    FW_BOLD.0 as i32
-                } else {
-                    FW_NORMAL.0 as i32
-                },
-                lfItalic: if (style_mask & STYLE_ITALIC) != 0 {
-                    1
-                } else {
-                    0
-                },
-                lfUnderline: if (style_mask & STYLE_UNDERLINE) != 0 {
-                    1
-                } else {
-                    0
-                },
-                lfStrikeOut: if (style_mask & STYLE_STRIKEOUT) != 0 {
-                    1
-                } else {
-                    0
-                },
+                lfWeight: if (style_mask & STYLE_BOLD) != 0 { FW_BOLD.0 as i32 } else { FW_NORMAL.0 as i32 },
+                lfItalic: if (style_mask & STYLE_ITALIC) != 0 { 1 } else { 0 },
+                lfUnderline: if (style_mask & STYLE_UNDERLINE) != 0 { 1 } else { 0 },
+                lfStrikeOut: if (style_mask & STYLE_STRIKEOUT) != 0 { 1 } else { 0 },
                 lfCharSet: FONT_CHARSET(DEFAULT_CHARSET.0),
                 lfOutPrecision: FONT_OUTPUT_PRECISION(OUT_DEFAULT_PRECIS.0),
                 lfClipPrecision: FONT_CLIP_PRECISION(CLIP_DEFAULT_PRECIS.0),
@@ -178,56 +108,21 @@ impl TerminalGuiDriver {
 
             let face_name = w!("Consolas");
             let len = std::cmp::min(face_name.len(), lf.lfFaceName.len() - 1);
-            for i in 0..len {
-                lf.lfFaceName[i] = face_name.as_wide()[i];
-            }
+            for i in 0..len { lf.lfFaceName[i] = face_name.as_wide()[i]; }
             lf.lfFaceName[len] = 0;
 
             let h_font = CreateFontIndirectW(&lf);
-            if h_font.0.is_null() {
-                log::error!(
-                    "TerminalGuiDriver: Failed to create font for style mask {}",
-                    style_mask
-                );
-
-                // すでにデフォルトスタイル(0)のフォントがキャッシュされていれば、それにフォールバックする
-                if let Some(default_font) = self.fonts.get(&0) {
-                    log::warn!(
-                        "TerminalGuiDriver: Falling back to cached default font (style mask 0)"
-                    );
-                    return default_font.0;
-                }
-
-                // スタイル付きフォント生成に失敗した場合は、style_mask = 0 のフォント生成を試みる
-                if style_mask != 0 {
-                    log::warn!(
-                        "TerminalGuiDriver: Retrying font creation with style mask 0 as fallback"
-                    );
-                    return self.get_font_for_style(hdc, 0);
-                }
-
-                // style_mask = 0 でも生成に失敗した場合は、最後の手段としてデフォルトハンドルを返す
-                log::error!(
-                    "TerminalGuiDriver: Failed to create even the default font (style mask 0)"
-                );
-                return HFONT::default();
-            }
+            if h_font.0.is_null() { return HFONT::default(); }
 
             if self.metrics.is_none() {
                 let old_font = SelectObject(hdc, HGDIOBJ(h_font.0));
                 let _font_guard = SelectedObjectGuard::new(hdc, old_font);
-
                 let mut tm = TEXTMETRICW::default();
                 let _ = GetTextMetricsW(hdc, &mut tm);
-
-                let zero_utf16: &[u16] = &[0x0030]; // "0"
+                let zero_utf16: &[u16] = &[0x0030];
                 let mut size = SIZE::default();
                 let _ = GetTextExtentPoint32W(hdc, zero_utf16, &mut size);
-
-                self.metrics = Some(TerminalMetrics {
-                    char_height: tm.tmHeight,
-                    base_width: size.cx,
-                });
+                self.metrics = Some(TerminalMetrics { char_height: tm.tmHeight, base_width: size.cx });
             }
 
             self.fonts.insert(style_mask, SendHFONT(h_font));
@@ -235,373 +130,153 @@ impl TerminalGuiDriver {
         }
     }
 
-    fn color_to_colorref(
-        &self,
-        color: TerminalColor,
-        is_background: bool,
-        theme: &crate::domain::model::color_theme_value::ColorTheme,
-    ) -> COLORREF {
+    fn color_to_colorref(&self, color: TerminalColor, is_background: bool, theme: &crate::domain::model::color_theme_value::ColorTheme) -> COLORREF {
         match color {
             TerminalColor::Default => {
-                let rgb = if is_background {
-                    &theme.default_bg
-                } else {
-                    &theme.default_fg
-                };
+                let rgb = if is_background { &theme.default_bg } else { &theme.default_fg };
                 Self::rgb_to_colorref(rgb)
             }
-            TerminalColor::Ansi(n) => self.ansi_to_colorref(n, theme),
-            TerminalColor::Xterm(n) => self.xterm_to_colorref(n, theme),
-            TerminalColor::Rgb(r, g, b) => Self::rgb_to_colorref(
-                &crate::domain::model::color_theme_value::RgbColor::new(r, g, b),
-            ),
+            TerminalColor::Ansi(n) => {
+                let idx = if n < 16 { n as usize } else { 15 };
+                Self::rgb_to_colorref(&theme.ansi_palette[idx])
+            }
+            TerminalColor::Xterm(n) => {
+                match n {
+                    0..=15 => {
+                        let idx = n as usize;
+                        Self::rgb_to_colorref(&theme.ansi_palette[idx])
+                    }
+                    16..=231 => {
+                        let idx = n - 16;
+                        let r_idx = idx / 36;
+                        let g_idx = (idx % 36) / 6;
+                        let b_idx = idx % 6;
+                        let r = if r_idx > 0 { r_idx * 40 + 55 } else { 0 };
+                        let g = if g_idx > 0 { g_idx * 40 + 55 } else { 0 };
+                        let b = if b_idx > 0 { b_idx * 40 + 55 } else { 0 };
+                        COLORREF((r as u32) | ((g as u32) << 8) | ((b as u32) << 16))
+                    }
+                    232..=255 => {
+                        let val = (n - 232) * 10 + 8;
+                        COLORREF((val as u32) | ((val as u32) << 8) | ((val as u32) << 16))
+                    }
+                }
+            }
+            TerminalColor::Rgb(r, g, b) => COLORREF((r as u32) | ((g as u32) << 8) | ((b as u32) << 16)),
         }
     }
 
-    fn ansi_to_colorref(
-        &self,
-        n: u8,
-        theme: &crate::domain::model::color_theme_value::ColorTheme,
-    ) -> COLORREF {
-        let idx = if n < 16 { n as usize } else { 15 };
-        Self::rgb_to_colorref(&theme.ansi_palette[idx])
-    }
-
-    fn xterm_to_colorref(
-        &self,
-        n: u8,
-        theme: &crate::domain::model::color_theme_value::ColorTheme,
-    ) -> COLORREF {
-        match n {
-            0..=15 => self.ansi_to_colorref(n, theme),
-            16..=231 => {
-                let idx = n - 16;
-                let r_idx = idx / 36;
-                let g_idx = (idx % 36) / 6;
-                let b_idx = idx % 6;
-                let r = if r_idx > 0 { r_idx * 40 + 55 } else { 0 };
-                let g = if g_idx > 0 { g_idx * 40 + 55 } else { 0 };
-                let b = if b_idx > 0 { b_idx * 40 + 55 } else { 0 };
-                COLORREF((r as u32) | ((g as u32) << 8) | ((b as u32) << 16))
-            }
-            232..=255 => {
-                let val = (n - 232) * 10 + 8;
-                COLORREF((val as u32) | ((val as u32) << 8) | ((val as u32) << 16))
-            }
-        }
-    }
-
-    pub fn render(
-        &mut self,
-        hdc: HDC,
-        client_rect: &RECT,
-        buffer: &TerminalBufferEntity,
-        composition: Option<&CompositionInfo>,
-        theme: &crate::domain::model::color_theme_value::ColorTheme,
-    ) {
+    pub fn render(&mut self, hdc: HDC, client_rect: &RECT, buffer: &TerminalBufferEntity, composition: Option<&CompositionInfo>, theme: &crate::domain::model::color_theme_value::ColorTheme) {
         let width = client_rect.right - client_rect.left;
         let height = client_rect.bottom - client_rect.top;
-
-        if width <= 0 || height <= 0 {
-            return;
-        }
+        if width <= 0 || height <= 0 { return; }
 
         unsafe {
-            // ダブルバッファリングのためのメモリDCとビットマップの作成
             let h_mem_dc = CreateCompatibleDC(hdc);
-            if h_mem_dc.0.is_null() {
-                log::error!("TerminalGuiDriver: Failed to create compatible DC");
-                return;
-            }
+            if h_mem_dc.0.is_null() { return; }
             let _dc_guard = CreatedDcGuard(h_mem_dc);
-
             let h_bm = CreateCompatibleBitmap(hdc, width, height);
-            if h_bm.0.is_null() {
-                log::error!("TerminalGuiDriver: Failed to create compatible bitmap");
-                return;
-            }
+            if h_bm.0.is_null() { return; }
             let _bm_guard = GdiObjectGuard(HGDIOBJ(h_bm.0));
-
             let h_old_bm = SelectObject(h_mem_dc, HGDIOBJ(h_bm.0));
-            if h_old_bm.0.is_null() || h_old_bm.0 == HGDI_ERROR_VALUE as *mut _ {
-                log::error!("TerminalGuiDriver: Failed to select bitmap into memory DC");
-                return;
-            }
             let _bm_select_guard = SelectedObjectGuard::new(h_mem_dc, h_old_bm);
 
-            // オフスクリーン描画の実行
             self.render_internal(h_mem_dc, client_rect, buffer, composition, theme);
 
-            // ウィンドウDCへの一括転送
-            // メモリビットマップは常に (0, 0) からクライアント領域サイズ分作成されているため、
-            // 転送元座標には (0, 0) を指定する。
-            if let Err(e) = BitBlt(
-                hdc,
-                client_rect.left,
-                client_rect.top,
-                width,
-                height,
-                h_mem_dc,
-                0,
-                0,
-                SRCCOPY,
-            ) {
-                log::error!("TerminalGuiDriver: BitBlt failed: {}", e);
-            }
-
-            // 以前のビットマップを戻す（GDIの作法）
-            // SelectedObjectGuard (_bm_select_guard) によって自動的に行われる
-            // _dc_guard と _bm_guard がスコープを抜ける際に自動的に解放される
+            let _ = BitBlt(hdc, client_rect.left, client_rect.top, width, height, h_mem_dc, 0, 0, SRCCOPY);
         }
     }
 
-    /// 実際の描画ロジック（メモリDCに対して実行される）
-    fn render_internal(
-        &mut self,
-        hdc: HDC,
-        client_rect: &RECT,
-        buffer: &TerminalBufferEntity,
-        composition: Option<&CompositionInfo>,
-        theme: &crate::domain::model::color_theme_value::ColorTheme,
-    ) {
-        // 描画前にメモリDC全体をデフォルト背景色でクリアし、未初期化領域のノイズを防止する
+    fn render_internal(&mut self, hdc: HDC, client_rect: &RECT, buffer: &TerminalBufferEntity, composition: Option<&CompositionInfo>, theme: &crate::domain::model::color_theme_value::ColorTheme) {
         let bg_colorref = self.color_to_colorref(TerminalColor::Default, true, theme);
         unsafe {
             let h_brush = CreateSolidBrush(bg_colorref);
             if !h_brush.0.is_null() {
                 let _brush_guard = GdiObjectGuard(HGDIOBJ(h_brush.0));
                 FillRect(hdc, client_rect, h_brush);
-            } else {
-                log::error!("TerminalGuiDriver: Failed to create solid brush for background clear; falling back to ExtTextOutW with ETO_OPAQUE");
-                SetBkColor(hdc, bg_colorref);
-                let _ = ExtTextOutW(
-                    hdc,
-                    client_rect.left,
-                    client_rect.top,
-                    ETO_OPAQUE,
-                    Some(client_rect),
-                    PCWSTR::null(),
-                    0,
-                    None,
-                );
             }
         }
 
         let _ = self.get_font_for_style(hdc, 0);
-
-        let metrics = match &self.metrics {
-            Some(m) => m,
-            None => return,
-        };
+        let metrics = match &self.metrics { Some(m) => m, None => return };
 
         unsafe {
             let char_height = metrics.char_height;
             let base_width = metrics.base_width;
-
             let mut current_y = 0;
             let (cursor_x, cursor_y) = buffer.get_cursor_pos();
             let viewport_offset = buffer.viewport_offset;
 
             for visual_row in 0..buffer.height {
                 let mut x_offset = 0;
-
                 if let Some(line) = buffer.get_line_at_visual_row(visual_row) {
                     let mut cell_idx = 0;
+                    while cell_idx < buffer.width {
+                        if cell_idx >= line.len() { break; }
+                        let cell = &line[cell_idx];
+                        if cell.is_wide_continuation { cell_idx += 1; continue; }
 
-                    while cell_idx < line.len() {
-                        let start_attr = line[cell_idx].attribute;
+                        let start_attr = cell.attribute;
                         let mut run_text = String::new();
                         let mut run_dx = Vec::new();
 
-                        while cell_idx < line.len() && line[cell_idx].attribute == start_attr {
-                            let cell = &line[cell_idx];
-                            run_text.push(cell.c);
-                            let w = TerminalBufferEntity::char_display_width(cell.c) as i32
-                                * base_width;
+                        while cell_idx < buffer.width && cell_idx < line.len() {
+                            let c = &line[cell_idx];
+                            if c.is_wide_continuation {
+                                // Double-check if it's really a continuation
+                                cell_idx += 1;
+                                continue;
+                            }
+                            if c.attribute != start_attr { break; }
+                            
+                            run_text.push(c.c);
+                            let w = TerminalBufferEntity::char_display_width(c.c) as i32 * base_width;
                             run_dx.push(w);
-                            run_dx.extend(std::iter::repeat_n(
-                                0,
-                                cell.c.len_utf16().saturating_sub(1),
-                            ));
+                            run_dx.extend(std::iter::repeat_n(0, c.c.len_utf16().saturating_sub(1)));
                             cell_idx += 1;
                         }
 
                         let wide_run: Vec<u16> = run_text.encode_utf16().collect();
                         let run_pixel_width: i32 = run_dx.iter().sum();
 
-                        let run_rect = RECT {
-                            left: x_offset,
-                            top: current_y,
-                            right: x_offset + run_pixel_width,
-                            bottom: current_y + char_height,
-                        };
-
                         if !wide_run.is_empty() {
                             let mut style_mask = 0;
-                            if start_attr.is_bold {
-                                style_mask |= STYLE_BOLD;
-                            }
-                            if start_attr.is_italic {
-                                style_mask |= STYLE_ITALIC;
-                            }
-                            if start_attr.is_underline {
-                                style_mask |= STYLE_UNDERLINE;
-                            }
-                            if start_attr.is_strikethrough {
-                                style_mask |= STYLE_STRIKEOUT;
-                            }
+                            if start_attr.is_bold { style_mask |= STYLE_BOLD; }
+                            if start_attr.is_italic { style_mask |= STYLE_ITALIC; }
+                            if start_attr.is_underline { style_mask |= STYLE_UNDERLINE; }
+                            if start_attr.is_strikethrough { style_mask |= STYLE_STRIKEOUT; }
 
                             let h_font = self.get_font_for_style(hdc, style_mask);
                             let old_font = SelectObject(hdc, HGDIOBJ(h_font.0));
                             let _font_guard = SelectedObjectGuard::new(hdc, old_font);
 
-                            let fg = if start_attr.is_inverse {
-                                start_attr.bg
-                            } else {
-                                start_attr.fg
-                            };
-                            let bg = if start_attr.is_inverse {
-                                start_attr.fg
-                            } else {
-                                start_attr.bg
-                            };
+                            let fg = if start_attr.is_inverse { start_attr.bg } else { start_attr.fg };
+                            let bg = if start_attr.is_inverse { start_attr.fg } else { start_attr.bg };
+                            SetTextColor(hdc, self.color_to_colorref(fg, false, theme));
+                            SetBkColor(hdc, self.color_to_colorref(bg, true, theme));
 
-                            let mut fg_colorref = self.color_to_colorref(fg, false, theme);
-                            let bg_colorref = self.color_to_colorref(bg, true, theme);
-
-                            // PowerShell等でよくある「青系背景＋白文字」のコントラストが低く読めない問題の対策
-                            if (bg == TerminalColor::Ansi(4) || bg == TerminalColor::Ansi(12) // Blue
-                                || bg == TerminalColor::Ansi(6) || bg == TerminalColor::Ansi(14)) // Cyan
-                                && (fg == TerminalColor::Default
-                                    || fg == TerminalColor::Ansi(7)
-                                    || fg == TerminalColor::Ansi(15))
-                            {
-                                fg_colorref =
-                                    self.color_to_colorref(TerminalColor::Default, true, theme);
-                            }
-
-                            // 白系背景に白文字が指定された場合の対策（One Half Light等）
-                            if (bg == TerminalColor::Default
-                                || bg == TerminalColor::Ansi(7)
-                                || bg == TerminalColor::Ansi(15))
-                                && (fg == TerminalColor::Ansi(7) || fg == TerminalColor::Ansi(15))
-                            {
-                                fg_colorref =
-                                    self.color_to_colorref(TerminalColor::Default, false, theme);
-                            }
-
-                            // Dim属性が有効な場合は、COLORREFのRGB成分を用いて輝度を低減する
-                            if start_attr.is_dim {
-                                let raw = fg_colorref.0;
-                                // COLORREFは通常0x00BBGGRR形式
-                                let r = (raw & 0x000000FF) as u8 / 2;
-                                let g = ((raw & 0x0000FF00) >> 8) as u8 / 2;
-                                let b = ((raw & 0x00FF0000) >> 16) as u8 / 2;
-                                let dim_raw = ((b as u32) << 16) | ((g as u32) << 8) | (r as u32);
-                                fg_colorref = COLORREF(dim_raw);
-                            }
-
-                            SetTextColor(hdc, fg_colorref);
-                            SetBkColor(hdc, bg_colorref);
-
-                            let _ = ExtTextOutW(
-                                hdc,
-                                x_offset,
-                                current_y,
-                                ETO_OPTIONS(ETO_OPAQUE.0),
-                                Some(&run_rect),
-                                PCWSTR(wide_run.as_ptr()),
-                                wide_run.len() as u32,
-                                Some(run_dx.as_ptr()),
-                            );
+                            let run_rect = RECT { left: x_offset, top: current_y, right: x_offset + run_pixel_width, bottom: current_y + char_height };
+                            let _ = ExtTextOutW(hdc, x_offset, current_y, ETO_OPTIONS(ETO_OPAQUE.0), Some(&run_rect), PCWSTR(wide_run.as_ptr()), wide_run.len() as u32, Some(run_dx.as_ptr()));
                         }
-
                         x_offset += run_pixel_width;
                     }
                 }
 
-                if x_offset < client_rect.right {
-                    let fill_rect = RECT {
-                        left: x_offset,
-                        top: current_y,
-                        right: client_rect.right,
-                        bottom: current_y + char_height,
-                    };
-                    let bg_color = theme.default_bg;
-                    SetBkColor(hdc, Self::rgb_to_colorref(&bg_color));
-                    let _ = ExtTextOutW(
-                        hdc,
-                        x_offset,
-                        current_y,
-                        ETO_OPTIONS(ETO_OPAQUE.0),
-                        Some(&fill_rect),
-                        PCWSTR::null(),
-                        0,
-                        None,
-                    );
-                }
-
                 if viewport_offset == 0 && visual_row == cursor_y {
-                    let display_cols = buffer.get_display_width_up_to(cursor_y, cursor_x);
-                    let cursor_pixel_x = display_cols as i32 * base_width;
-
+                    let cursor_pixel_x = cursor_x as i32 * base_width;
                     if let Some(comp) = composition {
-                        self.render_composition(
-                            hdc,
-                            cursor_pixel_x,
-                            current_y,
-                            char_height,
-                            base_width,
-                            comp,
-                            theme,
-                        );
+                        self.render_composition(hdc, cursor_pixel_x, current_y, char_height, base_width, comp, theme);
                     } else if buffer.is_cursor_visible() {
-                        let rect = RECT {
-                            left: cursor_pixel_x,
-                            top: current_y,
-                            right: cursor_pixel_x + 2,
-                            bottom: current_y + char_height,
-                        };
+                        let rect = RECT { left: cursor_pixel_x, top: current_y, right: cursor_pixel_x + 2, bottom: current_y + char_height };
                         let _ = InvertRect(hdc, &rect);
                     }
                 }
                 current_y += char_height;
             }
-
-            if current_y < client_rect.bottom {
-                let fill_rect = RECT {
-                    left: 0,
-                    top: current_y,
-                    right: client_rect.right,
-                    bottom: client_rect.bottom,
-                };
-                let bg_color = theme.default_bg;
-                SetBkColor(hdc, Self::rgb_to_colorref(&bg_color));
-                let _ = ExtTextOutW(
-                    hdc,
-                    0,
-                    current_y,
-                    ETO_OPTIONS(ETO_OPAQUE.0),
-                    Some(&fill_rect),
-                    PCWSTR::null(),
-                    0,
-                    None,
-                );
-            }
         }
     }
 
-    #[allow(clippy::too_many_arguments)]
-    fn render_composition(
-        &self,
-        hdc: HDC,
-        x: i32,
-        y: i32,
-        char_height: i32,
-        base_width: i32,
-        comp: &CompositionInfo,
-        theme: &crate::domain::model::color_theme_value::ColorTheme,
-    ) {
+    fn render_composition(&self, hdc: HDC, x: i32, y: i32, char_height: i32, base_width: i32, comp: &CompositionInfo, theme: &crate::domain::model::color_theme_value::ColorTheme) {
         let comp_wide: Vec<u16> = comp.text.encode_utf16().collect();
         let mut comp_dx = Vec::with_capacity(comp_wide.len());
         let mut pixel_width = 0;
@@ -611,88 +286,11 @@ impl TerminalGuiDriver {
             comp_dx.extend(std::iter::repeat_n(0, c.len_utf16().saturating_sub(1)));
             pixel_width += w;
         }
-
-        let comp_rect = RECT {
-            left: x,
-            top: y,
-            right: x + pixel_width,
-            bottom: y + char_height,
-        };
-
+        let comp_rect = RECT { left: x, top: y, right: x + pixel_width, bottom: y + char_height };
         unsafe {
-            let bg_color = theme.default_bg;
-            let fg_color = theme.default_fg;
-            SetBkColor(hdc, Self::rgb_to_colorref(&bg_color));
-            SetTextColor(hdc, Self::rgb_to_colorref(&fg_color));
-            let _ = ExtTextOutW(
-                hdc,
-                x,
-                y,
-                ETO_OPTIONS(ETO_OPAQUE.0),
-                Some(&comp_rect),
-                PCWSTR(comp_wide.as_ptr()),
-                comp_wide.len() as u32,
-                Some(comp_dx.as_ptr()),
-            );
-
-            let pen = windows::Win32::Graphics::Gdi::CreatePen(
-                windows::Win32::Graphics::Gdi::PS_SOLID,
-                1,
-                COLORREF(0x00FF0000),
-            );
-
-            if !pen.0.is_null() {
-                let _pen_guard = GdiObjectGuard(HGDIOBJ(pen.0));
-                let old_pen = SelectObject(hdc, HGDIOBJ(pen.0));
-                let _pen_select_guard = SelectedObjectGuard::new(hdc, old_pen);
-
-                let _ = windows::Win32::Graphics::Gdi::MoveToEx(
-                    hdc,
-                    comp_rect.left,
-                    comp_rect.bottom - 1,
-                    None,
-                );
-                let _ = windows::Win32::Graphics::Gdi::LineTo(
-                    hdc,
-                    comp_rect.right,
-                    comp_rect.bottom - 1,
-                );
-            } else {
-                log::error!("TerminalGuiDriver: Failed to create pen for composition underline");
-            }
+            SetBkColor(hdc, Self::rgb_to_colorref(&theme.default_bg));
+            SetTextColor(hdc, Self::rgb_to_colorref(&theme.default_fg));
+            let _ = ExtTextOutW(hdc, x, y, ETO_OPTIONS(ETO_OPAQUE.0), Some(&comp_rect), PCWSTR(comp_wide.as_ptr()), comp_wide.len() as u32, Some(comp_dx.as_ptr()));
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::domain::model::color_theme_value::ColorTheme;
-
-    #[test]
-    fn test_color_to_colorref() {
-        let driver = TerminalGuiDriver::new();
-        let theme = ColorTheme::one_half_dark();
-
-        // Default background
-        let bg_ref = driver.color_to_colorref(TerminalColor::Default, true, &theme);
-        assert_eq!(
-            bg_ref,
-            TerminalGuiDriver::rgb_to_colorref(&theme.default_bg)
-        );
-
-        // Default foreground
-        let fg_ref = driver.color_to_colorref(TerminalColor::Default, false, &theme);
-        assert_eq!(
-            fg_ref,
-            TerminalGuiDriver::rgb_to_colorref(&theme.default_fg)
-        );
-
-        // ANSI 1 (Red)
-        let red_ref = driver.color_to_colorref(TerminalColor::Ansi(1), false, &theme);
-        assert_eq!(
-            red_ref,
-            TerminalGuiDriver::rgb_to_colorref(&theme.ansi_palette[1])
-        );
     }
 }
