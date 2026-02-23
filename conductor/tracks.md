@@ -3,3 +3,6 @@
 This file tracks all major tracks for the project. Each track has its own detailed plan in its respective folder.
 
 ---
+
+- [ ] **Track: fix: edit等のアプリケーションにおける表示ずれの修正**
+*Link: [./tracks/83_fix_edit_rendering_20260223/](./tracks/83_fix_edit_rendering_20260223/)*
