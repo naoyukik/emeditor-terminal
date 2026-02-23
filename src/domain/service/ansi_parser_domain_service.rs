@@ -127,8 +127,19 @@ impl AnsiParserDomainService {
         buffer: &mut TerminalBufferEntity,
         command: char,
         params: &str,
-        _intermediates: &str,
+        intermediates: &str,
     ) {
+        log::trace!(
+            "CSI: cmd='{}', params='{}', inter='{}', cursor=({},{}), scroll={}-{}",
+            command,
+            params,
+            intermediates,
+            buffer.cursor.x,
+            buffer.cursor.y,
+            buffer.scroll_top,
+            buffer.scroll_bottom
+        );
+
         match command {
             'm' => self.handle_sgr(buffer, params),
             'A' => {

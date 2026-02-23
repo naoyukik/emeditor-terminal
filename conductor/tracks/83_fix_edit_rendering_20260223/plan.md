@@ -1,23 +1,21 @@
-# Implementation Plan - Track 83: fix: edit等のアプリケーションにおける表示ずれの修正
+# Implementation Plan - Track 83: fix: edit等のアプリケーションにおける表示ずれ of 修正
 
-## Phase 1: 調査と再現環境の構築 (Investigation \u0026 Reproduction)
-- [ ] Task: `edit` (Microsoft Edit) のインストールと、問題が発生するファイルの特定
-- [ ] Task: 制御シーケンスのロギングを有効にし、スクロール時のシーケンスをキャプチャする
-- [ ] Task: `DECSTBM` (Scrolling Region) およびカーソル移動シーケンスの現在の挙動の不一致箇所を特定する
-- [ ] Task: chore(conductor): Phase 1: 調査完了のコミット
-- [ ] Task: Conductor - User Manual Verification 'Phase 1: 調査完了' (Protocol in workflow.md)
+## Phase 1: 精密なログ収集と現状解析 (Detailed Investigation)
+- [x] Task: 全ての制御シーケンスとバッファ状態（座標、領域）を記録する詳細ロギングの実装
+- [x] Task: `edit` で `LICENSE` および `README.md` を操作し、不具合発生時のログを採取
+- [ ] Task: chore(conductor): Phase 1: 調査用ロギングの導入をコミット
+- [ ] Task: ログを分析し、座標ズレの起点となるシーケンスと、文字幅判定の齟齬を特定
+- [ ] Task: Conductor - ユーザー手動検証 'Phase 1: 真因特定完了' (Protocol in workflow.md)
 
 ## Phase 2: バッファ管理とシーケンス処理の修正 (Core Logic Fix)
-- [ ] Task: `src/domain/model/terminal_buffer.rs` (または関連モジュール) のスクロール領域制限のバグ修正
-- [ ] Task: 垂直スクロール (`CSI <n> S`, `CSI <n> T`) シーケンスのハンドリングの修正
-- [ ] Task: カーソル位置がスクロール領域外にある場合の例外的な挙動（改行時の扱い等）を修正
-- [ ] Task: 抽出したシーケンスに基づく、既存の `AnsiParser` および `TerminalBuffer` のユニットテストの強化
-- [ ] Task: fix: edit等のアプリケーションにおける表示ずれの修正（ロジック修正）
-- [ ] Task: Conductor - User Manual Verification 'Phase 2: ロジック修正完了' (Protocol in workflow.md)
+- [ ] Task: 特定された不足シーケンス（`SU`, `SD`, `RI`, `DECOM` 等）の再実装
+- [ ] Task: 文字幅判定（罫線文字等）の修正と、物理セル管理の要否の再検討
+- [ ] Task: BCE (Background Color Erase) の実装
+- [ ] Task: 既存のユニットテストの強化と、不具合再現シーケンスによるテスト追加
+- [ ] Task: Conductor - ユーザー手動検証 'Phase 2: ロジック修正完了' (Protocol in workflow.md)
 
-## Phase 3: 最終検証と品質向上 (Final Verification \u0026 Polishing)
-- [ ] Task: `edit` におけるスクロール、メニュー操作、罫線描画の正常動作確認
-- [ ] Task: 他の TUI アプリ (WSL/vi等) でのデグレードがないことを確認
-- [ ] Task: 不要なログ出力の削除と、ソースコードのクリーンアップ (`cargo clippy`, `cargo fmt`)
-- [ ] Task: style: 表示ずれ修正に伴うコードのクリーンアップ
+## Phase 3: 最終検証と品質向上 (Final Verification & Polishing)
+- [ ] Task: `edit` における正常動作（スクロール、メニュー、罫線）の確認
+- [ ] Task: 他の TUI アプリでのデグレード確認
+- [ ] Task: 不要なログ出力の削除とコードクリーンアップ
 - [ ] Task: Conductor - User Manual Verification 'Phase 3: 全工程完了' (Protocol in workflow.md)

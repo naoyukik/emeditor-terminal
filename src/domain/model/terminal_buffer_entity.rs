@@ -104,6 +104,7 @@ impl TerminalBufferEntity {
     }
 
     pub(crate) fn scroll_up(&mut self) {
+        log::trace!("ScrollUp: region={}-{}, height={}", self.scroll_top, self.scroll_bottom, self.height);
         // If scroll region is invalid or full screen
         if self.scroll_top >= self.lines.len()
             || self.scroll_bottom >= self.lines.len()
@@ -172,6 +173,7 @@ impl TerminalBufferEntity {
     }
 
     pub fn process_normal_char(&mut self, c: char) {
+        log::trace!("NormalChar: '{}' (U+{:04X}), before_cursor=({},{})", c, c as u32, self.cursor.x, self.cursor.y);
         match c {
             '\r' => self.cursor.x = 0,
             '\n' => {
