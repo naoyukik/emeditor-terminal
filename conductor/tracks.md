@@ -9,5 +9,5 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 ---
 
-- [ ] **Track: fix: PR #89 (edit表示ずれ・クラッシュ修正) のレビュー指摘対応**
+- [x] **Track: fix: PR #89 (edit表示ずれ・クラッシュ修正) のレビュー指摘対応**
 *Link: [./archive/pr_review_89_fixes_20260224/](./archive/pr_review_89_fixes_20260224/)*

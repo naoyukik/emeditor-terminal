@@ -139,7 +139,8 @@ impl TerminalBufferEntity {
             self.lines.remove(self.scroll_top);
         }
 
-        self.lines.insert(self.scroll_bottom, vec![empty_cell; self.width]);
+        self.lines
+            .insert(self.scroll_bottom, vec![empty_cell; self.width]);
     }
 
     pub(crate) fn scroll_down(&mut self) {
@@ -154,7 +155,8 @@ impl TerminalBufferEntity {
         }
 
         self.lines.remove(self.scroll_bottom);
-        self.lines.insert(self.scroll_top, vec![empty_cell; self.width]);
+        self.lines
+            .insert(self.scroll_top, vec![empty_cell; self.width]);
     }
 
     pub(crate) fn reverse_index(&mut self) {
@@ -181,7 +183,8 @@ impl TerminalBufferEntity {
         let empty_cell = self.get_empty_cell();
         for _ in 0..n {
             self.lines.remove(self.scroll_bottom);
-            self.lines.insert(self.cursor.y, vec![empty_cell; self.width]);
+            self.lines
+                .insert(self.cursor.y, vec![empty_cell; self.width]);
         }
     }
 
@@ -193,7 +196,8 @@ impl TerminalBufferEntity {
         let empty_cell = self.get_empty_cell();
         for _ in 0..n {
             self.lines.remove(self.cursor.y);
-            self.lines.insert(self.scroll_bottom, vec![empty_cell; self.width]);
+            self.lines
+                .insert(self.scroll_bottom, vec![empty_cell; self.width]);
         }
     }
 
@@ -201,7 +205,9 @@ impl TerminalBufferEntity {
         let empty_cell = self.get_empty_cell();
         if let Some(line) = self.lines.get_mut(self.cursor.y) {
             let n = std::cmp::min(n, self.width.saturating_sub(self.cursor.x));
-            if n == 0 { return; }
+            if n == 0 {
+                return;
+            }
             for _ in 0..n {
                 line.insert(self.cursor.x, empty_cell);
                 line.pop();
@@ -210,7 +216,9 @@ impl TerminalBufferEntity {
     }
 
     fn push_to_history(&mut self, line: Vec<Cell>) {
-        if self.scrollback_limit == 0 { return; }
+        if self.scrollback_limit == 0 {
+            return;
+        }
         if self.history.len() >= self.scrollback_limit {
             self.history.pop_front();
         }
@@ -298,7 +306,7 @@ impl TerminalBufferEntity {
             }
 
             // Clear existing wide char parts if we overwrite them
-            if x > 0 && line.get(x).map_or(false, |cell| cell.is_wide_continuation) {
+            if x > 0 && line.get(x).is_some_and(|cell| cell.is_wide_continuation) {
                 if let Some(prev) = line.get_mut(x - 1) {
                     *prev = empty_cell;
                 }
@@ -335,29 +343,21 @@ impl TerminalBufferEntity {
         let code = c as u32;
         // East Asian Wide / Fullwidth characters → 2 columns
         // Box Drawing (0x2500-0x257F) is NOT included (stays at 1 column)
-        if (0x1100..=0x115F).contains(&code)
-            || (0x2E80..=0x9FFF).contains(&code)
-            || (0xAC00..=0xD7A3).contains(&code)
-            || (0xF900..=0xFAFF).contains(&code)
-            || (0xFE10..=0xFE1F).contains(&code)
-            || (0xFE30..=0xFE6F).contains(&code)
-            || (0xFF00..=0xFF60).contains(&code)
-            || (0xFFE0..=0xFFE6).contains(&code)
+        if (0x1100..=0x115F).contains(&code) // Hangul Jamo
+            || (0x2E80..=0x9FFF).contains(&code) // CJK Unified Ideographs
+            || (0xAC00..=0xD7A3).contains(&code) // Hangul Syllables
+            || (0xF900..=0xFAFF).contains(&code) // CJK Compatibility Ideographs
+            || (0xFE10..=0xFE1F).contains(&code) // Vertical forms
+            || (0xFE30..=0xFE6F).contains(&code) // CJK Compatibility Forms
+            || (0xFF00..=0xFF60).contains(&code) // Fullwidth Forms
+            || (0xFFE0..=0xFFE6).contains(&code) // Fullwidth Symbols
             || (0x20000..=0x3FFFF).contains(&code)
+        // Plane 2 & 3
         {
             2
         } else {
             1
         }
-    }
-
-    // Grid-based buffer: index is the display column
-    pub fn get_display_width_up_to(&self, _row: usize, char_index: usize) -> usize {
-        char_index
-    }
-
-    pub(crate) fn display_col_to_char_index(&self, _row: usize, target_display_col: usize) -> usize {
-        target_display_col
     }
 
     pub fn get_line_at_visual_row(&self, visual_row: usize) -> Option<&Vec<Cell>> {
@@ -376,10 +376,19 @@ impl TerminalBufferEntity {
         }
     }
 
-    pub fn get_lines(&self) -> &VecDeque<Vec<Cell>> { &self.lines }
-    pub fn is_cursor_visible(&self) -> bool { self.cursor.is_visible }
-    pub fn get_cursor_pos(&self) -> (usize, usize) { (self.cursor.x, self.cursor.y) }
-    pub fn save_cursor(&mut self) { self.saved_cursor = Some((self.cursor.x, self.cursor.y)); }
+    #[allow(dead_code)]
+    pub fn get_lines(&self) -> &VecDeque<Vec<Cell>> {
+        &self.lines
+    }
+    pub fn is_cursor_visible(&self) -> bool {
+        self.cursor.is_visible
+    }
+    pub fn get_cursor_pos(&self) -> (usize, usize) {
+        (self.cursor.x, self.cursor.y)
+    }
+    pub fn save_cursor(&mut self) {
+        self.saved_cursor = Some((self.cursor.x, self.cursor.y));
+    }
     pub fn restore_cursor(&mut self) {
         if let Some((x, y)) = self.saved_cursor {
             self.cursor.y = std::cmp::min(y, self.height.saturating_sub(1));

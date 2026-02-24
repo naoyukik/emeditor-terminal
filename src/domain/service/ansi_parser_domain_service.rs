@@ -43,9 +43,11 @@ impl AnsiParserDomainService {
                     Err(e) => {
                         let valid_up_to = e.valid_up_to();
                         if valid_up_to > 0 {
-                            let s = std::str::from_utf8(&bytes_ref[processed_len..processed_len + valid_up_to])
-                                .unwrap_or("")
-                                .to_string();
+                            let s = std::str::from_utf8(
+                                &bytes_ref[processed_len..processed_len + valid_up_to],
+                            )
+                            .unwrap_or("")
+                            .to_string();
                             to_parse.push(s);
                             processed_len += valid_up_to;
                         }
@@ -188,7 +190,8 @@ impl AnsiParserDomainService {
             }
             'B' => {
                 let n = self.parse_csi_param(params, 1);
-                buffer.cursor.y = std::cmp::min(buffer.height.saturating_sub(1), buffer.cursor.y + n);
+                buffer.cursor.y =
+                    std::cmp::min(buffer.height.saturating_sub(1), buffer.cursor.y + n);
             }
             '@' => {
                 let n = self.parse_csi_param(params, 1);
@@ -196,7 +199,8 @@ impl AnsiParserDomainService {
             }
             'C' => {
                 let n = self.parse_csi_param(params, 1);
-                buffer.cursor.x = std::cmp::min(buffer.width.saturating_sub(1), buffer.cursor.x + n);
+                buffer.cursor.x =
+                    std::cmp::min(buffer.width.saturating_sub(1), buffer.cursor.x + n);
             }
             'D' => {
                 let n = self.parse_csi_param(params, 1);
@@ -206,12 +210,20 @@ impl AnsiParserDomainService {
                 let mode = params.parse::<usize>().unwrap_or(0);
                 if let Some(line) = buffer.lines.get_mut(buffer.cursor.y) {
                     match mode {
-                        0 => { for cell in line.iter_mut().skip(buffer.cursor.x) { *cell = empty_cell; } }
+                        0 => {
+                            for cell in line.iter_mut().skip(buffer.cursor.x) {
+                                *cell = empty_cell;
+                            }
+                        }
                         1 => {
                             let end = std::cmp::min(buffer.cursor.x + 1, buffer.width);
-                            for cell in line.iter_mut().take(end) { *cell = empty_cell; }
+                            for cell in line.iter_mut().take(end) {
+                                *cell = empty_cell;
+                            }
                         }
-                        2 => { line.fill(empty_cell); }
+                        2 => {
+                            line.fill(empty_cell);
+                        }
                         _ => {}
                     }
                 }
@@ -232,53 +244,79 @@ impl AnsiParserDomainService {
                 let n = self.parse_csi_param(params, 1);
                 if let Some(line) = buffer.lines.get_mut(buffer.cursor.y) {
                     let end_idx = std::cmp::min(buffer.cursor.x + n, buffer.width);
-                    for cell in line.iter_mut().take(end_idx).skip(buffer.cursor.x) { *cell = empty_cell; }
+                    for cell in line.iter_mut().take(end_idx).skip(buffer.cursor.x) {
+                        *cell = empty_cell;
+                    }
                 }
             }
             'H' | 'f' => {
                 let parts: Vec<&str> = params.split(';').collect();
                 let row = parts[0].parse::<usize>().unwrap_or(1);
-                let col = if parts.len() > 1 { parts[1].parse::<usize>().unwrap_or(1) } else { 1 };
+                let col = if parts.len() > 1 {
+                    parts[1].parse::<usize>().unwrap_or(1)
+                } else {
+                    1
+                };
 
-                let target_row = if buffer.is_origin_mode { (buffer.scroll_top + row).saturating_sub(1) } else { row.saturating_sub(1) };
+                let target_row = if buffer.is_origin_mode {
+                    (buffer.scroll_top + row).saturating_sub(1)
+                } else {
+                    row.saturating_sub(1)
+                };
                 buffer.cursor.y = std::cmp::min(buffer.height.saturating_sub(1), target_row);
-                buffer.cursor.x = std::cmp::min(buffer.width.saturating_sub(1), col.saturating_sub(1));
+                buffer.cursor.x =
+                    std::cmp::min(buffer.width.saturating_sub(1), col.saturating_sub(1));
             }
             'J' => {
                 let mode = params.parse::<usize>().unwrap_or(0);
                 match mode {
                     0 => {
                         if let Some(line) = buffer.lines.get_mut(buffer.cursor.y) {
-                            for cell in line.iter_mut().skip(buffer.cursor.x) { *cell = empty_cell; }
+                            for cell in line.iter_mut().skip(buffer.cursor.x) {
+                                *cell = empty_cell;
+                            }
                         }
                         for y in (buffer.cursor.y + 1)..buffer.height {
-                            if let Some(line) = buffer.lines.get_mut(y) { line.fill(empty_cell); }
+                            if let Some(line) = buffer.lines.get_mut(y) {
+                                line.fill(empty_cell);
+                            }
                         }
                     }
                     1 => {
                         for y in 0..buffer.cursor.y {
-                            if let Some(line) = buffer.lines.get_mut(y) { line.fill(empty_cell); }
+                            if let Some(line) = buffer.lines.get_mut(y) {
+                                line.fill(empty_cell);
+                            }
                         }
                         if let Some(line) = buffer.lines.get_mut(buffer.cursor.y) {
                             let end = std::cmp::min(buffer.cursor.x + 1, buffer.width);
-                            for cell in line.iter_mut().take(end) { *cell = empty_cell; }
+                            for cell in line.iter_mut().take(end) {
+                                *cell = empty_cell;
+                            }
                         }
                     }
-                    2 | 3 => { for line in buffer.lines.iter_mut() { line.fill(empty_cell); } }
+                    2 | 3 => {
+                        for line in buffer.lines.iter_mut() {
+                            line.fill(empty_cell);
+                        }
+                    }
                     _ => {}
                 }
             }
             'G' => {
                 let col = self.parse_csi_param(params, 1);
-                buffer.cursor.x = std::cmp::min(buffer.width.saturating_sub(1), col.saturating_sub(1));
+                buffer.cursor.x =
+                    std::cmp::min(buffer.width.saturating_sub(1), col.saturating_sub(1));
             }
             'd' => {
                 let row = self.parse_csi_param(params, 1);
-                buffer.cursor.y = std::cmp::min(buffer.height.saturating_sub(1), row.saturating_sub(1));
+                buffer.cursor.y =
+                    std::cmp::min(buffer.height.saturating_sub(1), row.saturating_sub(1));
             }
             'E' => {
                 let n = self.parse_csi_param(params, 1);
-                buffer.cursor.y = std::cmp::min(buffer.height.saturating_sub(1), buffer.cursor.y + n);
+                buffer.cursor.y =
+                    std::cmp::min(buffer.height.saturating_sub(1), buffer.cursor.y + n);
                 buffer.cursor.x = 0;
             }
             'F' => {
@@ -287,16 +325,18 @@ impl AnsiParserDomainService {
                 buffer.cursor.x = 0;
             }
             'h' => {
-                if params == "?25" { buffer.cursor.is_visible = true; }
-                else if params == "?6" {
+                if params == "?25" {
+                    buffer.cursor.is_visible = true;
+                } else if params == "?6" {
                     buffer.is_origin_mode = true;
                     buffer.cursor.y = buffer.scroll_top;
                     buffer.cursor.x = 0;
                 }
             }
             'l' => {
-                if params == "?25" { buffer.cursor.is_visible = false; }
-                else if params == "?6" {
+                if params == "?25" {
+                    buffer.cursor.is_visible = false;
+                } else if params == "?6" {
                     buffer.is_origin_mode = false;
                     buffer.cursor.y = 0;
                     buffer.cursor.x = 0;
@@ -305,7 +345,11 @@ impl AnsiParserDomainService {
             'r' => {
                 let parts: Vec<&str> = params.split(';').collect();
                 let top = parts[0].parse::<usize>().unwrap_or(1);
-                let bottom = if parts.len() > 1 { parts[1].parse::<usize>().unwrap_or(buffer.height) } else { buffer.height };
+                let bottom = if parts.len() > 1 {
+                    parts[1].parse::<usize>().unwrap_or(buffer.height)
+                } else {
+                    buffer.height
+                };
                 let top_idx = top.saturating_sub(1);
                 let bottom_idx = bottom.saturating_sub(1);
                 if top_idx < bottom_idx && bottom_idx < buffer.height {
@@ -315,19 +359,42 @@ impl AnsiParserDomainService {
                     buffer.scroll_top = 0;
                     buffer.scroll_bottom = buffer.height.saturating_sub(1);
                 }
-                buffer.cursor.y = if buffer.is_origin_mode { buffer.scroll_top } else { 0 };
+                buffer.cursor.y = if buffer.is_origin_mode {
+                    buffer.scroll_top
+                } else {
+                    0
+                };
                 buffer.cursor.x = 0;
             }
-            'S' => { let n = self.parse_csi_param(params, 1); for _ in 0..n { buffer.scroll_up(); } }
-            'T' => { let n = self.parse_csi_param(params, 1); for _ in 0..n { buffer.scroll_down(); } }
-            'L' => { let n = self.parse_csi_param(params, 1); buffer.insert_lines(n); }
-            'M' => { let n = self.parse_csi_param(params, 1); buffer.delete_lines(n); }
+            'S' => {
+                let n = self.parse_csi_param(params, 1);
+                for _ in 0..n {
+                    buffer.scroll_up();
+                }
+            }
+            'T' => {
+                let n = self.parse_csi_param(params, 1);
+                for _ in 0..n {
+                    buffer.scroll_down();
+                }
+            }
+            'L' => {
+                let n = self.parse_csi_param(params, 1);
+                buffer.insert_lines(n);
+            }
+            'M' => {
+                let n = self.parse_csi_param(params, 1);
+                buffer.delete_lines(n);
+            }
             _ => {}
         }
     }
 
     fn handle_sgr(&mut self, buffer: &mut TerminalBufferEntity, params: &str) {
-        if params.is_empty() { buffer.current_attribute = TerminalAttribute::default(); return; }
+        if params.is_empty() {
+            buffer.current_attribute = TerminalAttribute::default();
+            return;
+        }
         let parts: Vec<&str> = params.split([';', ':']).collect();
         let mut i = 0;
         while i < parts.len() {
@@ -340,7 +407,10 @@ impl AnsiParserDomainService {
                 4 => buffer.current_attribute.is_underline = true,
                 7 => buffer.current_attribute.is_inverse = true,
                 9 => buffer.current_attribute.is_strikethrough = true,
-                22 => { buffer.current_attribute.is_bold = false; buffer.current_attribute.is_dim = false; }
+                22 => {
+                    buffer.current_attribute.is_bold = false;
+                    buffer.current_attribute.is_dim = false;
+                }
                 23 => buffer.current_attribute.is_italic = false,
                 24 => buffer.current_attribute.is_underline = false,
                 27 => buffer.current_attribute.is_inverse = false,
@@ -351,15 +421,29 @@ impl AnsiParserDomainService {
                     if i < parts.len() {
                         let type_p = parts[i].parse::<u8>().unwrap_or(0);
                         match type_p {
-                            5 => { i += 1; if i < parts.len() { buffer.current_attribute.fg = TerminalColor::Xterm(parts[i].parse::<u8>().unwrap_or(0)); i += 1; } }
-                            2 => { i += 1; if i + 2 < parts.len() {
-                                let r = parts[i].parse::<u8>().unwrap_or(0);
-                                let g = parts[i + 1].parse::<u8>().unwrap_or(0);
-                                let b = parts[i + 2].parse::<u8>().unwrap_or(0);
-                                buffer.current_attribute.fg = TerminalColor::Rgb(r, g, b);
-                                i += 3;
-                            } else { i = parts.len(); } }
-                            _ => { i += 1; }
+                            5 => {
+                                i += 1;
+                                if i < parts.len() {
+                                    buffer.current_attribute.fg =
+                                        TerminalColor::Xterm(parts[i].parse::<u8>().unwrap_or(0));
+                                    i += 1;
+                                }
+                            }
+                            2 => {
+                                i += 1;
+                                if i + 2 < parts.len() {
+                                    let r = parts[i].parse::<u8>().unwrap_or(0);
+                                    let g = parts[i + 1].parse::<u8>().unwrap_or(0);
+                                    let b = parts[i + 2].parse::<u8>().unwrap_or(0);
+                                    buffer.current_attribute.fg = TerminalColor::Rgb(r, g, b);
+                                    i += 3;
+                                } else {
+                                    i = parts.len();
+                                }
+                            }
+                            _ => {
+                                i += 1;
+                            }
                         }
                     }
                     continue;
@@ -371,15 +455,29 @@ impl AnsiParserDomainService {
                     if i < parts.len() {
                         let type_p = parts[i].parse::<u8>().unwrap_or(0);
                         match type_p {
-                            5 => { i += 1; if i < parts.len() { buffer.current_attribute.bg = TerminalColor::Xterm(parts[i].parse::<u8>().unwrap_or(0)); i += 1; } }
-                            2 => { i += 1; if i + 2 < parts.len() {
-                                let r = parts[i].parse::<u8>().unwrap_or(0);
-                                let g = parts[i + 1].parse::<u8>().unwrap_or(0);
-                                let b = parts[i + 2].parse::<u8>().unwrap_or(0);
-                                buffer.current_attribute.bg = TerminalColor::Rgb(r, g, b);
-                                i += 3;
-                            } else { i = parts.len(); } }
-                            _ => { i += 1; }
+                            5 => {
+                                i += 1;
+                                if i < parts.len() {
+                                    buffer.current_attribute.bg =
+                                        TerminalColor::Xterm(parts[i].parse::<u8>().unwrap_or(0));
+                                    i += 1;
+                                }
+                            }
+                            2 => {
+                                i += 1;
+                                if i + 2 < parts.len() {
+                                    let r = parts[i].parse::<u8>().unwrap_or(0);
+                                    let g = parts[i + 1].parse::<u8>().unwrap_or(0);
+                                    let b = parts[i + 2].parse::<u8>().unwrap_or(0);
+                                    buffer.current_attribute.bg = TerminalColor::Rgb(r, g, b);
+                                    i += 3;
+                                } else {
+                                    i = parts.len();
+                                }
+                            }
+                            _ => {
+                                i += 1;
+                            }
                         }
                     }
                     continue;
@@ -395,7 +493,11 @@ impl AnsiParserDomainService {
 
     fn parse_csi_param(&self, params: &str, default: usize) -> usize {
         let n = params.parse::<usize>().unwrap_or(default);
-        if n == 0 { 1 } else { n }
+        if n == 0 {
+            1
+        } else {
+            n
+        }
     }
 }
 
@@ -405,7 +507,10 @@ mod tests {
     use crate::domain::model::terminal_buffer_entity::{Cell, TerminalBufferEntity};
 
     fn line_to_string(line: &[Cell]) -> String {
-        line.iter().filter(|c| !c.is_wide_continuation).map(|cell| cell.c).collect()
+        line.iter()
+            .filter(|c| !c.is_wide_continuation)
+            .map(|cell| cell.c)
+            .collect()
     }
 
     #[test]
@@ -426,5 +531,64 @@ mod tests {
         parser.parse(&[0x82], &mut buffer);
         assert_eq!(buffer.cursor.x, 2);
         assert_eq!(buffer.lines[0][0].c, 'あ');
+    }
+
+    #[test]
+    fn test_cursor_initialization() {
+        let buffer = TerminalBufferEntity::new(80, 25);
+        assert_eq!(buffer.cursor.x, 0);
+        assert_eq!(buffer.cursor.y, 0);
+    }
+
+    #[test]
+    fn test_sgr_colors() {
+        let mut buffer = TerminalBufferEntity::new(80, 25);
+        let mut parser = AnsiParserDomainService::new();
+        parser.parse(b"\x1b[31mRED\x1b[0m", &mut buffer);
+        let line = &buffer.get_lines()[0];
+        assert_eq!(line[0].c, 'R');
+        assert_eq!(line[0].attribute.fg, TerminalColor::Ansi(1));
+        assert_eq!(line[3].c, ' ');
+    }
+
+    #[test]
+    fn test_terminal_resize() {
+        let mut buffer = TerminalBufferEntity::new(5, 2);
+        let mut parser = AnsiParserDomainService::new();
+        parser.parse(b"1234567", &mut buffer);
+        assert_eq!(buffer.cursor.y, 1);
+        assert_eq!(buffer.cursor.x, 2);
+
+        buffer.resize(10, 5);
+        assert_eq!(buffer.width, 10);
+        assert_eq!(buffer.height, 5);
+        assert_eq!(buffer.lines[0][0].c, '1');
+    }
+
+    #[test]
+    fn test_scrollback_history() {
+        let mut buffer = TerminalBufferEntity::new(10, 3);
+        let mut parser = AnsiParserDomainService::new();
+        parser.parse(b"1\n2\n3\n4\n5", &mut buffer);
+
+        assert_eq!(buffer.history.len(), 2);
+        assert_eq!(buffer.history[0][0].c, '1');
+        assert_eq!(buffer.history[1][0].c, '2');
+        assert_eq!(buffer.lines[0][0].c, '3');
+        assert_eq!(buffer.lines[2][0].c, '5');
+    }
+
+    #[test]
+    fn test_viewport_logic() {
+        let mut buffer = TerminalBufferEntity::new(10, 3);
+        let mut parser = AnsiParserDomainService::new();
+        parser.parse(b"1\n2\n3\n4\n5", &mut buffer);
+
+        let line = buffer.get_line_at_visual_row(0).unwrap();
+        assert_eq!(line[0].c, '3');
+
+        buffer.scroll_lines(1);
+        let line = buffer.get_line_at_visual_row(0).unwrap();
+        assert_eq!(line[0].c, '2');
     }
 }
