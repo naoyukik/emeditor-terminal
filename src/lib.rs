@@ -35,7 +35,7 @@ fn init_logger() {
         .build();
 
     match File::create(&path) {
-        Ok(file) => match WriteLogger::init(LevelFilter::Debug, config, file) {
+        Ok(file) => match WriteLogger::init(LevelFilter::Info, config, file) {
             Ok(_) => log::info!("Logger initialized"),
             Err(e) => eprintln!("Failed to initialize logger: {}", e),
         },

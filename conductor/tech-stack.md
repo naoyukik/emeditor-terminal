@@ -24,6 +24,8 @@
 
 ## Architecture
 **厳格な物理隔離レイヤードアーキテクチャ (Strict Rigid Architecture)** を採用し、ファイル名と配置によって境界を強制している。
+- **物理グリッド管理**: バッファをカラム単位（1セル=1カラム）で管理。全角文字は物理的に2セルを占有し、カーソル座標と完全同期する。
+- **バイトベース・ストリームパース**: GUI層での不用意な文字列変換を避け、Domain層のパサー内でバイトバッファを用いて UTF-8 シーケンスを正しく再構築する。
 - **Dependency Injection (DI)**: コンストラクタ注入により依存関係を管理し、テスト容易性と結合度の低下を実現。
 - **Domain 層 (`src/domain/`)**: `windows` クレートに依存しない Pure Rust 領域。
     - **Entity / Value Object**: `_entity.rs` / `_value.rs`

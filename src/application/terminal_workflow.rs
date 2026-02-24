@@ -45,8 +45,8 @@ impl TerminalWorkflow {
         }
     }
 
-    pub fn process_output(&mut self, output_text: &str) {
-        self.parser.parse(output_text, &mut self.buffer);
+    pub fn process_output(&mut self, output_bytes: &[u8]) {
+        self.parser.parse(output_bytes, &mut self.buffer);
     }
 
     pub fn send_input(&self, input_bytes: &[u8]) -> std::io::Result<()> {

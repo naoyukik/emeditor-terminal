@@ -19,7 +19,7 @@ pub fn update_window_position(
 ) {
     if let Some(metrics) = renderer.get_metrics() {
         let (cursor_x, cursor_y) = service.buffer.get_cursor_pos();
-        let display_cols = service.buffer.get_display_width_up_to(cursor_y, cursor_x);
+        let display_cols = cursor_x;
 
         let pixel_x = display_cols as i32 * metrics.base_width;
         let pixel_y = cursor_y as i32 * metrics.char_height;
@@ -33,10 +33,8 @@ pub fn update_window_position(
         );
 
         unsafe {
-            // Update system caret position (IME uses this as reference)
             let _ = SetCaretPos(pixel_x, pixel_y);
 
-            // Explicitly set composition window position
             let himc = ImmGetContext(hwnd);
             if !himc.0.is_null() {
                 let form = COMPOSITIONFORM {
@@ -54,7 +52,6 @@ pub fn update_window_position(
     }
 }
 
-/// Helper to check if IME is composing
 pub fn is_composing(hwnd: HWND) -> bool {
     unsafe {
         let himc = ImmGetContext(hwnd);
@@ -64,15 +61,12 @@ pub fn is_composing(hwnd: HWND) -> bool {
         let len = ImmGetCompositionStringW(himc, GCS_COMPSTR, None, 0);
         let _ = ImmReleaseContext(hwnd, himc);
         if len < 0 {
-            // ImmGetCompositionStringW failed; treat as not composing
             return false;
         }
         len > 0
     }
 }
 
-/// Handles WM_IME_COMPOSITION message
-/// Returns true if handled, false if DefWindowProc should be called
 pub fn handle_composition(
     hwnd: HWND,
     lparam: LPARAM,
@@ -83,7 +77,6 @@ pub fn handle_composition(
     log::debug!("WM_IME_COMPOSITION: lparam={:?}", lparam);
     let mut handled = false;
 
-    // Handle Result String (Committed)
     if (lparam.0 as u32 & GCS_RESULTSTR.0) != 0 {
         unsafe {
             let himc = ImmGetContext(hwnd);
@@ -101,12 +94,8 @@ pub fn handle_composition(
                     let result_str = String::from_utf16_lossy(&buffer);
                     log::info!("IME Result: '{}'", result_str);
 
-                    // Send result string to ConptyIoDriver
                     let _ = service.send_input(result_str.as_bytes());
-
-                    // Clear composition information on commit
                     *composition = None;
-
                     let _ = InvalidateRect(hwnd, None, BOOL(0));
                     handled = true;
                 }
@@ -115,19 +104,15 @@ pub fn handle_composition(
         }
     }
 
-    // Handle Composition String (In-progress)
     if (lparam.0 as u32 & GCS_COMPSTR.0) != 0 {
         update_window_position(hwnd, service, renderer);
         unsafe {
             let himc = ImmGetContext(hwnd);
             if !himc.0.is_null() {
-                // Get size first
                 let len_bytes = ImmGetCompositionStringW(himc, GCS_COMPSTR, None, 0);
                 if len_bytes >= 0 {
                     let len_u16 = (len_bytes as usize) / size_of::<u16>();
                     let mut buffer = vec![0u16; len_u16];
-
-                    // Get content
                     let _ = ImmGetCompositionStringW(
                         himc,
                         GCS_COMPSTR,
@@ -157,10 +142,7 @@ pub fn handle_composition(
 
 pub fn handle_start_composition(hwnd: HWND, service: &mut TerminalWorkflow) {
     log::debug!("WM_IME_STARTCOMPOSITION");
-    // Snap on Input for IME
     service.reset_viewport();
-
-    // Invalidate rect is typically handled by caller or update_scroll_info logic which might follow
     unsafe {
         let _ = InvalidateRect(hwnd, None, BOOL(0));
     }
@@ -168,7 +150,6 @@ pub fn handle_start_composition(hwnd: HWND, service: &mut TerminalWorkflow) {
 
 pub fn handle_end_composition(hwnd: HWND, composition: &mut Option<CompositionInfo>) {
     log::debug!("WM_IME_ENDCOMPOSITION");
-    // Ensure composition is cleared when IME ends
     *composition = None;
     unsafe {
         let _ = InvalidateRect(hwnd, None, BOOL(0));

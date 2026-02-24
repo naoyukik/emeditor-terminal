@@ -246,6 +246,10 @@ pub fn on_size(hwnd: HWND, lparam: LPARAM) -> LRESULT {
     let height = ((lparam.0 >> 16) & 0xFFFF) as i32;
     log::info!("WM_SIZE: width={}, height={}", width, height);
 
+    if width <= 0 || height <= 0 {
+        return LRESULT(0);
+    }
+
     {
         let data_arc = get_terminal_data();
         let mut window_data = data_arc.lock().unwrap();
@@ -260,7 +264,6 @@ pub fn on_size(hwnd: HWND, lparam: LPARAM) -> LRESULT {
         let rows = (height / char_height).max(1) as i16;
 
         log::info!("Resizing ConptyIoDriver to cols={}, rows={}", cols, rows);
-
         window_data.service.resize(cols as usize, rows as usize);
     }
 
