@@ -287,41 +287,63 @@ impl TerminalBufferEntity {
         let x = self.cursor.x;
         let y = self.cursor.y;
 
-        if y >= self.height || x >= self.width { return; }
+        if y >= self.lines.len() || x >= self.width {
+            return;
+        }
 
         let empty_cell = self.get_empty_cell();
         if let Some(line) = self.lines.get_mut(y) {
+            if x >= line.len() {
+                return;
+            }
+
             // Clear existing wide char parts if we overwrite them
-            if line[x].is_wide_continuation && x > 0 {
-                line[x-1] = empty_cell;
+            if x > 0 && line.get(x).map_or(false, |cell| cell.is_wide_continuation) {
+                if let Some(prev) = line.get_mut(x - 1) {
+                    *prev = empty_cell;
+                }
             }
-            if Self::char_display_width(line[x].c) == 2 && x + 1 < self.width {
-                line[x+1] = empty_cell;
+            if let Some(current) = line.get(x) {
+                if Self::char_display_width(current.c) == 2 && x + 1 < line.len() {
+                    if let Some(next) = line.get_mut(x + 1) {
+                        *next = empty_cell;
+                    }
+                }
             }
 
-            line[x] = Cell {
-                c,
-                attribute: self.current_attribute,
-                is_wide_continuation: false,
-            };
-
-            if char_width == 2 && x + 1 < self.width {
-                line[x+1] = Cell {
-                    c: ' ',
+            if let Some(cell) = line.get_mut(x) {
+                *cell = Cell {
+                    c,
                     attribute: self.current_attribute,
-                    is_wide_continuation: true,
+                    is_wide_continuation: false,
                 };
+            }
+
+            if char_width == 2 && x + 1 < line.len() {
+                if let Some(next) = line.get_mut(x + 1) {
+                    *next = Cell {
+                        c: ' ',
+                        attribute: self.current_attribute,
+                        is_wide_continuation: true,
+                    };
+                }
             }
         }
     }
 
     pub fn char_display_width(c: char) -> usize {
         let code = c as u32;
-        // Strictly only CJK ranges. Box Drawing (0x2500) remains 1.
-        if (0x2E80..=0x9FFF).contains(&code) 
-            || (0xAC00..=0xD7A3).contains(&code) 
-            || (0xFF00..=0xFF60).contains(&code) 
-            || (0x20000..=0x3FFFF).contains(&code) 
+        // East Asian Wide / Fullwidth characters → 2 columns
+        // Box Drawing (0x2500-0x257F) is NOT included (stays at 1 column)
+        if (0x1100..=0x115F).contains(&code)
+            || (0x2E80..=0x9FFF).contains(&code)
+            || (0xAC00..=0xD7A3).contains(&code)
+            || (0xF900..=0xFAFF).contains(&code)
+            || (0xFE10..=0xFE1F).contains(&code)
+            || (0xFE30..=0xFE6F).contains(&code)
+            || (0xFF00..=0xFF60).contains(&code)
+            || (0xFFE0..=0xFFE6).contains(&code)
+            || (0x20000..=0x3FFFF).contains(&code)
         {
             2
         } else {

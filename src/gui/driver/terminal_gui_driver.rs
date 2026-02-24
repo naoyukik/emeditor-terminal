@@ -21,6 +21,12 @@ pub struct TerminalMetrics {
     pub base_width: i32,
 }
 
+/// HFONT をスレッド間で安全に転送するためのラッパー構造体。
+///
+/// GDI オブジェクトハンドル（HFONT）は、Windows の仕様上、作成したスレッド以外でも
+/// 参照（SelectObject 等）することは可能だが、削除（DeleteObject）は作成スレッドで行う必要がある。
+/// このプロジェクトでは TerminalGuiDriver が全てのフォントハンドルを管理し、
+/// ドロップ時に一括して削除することを前提として、Send/Sync を実装している。
 pub struct SendHFONT(pub HFONT);
 unsafe impl Send for SendHFONT {}
 unsafe impl Sync for SendHFONT {}
@@ -112,7 +118,14 @@ impl TerminalGuiDriver {
             lf.lfFaceName[len] = 0;
 
             let h_font = CreateFontIndirectW(&lf);
-            if h_font.0.is_null() { return HFONT::default(); }
+            if h_font.0.is_null() {
+                // フォント作成に失敗した場合はログ出力し、デフォルトスタイル (style_mask=0) で再試行する
+                log::error!("CreateFontIndirectW failed for style_mask={:#x}; falling back to default font", style_mask);
+                if style_mask != 0 {
+                    return self.get_font_for_style(hdc, 0);
+                }
+                return HFONT::default();
+            }
 
             if self.metrics.is_none() {
                 let old_font = SelectObject(hdc, HGDIOBJ(h_font.0));
@@ -212,23 +225,33 @@ impl TerminalGuiDriver {
                 if let Some(line) = buffer.get_line_at_visual_row(visual_row) {
                     let mut cell_idx = 0;
                     while cell_idx < buffer.width {
-                        if cell_idx >= line.len() { break; }
-                        let cell = &line[cell_idx];
-                        if cell.is_wide_continuation { cell_idx += 1; continue; }
+                        let cell = match line.get(cell_idx) {
+                            Some(c) => c,
+                            None => break,
+                        };
+                        if cell.is_wide_continuation {
+                            cell_idx += 1;
+                            continue;
+                        }
 
                         let start_attr = cell.attribute;
                         let mut run_text = String::new();
                         let mut run_dx = Vec::new();
 
-                        while cell_idx < buffer.width && cell_idx < line.len() {
-                            let c = &line[cell_idx];
+                        while cell_idx < buffer.width {
+                            let c = match line.get(cell_idx) {
+                                Some(c) => c,
+                                None => break,
+                            };
                             if c.is_wide_continuation {
                                 // Double-check if it's really a continuation
                                 cell_idx += 1;
                                 continue;
                             }
-                            if c.attribute != start_attr { break; }
-                            
+                            if c.attribute != start_attr {
+                                break;
+                            }
+
                             run_text.push(c.c);
                             let w = TerminalBufferEntity::char_display_width(c.c) as i32 * base_width;
                             run_dx.push(w);
@@ -252,7 +275,24 @@ impl TerminalGuiDriver {
 
                             let fg = if start_attr.is_inverse { start_attr.bg } else { start_attr.fg };
                             let bg = if start_attr.is_inverse { start_attr.fg } else { start_attr.bg };
-                            SetTextColor(hdc, self.color_to_colorref(fg, false, theme));
+                            let mut fg_colorref = self.color_to_colorref(fg, false, theme);
+                            if start_attr.is_dim {
+                                // Dim/Faint 属性が指定されている場合は、前景色の輝度を下げる
+                                let v = fg_colorref.0;
+                                let r = (v & 0x000000FF) as u8;
+                                let g = ((v & 0x0000FF00) >> 8) as u8;
+                                let b = ((v & 0x00FF0000) >> 16) as u8;
+                                let factor: f32 = 0.5;
+                                let r_d = ((r as f32) * factor).round().clamp(0.0, 255.0) as u8;
+                                let g_d = ((g as f32) * factor).round().clamp(0.0, 255.0) as u8;
+                                let b_d = ((b as f32) * factor).round().clamp(0.0, 255.0) as u8;
+                                fg_colorref = COLORREF(
+                                    (r_d as u32)
+                                        | ((g_d as u32) << 8)
+                                        | ((b_d as u32) << 16),
+                                );
+                            }
+                            SetTextColor(hdc, fg_colorref);
                             SetBkColor(hdc, self.color_to_colorref(bg, true, theme));
 
                             let run_rect = RECT { left: x_offset, top: current_y, right: x_offset + run_pixel_width, bottom: current_y + char_height };
@@ -262,6 +302,18 @@ impl TerminalGuiDriver {
                     }
                 }
 
+                // 行の右側の未使用領域を背景色でクリアして、前フレームの内容が残らないようにする
+                if x_offset < client_rect.right {
+                    let clear_rect = RECT {
+                        left: x_offset,
+                        top: current_y,
+                        right: client_rect.right,
+                        bottom: current_y + char_height,
+                    };
+                    let brush = CreateSolidBrush(Self::rgb_to_colorref(&theme.default_bg));
+                    let _ = FillRect(hdc, &clear_rect, brush);
+                    let _ = DeleteObject(brush);
+                }
                 if viewport_offset == 0 && visual_row == cursor_y {
                     let cursor_pixel_x = cursor_x as i32 * base_width;
                     if let Some(comp) = composition {
@@ -290,7 +342,38 @@ impl TerminalGuiDriver {
         unsafe {
             SetBkColor(hdc, Self::rgb_to_colorref(&theme.default_bg));
             SetTextColor(hdc, Self::rgb_to_colorref(&theme.default_fg));
-            let _ = ExtTextOutW(hdc, x, y, ETO_OPTIONS(ETO_OPAQUE.0), Some(&comp_rect), PCWSTR(comp_wide.as_ptr()), comp_wide.len() as u32, Some(comp_dx.as_ptr()));
+            let _ = ExtTextOutW(
+                hdc,
+                x,
+                y,
+                ETO_OPTIONS(ETO_OPAQUE.0),
+                Some(&comp_rect),
+                PCWSTR(comp_wide.as_ptr()),
+                comp_wide.len() as u32,
+                Some(comp_dx.as_ptr()),
+            );
+
+            // IME変換中文字列を視覚的に識別できるように下線を描画する
+            if pixel_width > 0 && char_height > 0 {
+                // 下線の高さを 1〜2 ピクセルに制限する
+                let underline_height: i32 = if char_height >= 2 { 2 } else { 1 };
+                let underline_top = y + char_height - underline_height;
+                let underline_bottom = y + char_height;
+                if underline_top < underline_bottom {
+                    let underline_rect = RECT {
+                        left: x,
+                        top: underline_top,
+                        right: x + pixel_width,
+                        bottom: underline_bottom,
+                    };
+                    let underline_color = Self::rgb_to_colorref(&theme.default_fg);
+                    let h_underline_brush = CreateSolidBrush(underline_color);
+                    if !h_underline_brush.0.is_null() {
+                        let _underline_brush_guard = GdiObjectGuard(HGDIOBJ(h_underline_brush.0));
+                        let _ = FillRect(hdc, &underline_rect, h_underline_brush);
+                    }
+                }
+            }
         }
     }
 }
