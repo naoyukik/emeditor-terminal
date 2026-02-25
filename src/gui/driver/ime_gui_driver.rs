@@ -18,7 +18,7 @@ pub fn update_window_position(
     renderer: &TerminalGuiDriver,
 ) {
     if let Some(metrics) = renderer.get_metrics() {
-        let (cursor_x, cursor_y) = service.buffer.get_cursor_pos();
+        let (cursor_x, cursor_y) = service.get_buffer().get_cursor_pos();
         let display_cols = cursor_x;
 
         let pixel_x = display_cols as i32 * metrics.base_width;

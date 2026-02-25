@@ -17,7 +17,7 @@ pub fn on_vscroll(hwnd: HWND, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
 
         // Sync state before handling
         let history_count = window_data.service.get_history_count() as i32;
-        let height = window_data.service.buffer.height as i32;
+        let height = window_data.service.get_buffer().get_height() as i32;
         window_data.scroll_manager.max = history_count + height - 1;
         window_data.scroll_manager.page = height as u32;
 
@@ -85,7 +85,7 @@ pub fn on_paint(hwnd: HWND) -> LRESULT {
         renderer.render(
             hdc,
             &client_rect,
-            &service.buffer,
+            service.get_buffer(),
             composition.as_ref(),
             &service.color_theme,
         );

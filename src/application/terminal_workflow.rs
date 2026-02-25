@@ -6,7 +6,7 @@ use crate::domain::repository::terminal_output_repository::TerminalOutputReposit
 use crate::domain::service::ansi_parser_domain_service::AnsiParserDomainService;
 
 pub struct TerminalWorkflow {
-    pub(crate) buffer: TerminalBufferEntity,
+    buffer: TerminalBufferEntity,
     parser: AnsiParserDomainService,
     output_repo: Box<dyn TerminalOutputRepository>,
     #[allow(dead_code)] // TODO: フォント設定UI実装時に使用予定
@@ -97,13 +97,17 @@ impl TerminalWorkflow {
         self.buffer.reset_viewport();
     }
 
+    pub fn get_buffer(&self) -> &TerminalBufferEntity {
+        &self.buffer
+    }
+
     /// ヒストリーの現在の行数を取得する
     pub fn get_history_count(&self) -> usize {
-        self.buffer.history.len()
+        self.buffer.get_history_len()
     }
 
     /// 現在のビューポートのオフセットを取得する
     pub fn get_viewport_offset(&self) -> usize {
-        self.buffer.viewport_offset
+        self.buffer.get_viewport_offset()
     }
 }

@@ -37,7 +37,7 @@ pub fn update_window_scroll_info(hwnd: HWND) {
 
     let history_count = window_data.service.get_history_count() as i32;
     let viewport_offset = window_data.service.get_viewport_offset() as i32;
-    let height = window_data.service.buffer.height as i32;
+    let height = window_data.service.get_buffer().get_height() as i32;
 
     // Update ScrollGuiDriver state
     window_data.scroll_manager.min = 0;
