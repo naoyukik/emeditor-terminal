@@ -34,6 +34,15 @@
 - [x] Task: Conductor - User Manual Verification 'Phase 3: Verification' (Protocol in workflow.md)
 - [x] Task: Commit changes for Phase 3
 
+## Phase 4: PR Review Fixes (Quality Refinement)
+**目的:** プルリクエストレビューで指摘された機能退行および堅牢性の修正を行う。
+
+- [x] Task: [PR Review Fix] DECSET/DECRST ('h'/'l') の復元。`intermediates == b"?"` の条件判定を追加し、`?25` および `?6` を実装。
+- [x] Task: [PR Review Fix] `execute()` の実装。制御文字を `process_normal_char` に丸投げせず、個別にハンドリングして未知の制御文字による「ゴミ文字描画」を防ぐ。
+- [x] Task: [PR Review Fix] SGR RGBパースの境界チェック強化。`iter.next()` を安全にハンドリング。
+- [x] Task: Conductor - User Manual Verification 'Phase 4: PR Review Fixes' (Protocol in workflow.md)
+- [x] Task: Commit changes for PR Review Fixes
+
 ---
 
 ## Technical Notes

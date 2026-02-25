@@ -440,8 +440,37 @@ impl Perform for TerminalBufferEntity {
     }
 
     fn execute(&mut self, byte: u8) {
-        // Handle control characters
-        self.process_normal_char(byte as char);
+        match byte {
+            0x08 => {
+                // BS
+                if self.cursor.x > 0 {
+                    self.cursor.x -= 1;
+                }
+            }
+            0x09 => {
+                // TAB
+                let next_x = (self.cursor.x / 8 + 1) * 8;
+                if next_x >= self.width {
+                    self.cursor.x = 0;
+                    self.index();
+                } else {
+                    while self.cursor.x < next_x {
+                        self.put_char(' ');
+                        self.cursor.x += 1;
+                    }
+                }
+            }
+            0x0A | 0x0B | 0x0C => {
+                // LF, VT, FF
+                self.cursor.x = 0;
+                self.index();
+            }
+            0x0D => {
+                // CR
+                self.cursor.x = 0;
+            }
+            _ => {} // Ignore other control characters (BEL, etc.) to prevent garbage rendering
+        }
     }
 
     fn hook(&mut self, _params: &Params, _intermediates: &[u8], _ignore: bool, _action: char) {
@@ -603,11 +632,24 @@ impl Perform for TerminalBufferEntity {
                 self.cursor.x = 0;
             }
             'h' => {
-                // DECSET handling (incomplete without intermediates check, but following legacy for now)
-                // In vte, '?' is an intermediate byte but for now we follow old logic
+                if _intermediates.first() == Some(&b'?') {
+                    let mode = self.get_param(params, 0, 0);
+                    match mode {
+                        6 => self.is_origin_mode = true,
+                        25 => self.cursor.is_visible = true,
+                        _ => {}
+                    }
+                }
             }
             'l' => {
-                // DECRST handling
+                if _intermediates.first() == Some(&b'?') {
+                    let mode = self.get_param(params, 0, 0);
+                    match mode {
+                        6 => self.is_origin_mode = false,
+                        25 => self.cursor.is_visible = false,
+                        _ => {}
+                    }
+                }
             }
             'r' => {
                 let top = self.get_param(params, 0, 1) as usize;
@@ -726,11 +768,11 @@ impl TerminalBufferEntity {
                                 }
                             }
                             2 => {
-                                if let (Some(r_sub), Some(g_sub), Some(b_sub)) = (iter.next(), iter.next(), iter.next()) {
-                                    let r = r_sub.first().copied().unwrap_or(0) as u8;
-                                    let g = g_sub.first().copied().unwrap_or(0) as u8;
-                                    let b = b_sub.first().copied().unwrap_or(0) as u8;
-                                    self.current_attribute.fg = TerminalColor::Rgb(r, g, b);
+                                let r = iter.next().and_then(|s| s.first()).copied();
+                                let g = iter.next().and_then(|s| s.first()).copied();
+                                let b = iter.next().and_then(|s| s.first()).copied();
+                                if let (Some(r), Some(g), Some(b)) = (r, g, b) {
+                                    self.current_attribute.fg = TerminalColor::Rgb(r as u8, g as u8, b as u8);
                                 }
                             }
                             _ => {}
@@ -769,11 +811,11 @@ impl TerminalBufferEntity {
                                 }
                             }
                             2 => {
-                                if let (Some(r_sub), Some(g_sub), Some(b_sub)) = (iter.next(), iter.next(), iter.next()) {
-                                    let r = r_sub.first().copied().unwrap_or(0) as u8;
-                                    let g = g_sub.first().copied().unwrap_or(0) as u8;
-                                    let b = b_sub.first().copied().unwrap_or(0) as u8;
-                                    self.current_attribute.bg = TerminalColor::Rgb(r, g, b);
+                                let r = iter.next().and_then(|s| s.first()).copied();
+                                let g = iter.next().and_then(|s| s.first()).copied();
+                                let b = iter.next().and_then(|s| s.first()).copied();
+                                if let (Some(r), Some(g), Some(b)) = (r, g, b) {
+                                    self.current_attribute.bg = TerminalColor::Rgb(r as u8, g as u8, b as u8);
                                 }
                             }
                             _ => {}
