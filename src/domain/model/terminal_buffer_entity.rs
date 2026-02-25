@@ -377,6 +377,7 @@ impl TerminalBufferEntity {
         }
     }
 
+    #[allow(dead_code)]
     pub fn get_lines(&self) -> &VecDeque<Vec<Cell>> {
         &self.lines
     }

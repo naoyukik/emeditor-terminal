@@ -8,6 +8,7 @@
   - 主要メソッド（`print`, `execute`, `csi_dispatch` 等）を現在のバッファ操作ロジックに基づいて実装。
 - [x] Task: `AnsiParserDomainService` 内で `buffer.lines`, `buffer.cursor` 等を直接参照・操作している箇所を、新設したトレイトメソッドの呼び出しに暫定的に置き換える。
 - [x] Task: Conductor - User Manual Verification 'Phase 1: Preparation' (Protocol in workflow.md)
+- [x] Task: Commit changes for Phase 1
 
 ## Phase 2: Interface Implementation (Decoupling)
 **目的:** `TerminalBufferEntity` のメソッドに、現在の `AnsiParserDomainService` が行っている具体的なロジックを統合し、フィールドを `private` 化する。
@@ -21,6 +22,7 @@
 - [x] Task: `AnsiParserDomainService` のパース処理を、新設したメソッド呼び出しに完全に切り替える。
 - [x] Task: `AnsiParserDomainService` 内の重複ロジック（`handle_csi` 内での直接的なバッファ操作等）を削除し、純粋な「パサー」として整理。
 - [x] Task: Conductor - User Manual Verification 'Phase 2: Interface Implementation' (Protocol in workflow.md)
+- [x] Task: Commit changes for Phase 2
 
 ## Phase 3: Verification & Stabilization (Quality Assurance)
 **目的:** `edit` 等の TUI アプリケーションを用いた実地検証を行い、デグレードがないことを確認する。
@@ -30,6 +32,7 @@
 - [ ] Task: `edit` を起動し、描画の乱れやカーソル位置のズレ、日本語文字の整合性が維持されていることを確認。
 - [ ] Task: `git log` 等のページャーアプリでの動作確認。
 - [ ] Task: Conductor - User Manual Verification 'Phase 3: Verification' (Protocol in workflow.md)
+- [ ] Task: Commit changes for Phase 3
 
 ---
 
