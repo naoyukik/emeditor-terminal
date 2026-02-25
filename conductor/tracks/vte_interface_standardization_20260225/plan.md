@@ -27,12 +27,12 @@
 ## Phase 3: Verification & Stabilization (Quality Assurance)
 **目的:** `edit` 等の TUI アプリケーションを用いた実地検証を行い、デグレードがないことを確認する。
 
-- [ ] Task: 既存のユニットテスト (`ansi_parser_domain_service::tests`) を実行し、全てパスすることを確認。
-- [ ] Task: `cargo test` で全体の整合性を確認。
-- [ ] Task: `edit` を起動し、描画の乱れやカーソル位置のズレ、日本語文字の整合性が維持されていることを確認。
-- [ ] Task: `git log` 等のページャーアプリでの動作確認。
-- [ ] Task: Conductor - User Manual Verification 'Phase 3: Verification' (Protocol in workflow.md)
-- [ ] Task: Commit changes for Phase 3
+- [x] Task: 既存のユニットテスト (`ansi_parser_domain_service::tests`) を実行し、全てパスすることを確認。
+- [x] Task: `cargo test` で全体の整合性を確認。
+- [x] Task: `edit` を起動し、描画の乱れやカーソル位置のズレ、日本語文字の整合性が維持されていることを確認。
+- [x] Task: `git log` 等のページャーアプリでの動作確認。
+- [x] Task: Conductor - User Manual Verification 'Phase 3: Verification' (Protocol in workflow.md)
+- [x] Task: Commit changes for Phase 3
 
 ---
 
