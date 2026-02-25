@@ -635,7 +635,11 @@ impl Perform for TerminalBufferEntity {
                 if _intermediates.first() == Some(&b'?') {
                     let mode = self.get_param(params, 0, 0);
                     match mode {
-                        6 => self.is_origin_mode = true,
+                        6 => {
+                            self.is_origin_mode = true;
+                            self.cursor.y = self.scroll_top;
+                            self.cursor.x = 0;
+                        }
                         25 => self.cursor.is_visible = true,
                         _ => {}
                     }
@@ -645,7 +649,11 @@ impl Perform for TerminalBufferEntity {
                 if _intermediates.first() == Some(&b'?') {
                     let mode = self.get_param(params, 0, 0);
                     match mode {
-                        6 => self.is_origin_mode = false,
+                        6 => {
+                            self.is_origin_mode = false;
+                            self.cursor.y = 0;
+                            self.cursor.x = 0;
+                        }
                         25 => self.cursor.is_visible = false,
                         _ => {}
                     }

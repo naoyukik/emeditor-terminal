@@ -114,4 +114,46 @@ mod tests {
         let line = buffer.get_line_at_visual_row(0).unwrap();
         assert_eq!(line[0].c, '2');
     }
+
+    #[test]
+    fn test_decset_decrst() {
+        let mut buffer = TerminalBufferEntity::new(80, 25);
+        let mut parser = AnsiParserDomainService::new();
+
+        // Cursor invisible
+        parser.parse(b"\x1b[?25l", &mut buffer);
+        assert!(!buffer.is_cursor_visible());
+
+        // Cursor visible
+        parser.parse(b"\x1b[?25h", &mut buffer);
+        assert!(buffer.is_cursor_visible());
+
+        // Origin mode and cursor reset
+        parser.parse(b"\x1b[2;10r", &mut buffer); // Scroll region 2-10
+        parser.parse(b"\x1b[?6h", &mut buffer);
+        assert_eq!(buffer.get_cursor_pos().1, 1); // Row 2 (0-indexed)
+        assert_eq!(buffer.get_cursor_pos().0, 0);
+
+        parser.parse(b"\x1b[?6l", &mut buffer);
+        assert_eq!(buffer.get_cursor_pos().1, 0);
+        assert_eq!(buffer.get_cursor_pos().0, 0);
+    }
+
+    #[test]
+    fn test_control_characters() {
+        let mut buffer = TerminalBufferEntity::new(80, 25);
+        let mut parser = AnsiParserDomainService::new();
+
+        // BS
+        parser.parse(b"AB\x08", &mut buffer);
+        assert_eq!(buffer.get_cursor_pos().0, 1);
+
+        // TAB
+        parser.parse(b"\r\t", &mut buffer);
+        assert_eq!(buffer.get_cursor_pos().0, 8);
+
+        // CR
+        parser.parse(b"XY\r", &mut buffer);
+        assert_eq!(buffer.get_cursor_pos().0, 0);
+    }
 }
