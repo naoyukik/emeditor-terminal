@@ -4,9 +4,10 @@
 後続の `vte` クレート導入（Issue #94）を見据え、Domain層の `TerminalBufferEntity` に `vte::Perform` トレイト互換の標準的な命令セットを実装し、パサーとの疎結合化を実現する。
 
 ## 2. Functional Requirements
-- **vte::Perform 互換インターフェースの実装**:
-  - `print`, `execute`, `hook`, `put`, `unhook`, `osc_dispatch`, `csi_dispatch`, `esc_dispatch` の各メソッド（およびそのサブコマンド）を `TerminalBufferEntity` に実装する。
-  - 現在 `AnsiParserDomainService` がバッファのフィールドを直接操作している箇所を、これらの標準メソッドに置き換える。
+- **vte::Perform トレイトの直接実装**:
+  - `vte` クレートを導入し、`TerminalBufferEntity` に `vte::Perform` トレイトを実装する。
+  - `print`, `execute`, `hook`, `put`, `unhook`, `osc_dispatch`, `csi_dispatch`, `esc_dispatch` の各メソッドをバッファの整合性を保つよう実装。
+  - 現在 `AnsiParserDomainService` がバッファのフィールドを直接操作している箇所を、これらのトレイトメソッドへの呼び出しに置き換える。
 - **カプセル化の強化**:
   - `TerminalBufferEntity` のフィールド（`lines`, `cursor`, `current_attribute` 等）を `pub(crate)` から `private` に変更し、外部（特にパサー）からの直接アクセスを遮断する。
 - **互換性維持**:

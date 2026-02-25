@@ -1,4 +1,5 @@
 use std::collections::VecDeque;
+use vte::{Params, Perform};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum TerminalColor {
@@ -69,19 +70,19 @@ impl Default for Cursor {
 }
 
 pub struct TerminalBufferEntity {
-    pub(crate) lines: VecDeque<Vec<Cell>>,
-    pub(crate) width: usize,
-    pub(crate) height: usize,
-    pub(crate) cursor: Cursor,
-    pub(crate) current_attribute: TerminalAttribute,
-    pub(crate) scroll_top: usize,
-    pub(crate) scroll_bottom: usize,
-    pub(crate) is_origin_mode: bool,
-    pub(crate) saved_cursor: Option<(usize, usize)>,
+    lines: VecDeque<Vec<Cell>>,
+    width: usize,
+    height: usize,
+    cursor: Cursor,
+    current_attribute: TerminalAttribute,
+    scroll_top: usize,
+    scroll_bottom: usize,
+    is_origin_mode: bool,
+    saved_cursor: Option<(usize, usize)>,
 
-    pub(crate) history: VecDeque<Vec<Cell>>,
-    pub(crate) viewport_offset: usize,
-    pub(crate) scrollback_limit: usize,
+    history: VecDeque<Vec<Cell>>,
+    viewport_offset: usize,
+    scrollback_limit: usize,
 }
 
 impl TerminalBufferEntity {
@@ -376,10 +377,26 @@ impl TerminalBufferEntity {
         }
     }
 
-    #[allow(dead_code)]
     pub fn get_lines(&self) -> &VecDeque<Vec<Cell>> {
         &self.lines
     }
+
+    pub fn get_width(&self) -> usize {
+        self.width
+    }
+
+    pub fn get_height(&self) -> usize {
+        self.height
+    }
+
+    pub fn get_history_len(&self) -> usize {
+        self.history.len()
+    }
+
+    pub fn get_viewport_offset(&self) -> usize {
+        self.viewport_offset
+    }
+
     pub fn is_cursor_visible(&self) -> bool {
         self.cursor.is_visible
     }
@@ -413,5 +430,360 @@ impl TerminalBufferEntity {
         self.scroll_bottom = self.height.saturating_sub(1);
         self.cursor.y = std::cmp::min(self.cursor.y, self.height.saturating_sub(1));
         self.cursor.x = std::cmp::min(self.cursor.x, self.width.saturating_sub(1));
+    }
+}
+
+impl Perform for TerminalBufferEntity {
+    fn print(&mut self, c: char) {
+        self.process_normal_char(c);
+    }
+
+    fn execute(&mut self, byte: u8) {
+        // Handle control characters
+        self.process_normal_char(byte as char);
+    }
+
+    fn hook(&mut self, _params: &Params, _intermediates: &[u8], _ignore: bool, _action: char) {
+        // No-op for now
+    }
+
+    fn put(&mut self, _byte: u8) {
+        // No-op for now
+    }
+
+    fn unhook(&mut self) {
+        // No-op for now
+    }
+
+    fn osc_dispatch(&mut self, _params: &[&[u8]], _bell_terminated: bool) {
+        // No-op for now
+    }
+
+    fn csi_dispatch(
+        &mut self,
+        params: &Params,
+        _intermediates: &[u8],
+        _ignore: bool,
+        action: char,
+    ) {
+        match action {
+            'm' => self.handle_sgr(params),
+            'A' => {
+                let n = self.get_param(params, 0, 1);
+                self.cursor.y = self.cursor.y.saturating_sub(n as usize);
+            }
+            'B' => {
+                let n = self.get_param(params, 0, 1);
+                self.cursor.y = std::cmp::min(self.height.saturating_sub(1), self.cursor.y + n as usize);
+            }
+            '@' => {
+                let n = self.get_param(params, 0, 1);
+                self.insert_cells(n as usize);
+            }
+            'C' => {
+                let n = self.get_param(params, 0, 1);
+                self.cursor.x = std::cmp::min(self.width.saturating_sub(1), self.cursor.x + n as usize);
+            }
+            'D' => {
+                let n = self.get_param(params, 0, 1);
+                self.cursor.x = self.cursor.x.saturating_sub(n as usize);
+            }
+            'K' => {
+                let mode = self.get_param(params, 0, 0);
+                let empty_cell = self.get_empty_cell();
+                if let Some(line) = self.lines.get_mut(self.cursor.y) {
+                    match mode {
+                        0 => {
+                            for cell in line.iter_mut().skip(self.cursor.x) {
+                                *cell = empty_cell;
+                            }
+                        }
+                        1 => {
+                            let end = std::cmp::min(self.cursor.x + 1, self.width);
+                            for cell in line.iter_mut().take(end) {
+                                *cell = empty_cell;
+                            }
+                        }
+                        2 => {
+                            line.fill(empty_cell);
+                        }
+                        _ => {}
+                    }
+                }
+            }
+            'P' => {
+                let n = self.get_param(params, 0, 1);
+                let empty_cell = self.get_empty_cell();
+                if let Some(line) = self.lines.get_mut(self.cursor.y) {
+                    let x = self.cursor.x;
+                    if x < self.width {
+                        let end_idx = std::cmp::min(x + n as usize, self.width);
+                        let removed_count = end_idx - x;
+                        line.drain(x..end_idx);
+                        line.extend(std::iter::repeat_n(empty_cell, removed_count));
+                    }
+                }
+            }
+            'X' => {
+                let n = self.get_param(params, 0, 1);
+                let empty_cell = self.get_empty_cell();
+                if let Some(line) = self.lines.get_mut(self.cursor.y) {
+                    let end_idx = std::cmp::min(self.cursor.x + n as usize, self.width);
+                    for cell in line.iter_mut().take(end_idx).skip(self.cursor.x) {
+                        *cell = empty_cell;
+                    }
+                }
+            }
+            'H' | 'f' => {
+                let row = self.get_param(params, 0, 1) as usize;
+                let col = self.get_param(params, 1, 1) as usize;
+
+                let target_row = if self.is_origin_mode {
+                    (self.scroll_top + row).saturating_sub(1)
+                } else {
+                    row.saturating_sub(1)
+                };
+                self.cursor.y = std::cmp::min(self.height.saturating_sub(1), target_row);
+                self.cursor.x = std::cmp::min(self.width.saturating_sub(1), col.saturating_sub(1));
+            }
+            'J' => {
+                let mode = self.get_param(params, 0, 0);
+                let empty_cell = self.get_empty_cell();
+                match mode {
+                    0 => {
+                        if let Some(line) = self.lines.get_mut(self.cursor.y) {
+                            for cell in line.iter_mut().skip(self.cursor.x) {
+                                *cell = empty_cell;
+                            }
+                        }
+                        for y in (self.cursor.y + 1)..self.height {
+                            if let Some(line) = self.lines.get_mut(y) {
+                                line.fill(empty_cell);
+                            }
+                        }
+                    }
+                    1 => {
+                        for y in 0..self.cursor.y {
+                            if let Some(line) = self.lines.get_mut(y) {
+                                line.fill(empty_cell);
+                            }
+                        }
+                        if let Some(line) = self.lines.get_mut(self.cursor.y) {
+                            let end = std::cmp::min(self.cursor.x + 1, self.width);
+                            for cell in line.iter_mut().take(end) {
+                                *cell = empty_cell;
+                            }
+                        }
+                    }
+                    2 | 3 => {
+                        for line in self.lines.iter_mut() {
+                            line.fill(empty_cell);
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            'G' => {
+                let col = self.get_param(params, 0, 1) as usize;
+                self.cursor.x = std::cmp::min(self.width.saturating_sub(1), col.saturating_sub(1));
+            }
+            'd' => {
+                let row = self.get_param(params, 0, 1) as usize;
+                self.cursor.y = std::cmp::min(self.height.saturating_sub(1), row.saturating_sub(1));
+            }
+            'E' => {
+                let n = self.get_param(params, 0, 1) as usize;
+                self.cursor.y = std::cmp::min(self.height.saturating_sub(1), self.cursor.y + n);
+                self.cursor.x = 0;
+            }
+            'F' => {
+                let n = self.get_param(params, 0, 1) as usize;
+                self.cursor.y = self.cursor.y.saturating_sub(n);
+                self.cursor.x = 0;
+            }
+            'h' => {
+                // DECSET handling (incomplete without intermediates check, but following legacy for now)
+                // In vte, '?' is an intermediate byte but for now we follow old logic
+            }
+            'l' => {
+                // DECRST handling
+            }
+            'r' => {
+                let top = self.get_param(params, 0, 1) as usize;
+                let bottom = self.get_param(params, 1, self.height as u16) as usize;
+
+                let top_idx = top.saturating_sub(1);
+                let bottom_idx = bottom.saturating_sub(1);
+                if top_idx < bottom_idx && bottom_idx < self.height {
+                    self.scroll_top = top_idx;
+                    self.scroll_bottom = bottom_idx;
+                } else {
+                    self.scroll_top = 0;
+                    self.scroll_bottom = self.height.saturating_sub(1);
+                }
+                self.cursor.y = if self.is_origin_mode {
+                    self.scroll_top
+                } else {
+                    0
+                };
+                self.cursor.x = 0;
+            }
+            'S' => {
+                let n = self.get_param(params, 0, 1) as usize;
+                for _ in 0..n {
+                    self.scroll_up();
+                }
+            }
+            'T' => {
+                let n = self.get_param(params, 0, 1) as usize;
+                for _ in 0..n {
+                    self.scroll_down();
+                }
+            }
+            'L' => {
+                let n = self.get_param(params, 0, 1) as usize;
+                self.insert_lines(n);
+            }
+            'M' => {
+                let n = self.get_param(params, 0, 1) as usize;
+                self.delete_lines(n);
+            }
+            _ => {}
+        }
+    }
+
+    fn esc_dispatch(&mut self, _intermediates: &[u8], _ignore: bool, byte: u8) {
+        match byte as char {
+            '7' => self.save_cursor(),
+            '8' => self.restore_cursor(),
+            'M' => self.reverse_index(),
+            'D' => self.index(),
+            _ => {}
+        }
+    }
+}
+
+impl TerminalBufferEntity {
+    fn get_param(&self, params: &Params, index: usize, default: u16) -> u16 {
+        params.iter().nth(index).and_then(|p| p.first()).copied().unwrap_or(default)
+    }
+
+    fn handle_sgr(&mut self, params: &Params) {
+        if params.is_empty() {
+            self.current_attribute = TerminalAttribute::default();
+            return;
+        }
+
+        let mut iter = params.iter();
+        while let Some(subparams) = iter.next() {
+            let p = subparams.first().copied().unwrap_or(0);
+            match p {
+                0 => self.current_attribute = TerminalAttribute::default(),
+                1 => self.current_attribute.is_bold = true,
+                2 => self.current_attribute.is_dim = true,
+                3 => self.current_attribute.is_italic = true,
+                4 => self.current_attribute.is_underline = true,
+                7 => self.current_attribute.is_inverse = true,
+                9 => self.current_attribute.is_strikethrough = true,
+                22 => {
+                    self.current_attribute.is_bold = false;
+                    self.current_attribute.is_dim = false;
+                }
+                23 => self.current_attribute.is_italic = false,
+                24 => self.current_attribute.is_underline = false,
+                27 => self.current_attribute.is_inverse = false,
+                29 => self.current_attribute.is_strikethrough = false,
+                30..=37 => self.current_attribute.fg = TerminalColor::Ansi((p - 30) as u8),
+                38 => {
+                    // Extended foreground color
+                    if let Some(type_p) = subparams.get(1).copied() {
+                        match type_p {
+                            5 => {
+                                if let Some(color_idx) = subparams.get(2).copied() {
+                                    self.current_attribute.fg = TerminalColor::Xterm(color_idx as u8);
+                                }
+                            }
+                            2 => {
+                                if subparams.len() >= 5 {
+                                    let r = subparams[2] as u8;
+                                    let g = subparams[3] as u8;
+                                    let b = subparams[4] as u8;
+                                    self.current_attribute.fg = TerminalColor::Rgb(r, g, b);
+                                }
+                            }
+                            _ => {}
+                        }
+                    } else if let Some(next_subparams) = iter.next() {
+                        // Legacy semicolon separated format (38;5;n)
+                        let type_p = next_subparams.first().copied().unwrap_or(0);
+                        match type_p {
+                            5 => {
+                                if let Some(color_sub) = iter.next() {
+                                    if let Some(color_idx) = color_sub.first().copied() {
+                                        self.current_attribute.fg = TerminalColor::Xterm(color_idx as u8);
+                                    }
+                                }
+                            }
+                            2 => {
+                                if let (Some(r_sub), Some(g_sub), Some(b_sub)) = (iter.next(), iter.next(), iter.next()) {
+                                    let r = r_sub.first().copied().unwrap_or(0) as u8;
+                                    let g = g_sub.first().copied().unwrap_or(0) as u8;
+                                    let b = b_sub.first().copied().unwrap_or(0) as u8;
+                                    self.current_attribute.fg = TerminalColor::Rgb(r, g, b);
+                                }
+                            }
+                            _ => {}
+                        }
+                    }
+                }
+                39 => self.current_attribute.fg = TerminalColor::Default,
+                40..=47 => self.current_attribute.bg = TerminalColor::Ansi((p - 40) as u8),
+                48 => {
+                    // Extended background color
+                    if let Some(type_p) = subparams.get(1).copied() {
+                        match type_p {
+                            5 => {
+                                if let Some(color_idx) = subparams.get(2).copied() {
+                                    self.current_attribute.bg = TerminalColor::Xterm(color_idx as u8);
+                                }
+                            }
+                            2 => {
+                                if subparams.len() >= 5 {
+                                    let r = subparams[2] as u8;
+                                    let g = subparams[3] as u8;
+                                    let b = subparams[4] as u8;
+                                    self.current_attribute.bg = TerminalColor::Rgb(r, g, b);
+                                }
+                            }
+                            _ => {}
+                        }
+                    } else if let Some(next_subparams) = iter.next() {
+                        let type_p = next_subparams.first().copied().unwrap_or(0);
+                        match type_p {
+                            5 => {
+                                if let Some(color_sub) = iter.next() {
+                                    if let Some(color_idx) = color_sub.first().copied() {
+                                        self.current_attribute.bg = TerminalColor::Xterm(color_idx as u8);
+                                    }
+                                }
+                            }
+                            2 => {
+                                if let (Some(r_sub), Some(g_sub), Some(b_sub)) = (iter.next(), iter.next(), iter.next()) {
+                                    let r = r_sub.first().copied().unwrap_or(0) as u8;
+                                    let g = g_sub.first().copied().unwrap_or(0) as u8;
+                                    let b = b_sub.first().copied().unwrap_or(0) as u8;
+                                    self.current_attribute.bg = TerminalColor::Rgb(r, g, b);
+                                }
+                            }
+                            _ => {}
+                        }
+                    }
+                }
+                49 => self.current_attribute.bg = TerminalColor::Default,
+                90..=97 => self.current_attribute.fg = TerminalColor::Ansi((p - 90 + 8) as u8),
+                100..=107 => self.current_attribute.bg = TerminalColor::Ansi((p - 100 + 8) as u8),
+                _ => {}
+            }
+        }
     }
 }

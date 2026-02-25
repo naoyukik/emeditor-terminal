@@ -334,13 +334,13 @@ impl TerminalGuiDriver {
             let base_width = metrics.base_width;
             let mut current_y = 0;
             let (cursor_x, cursor_y) = buffer.get_cursor_pos();
-            let viewport_offset = buffer.viewport_offset;
+            let viewport_offset = buffer.get_viewport_offset();
 
-            for visual_row in 0..buffer.height {
+            for visual_row in 0..buffer.get_height() {
                 let mut x_offset = 0;
                 if let Some(line) = buffer.get_line_at_visual_row(visual_row) {
                     let mut cell_idx = 0;
-                    while cell_idx < buffer.width {
+                    while cell_idx < buffer.get_width() {
                         let cell = match line.get(cell_idx) {
                             Some(c) => c,
                             None => break,
@@ -354,7 +354,7 @@ impl TerminalGuiDriver {
                         let mut run_text = String::new();
                         let mut run_dx = Vec::new();
 
-                        while cell_idx < buffer.width {
+                        while cell_idx < buffer.get_width() {
                             let c = match line.get(cell_idx) {
                                 Some(c) => c,
                                 None => break,
