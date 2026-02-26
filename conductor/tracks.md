@@ -4,5 +4,5 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 ---
 
-- [ ] **Track: feat: vteクレートの導入とパースエンジンの完全換装**
+- [x] **Track: feat: vteクレートの導入とパースエンジンの完全換装**
 *Link: [./tracks/94_vte_migration_20260226/](./tracks/94_vte_migration_20260226/)*

@@ -22,7 +22,7 @@
 - [x] Task: Conductor - User Manual Verification 'Phase 3' (Protocol in workflow.md)
 
 ## Phase 4: 実機動作確認と最終調整
-- [ ] Task: EmEditor 上でプラグインを動作させ、`pwsh.exe` や各種 TUI コマンド（`less`, `vim` 等）の表示整合性を確認する。
+- [x] Task: EmEditor 上でプラグインを動作させ、`pwsh.exe` や各種 TUI コマンド（`less`, `vim` 等）の表示整合性を確認する。
 - [x] Task: `Clippy` / `cargo fmt` を実行し、コード品質を確保する。
 - [x] Task: コードをコミットする。
-- [ ] Task: Conductor - User Manual Verification 'Phase 4' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Phase 4' (Protocol in workflow.md)
