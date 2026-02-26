@@ -460,7 +460,7 @@ impl Perform for TerminalBufferEntity {
                     }
                 }
             }
-            0x0A | 0x0B | 0x0C => {
+            0x0A..=0x0C => {
                 // LF, VT, FF
                 self.cursor.x = 0;
                 self.index();
@@ -504,7 +504,8 @@ impl Perform for TerminalBufferEntity {
             }
             'B' => {
                 let n = self.get_param(params, 0, 1);
-                self.cursor.y = std::cmp::min(self.height.saturating_sub(1), self.cursor.y + n as usize);
+                self.cursor.y =
+                    std::cmp::min(self.height.saturating_sub(1), self.cursor.y + n as usize);
             }
             '@' => {
                 let n = self.get_param(params, 0, 1);
@@ -512,7 +513,8 @@ impl Perform for TerminalBufferEntity {
             }
             'C' => {
                 let n = self.get_param(params, 0, 1);
-                self.cursor.x = std::cmp::min(self.width.saturating_sub(1), self.cursor.x + n as usize);
+                self.cursor.x =
+                    std::cmp::min(self.width.saturating_sub(1), self.cursor.x + n as usize);
             }
             'D' => {
                 let n = self.get_param(params, 0, 1);
@@ -716,7 +718,12 @@ impl Perform for TerminalBufferEntity {
 
 impl TerminalBufferEntity {
     fn get_param(&self, params: &Params, index: usize, default: u16) -> u16 {
-        params.iter().nth(index).and_then(|p| p.first()).copied().unwrap_or(default)
+        params
+            .iter()
+            .nth(index)
+            .and_then(|p| p.first())
+            .copied()
+            .unwrap_or(default)
     }
 
     fn handle_sgr(&mut self, params: &Params) {
@@ -751,7 +758,8 @@ impl TerminalBufferEntity {
                         match type_p {
                             5 => {
                                 if let Some(color_idx) = subparams.get(2).copied() {
-                                    self.current_attribute.fg = TerminalColor::Xterm(color_idx as u8);
+                                    self.current_attribute.fg =
+                                        TerminalColor::Xterm(color_idx as u8);
                                 }
                             }
                             2 => {
@@ -771,7 +779,8 @@ impl TerminalBufferEntity {
                             5 => {
                                 if let Some(color_sub) = iter.next() {
                                     if let Some(color_idx) = color_sub.first().copied() {
-                                        self.current_attribute.fg = TerminalColor::Xterm(color_idx as u8);
+                                        self.current_attribute.fg =
+                                            TerminalColor::Xterm(color_idx as u8);
                                     }
                                 }
                             }
@@ -780,7 +789,8 @@ impl TerminalBufferEntity {
                                 let g = iter.next().and_then(|s| s.first()).copied();
                                 let b = iter.next().and_then(|s| s.first()).copied();
                                 if let (Some(r), Some(g), Some(b)) = (r, g, b) {
-                                    self.current_attribute.fg = TerminalColor::Rgb(r as u8, g as u8, b as u8);
+                                    self.current_attribute.fg =
+                                        TerminalColor::Rgb(r as u8, g as u8, b as u8);
                                 }
                             }
                             _ => {}
@@ -795,7 +805,8 @@ impl TerminalBufferEntity {
                         match type_p {
                             5 => {
                                 if let Some(color_idx) = subparams.get(2).copied() {
-                                    self.current_attribute.bg = TerminalColor::Xterm(color_idx as u8);
+                                    self.current_attribute.bg =
+                                        TerminalColor::Xterm(color_idx as u8);
                                 }
                             }
                             2 => {
@@ -814,7 +825,8 @@ impl TerminalBufferEntity {
                             5 => {
                                 if let Some(color_sub) = iter.next() {
                                     if let Some(color_idx) = color_sub.first().copied() {
-                                        self.current_attribute.bg = TerminalColor::Xterm(color_idx as u8);
+                                        self.current_attribute.bg =
+                                            TerminalColor::Xterm(color_idx as u8);
                                     }
                                 }
                             }
@@ -823,7 +835,8 @@ impl TerminalBufferEntity {
                                 let g = iter.next().and_then(|s| s.first()).copied();
                                 let b = iter.next().and_then(|s| s.first()).copied();
                                 if let (Some(r), Some(g), Some(b)) = (r, g, b) {
-                                    self.current_attribute.bg = TerminalColor::Rgb(r as u8, g as u8, b as u8);
+                                    self.current_attribute.bg =
+                                        TerminalColor::Rgb(r as u8, g as u8, b as u8);
                                 }
                             }
                             _ => {}
