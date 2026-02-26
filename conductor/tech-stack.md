@@ -15,6 +15,7 @@
   - `Win32_Globalization`: 文字コード変換 (CP932 <-> UTF-8)。
   - `Win32_UI_Input_Ime`: IME制御 (Composition String, Candidate Window)。
 - **simplelog / log**: デバッグログ出力。
+- **vte**: ANSI/VT エスケープシーケンスのパース。業界標準のステートマシン実装により、高信頼・高性能なパースを実現。
 
 ## Build Tools & Environment
 - **Cargo**: Rust のビルドおよび依存関係管理。
