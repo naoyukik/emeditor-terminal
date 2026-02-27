@@ -60,4 +60,4 @@
 - [x] Task: テストケースの拡充
     - [x] 無効なパラメータ値、パラメータなし（デフォルト挙動）のテストを追加
 - [x] Task: Conductor - ユーザー手動検証 'Phase 5: Review Feedback' (Protocol in workflow.md)
-- [ ] Task: `git commit -m "fix: Address review feedback (multi-param, wide char, inverse visibility, naming)"`
+- [x] Task: `git commit -m "fix: Address review feedback (multi-param, wide char, inverse visibility, naming)"`
