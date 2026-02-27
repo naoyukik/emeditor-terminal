@@ -422,6 +422,9 @@ impl TerminalBufferEntity {
     pub fn get_cursor_pos(&self) -> (usize, usize) {
         (self.cursor.x, self.cursor.y)
     }
+    pub fn get_cursor_style(&self) -> CursorStyle {
+        self.cursor.style
+    }
     pub fn save_cursor(&mut self) {
         self.saved_cursor = Some((self.cursor.x, self.cursor.y));
     }

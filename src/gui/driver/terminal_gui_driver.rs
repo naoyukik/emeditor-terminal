@@ -1,4 +1,4 @@
-use crate::domain::model::terminal_buffer_entity::{TerminalBufferEntity, TerminalColor};
+use crate::domain::model::terminal_buffer_entity::{CursorStyle, TerminalBufferEntity, TerminalColor};
 use std::collections::HashMap;
 use windows::core::{w, PCWSTR};
 use windows::Win32::Foundation::{COLORREF, RECT, SIZE};
@@ -458,11 +458,26 @@ impl TerminalGuiDriver {
                         };
                         self.render_composition(hdc, &ctx, comp, theme);
                     } else if buffer.is_cursor_visible() {
-                        let rect = RECT {
-                            left: cursor_pixel_x,
-                            top: current_y,
-                            right: cursor_pixel_x + 2,
-                            bottom: current_y + char_height,
+                        let style = buffer.get_cursor_style();
+                        let rect = match style {
+                            CursorStyle::BlinkingBlock | CursorStyle::SteadyBlock => RECT {
+                                left: cursor_pixel_x,
+                                top: current_y,
+                                right: cursor_pixel_x + base_width,
+                                bottom: current_y + char_height,
+                            },
+                            CursorStyle::BlinkingUnderline | CursorStyle::SteadyUnderline => RECT {
+                                left: cursor_pixel_x,
+                                top: current_y + char_height - 2,
+                                right: cursor_pixel_x + base_width,
+                                bottom: current_y + char_height,
+                            },
+                            CursorStyle::BlinkingBar | CursorStyle::SteadyBar => RECT {
+                                left: cursor_pixel_x,
+                                top: current_y,
+                                right: cursor_pixel_x + 2,
+                                bottom: current_y + char_height,
+                            },
                         };
                         let _ = InvertRect(hdc, &rect);
                     }
