@@ -53,10 +53,27 @@ impl Default for Cell {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum CursorStyle {
+    BlinkingBlock,
+    SteadyBlock,
+    BlinkingUnderline,
+    SteadyUnderline,
+    BlinkingBar,
+    SteadyBar,
+}
+
+impl Default for CursorStyle {
+    fn default() -> Self {
+        Self::BlinkingBlock
+    }
+}
+
 pub struct Cursor {
     pub x: usize, // Column (0 to width-1)
     pub y: usize, // Row (0 to height-1)
     pub is_visible: bool,
+    pub style: CursorStyle,
 }
 
 impl Default for Cursor {
@@ -65,6 +82,7 @@ impl Default for Cursor {
             x: 0,
             y: 0,
             is_visible: true,
+            style: CursorStyle::default(),
         }
     }
 }
@@ -701,6 +719,11 @@ impl Perform for TerminalBufferEntity {
                 let n = self.get_param(params, 0, 1) as usize;
                 self.delete_lines(n);
             }
+            'q' => {
+                if _intermediates.first() == Some(&b' ') {
+                    self.handle_decscusr(params);
+                }
+            }
             _ => {}
         }
     }
@@ -724,6 +747,19 @@ impl TerminalBufferEntity {
             .and_then(|p| p.first())
             .copied()
             .unwrap_or(default)
+    }
+
+    fn handle_decscusr(&mut self, params: &Params) {
+        let n = self.get_param(params, 0, 1);
+        self.cursor.style = match n {
+            0 | 1 => CursorStyle::BlinkingBlock,
+            2 => CursorStyle::SteadyBlock,
+            3 => CursorStyle::BlinkingUnderline,
+            4 => CursorStyle::SteadyUnderline,
+            5 => CursorStyle::BlinkingBar,
+            6 => CursorStyle::SteadyBar,
+            _ => CursorStyle::BlinkingBlock,
+        };
     }
 
     fn handle_sgr(&mut self, params: &Params) {
@@ -849,5 +885,45 @@ impl TerminalBufferEntity {
                 _ => {}
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use vte::Parser;
+
+    #[test]
+    fn test_decscusr_handling() {
+        let mut buffer = TerminalBufferEntity::new(80, 24);
+        let mut parser = Parser::new();
+
+        // Default should be BlinkingBlock
+        assert_eq!(buffer.cursor.style, CursorStyle::BlinkingBlock);
+
+        // ESC [ 2 SP q -> SteadyBlock
+        let seq = b"\x1b[2 q";
+        parser.advance(&mut buffer, seq);
+        assert_eq!(buffer.cursor.style, CursorStyle::SteadyBlock);
+
+        // ESC [ 4 SP q -> SteadyUnderline
+        let seq = b"\x1b[4 q";
+        parser.advance(&mut buffer, seq);
+        assert_eq!(buffer.cursor.style, CursorStyle::SteadyUnderline);
+
+        // ESC [ 6 SP q -> SteadyBar
+        let seq = b"\x1b[6 q";
+        parser.advance(&mut buffer, seq);
+        assert_eq!(buffer.cursor.style, CursorStyle::SteadyBar);
+
+        // ESC [ 0 SP q -> BlinkingBlock (Default)
+        let seq = b"\x1b[0 q";
+        parser.advance(&mut buffer, seq);
+        assert_eq!(buffer.cursor.style, CursorStyle::BlinkingBlock);
+
+        // ESC [ 5 SP q -> BlinkingBar
+        let seq = b"\x1b[5 q";
+        parser.advance(&mut buffer, seq);
+        assert_eq!(buffer.cursor.style, CursorStyle::BlinkingBar);
     }
 }
