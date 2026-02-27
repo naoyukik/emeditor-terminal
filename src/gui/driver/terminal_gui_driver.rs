@@ -1,4 +1,6 @@
-use crate::domain::model::terminal_buffer_entity::{CursorStyle, TerminalBufferEntity, TerminalColor};
+use crate::domain::model::terminal_buffer_entity::{
+    CursorStyle, TerminalBufferEntity, TerminalColor,
+};
 use std::collections::HashMap;
 use windows::core::{w, PCWSTR};
 use windows::Win32::Foundation::{COLORREF, RECT, SIZE};
@@ -398,13 +400,21 @@ impl TerminalGuiDriver {
                             let old_font = SelectObject(hdc, HGDIOBJ(h_font.0));
                             let _font_guard = SelectedObjectGuard::new(hdc, old_font);
 
-                            let mut fg_colorref = self.color_to_colorref(start_attr.fg, start_attr.is_inverse, theme);
-                            let bg_colorref = self.color_to_colorref(start_attr.bg, !start_attr.is_inverse, theme);
+                            let mut fg_colorref =
+                                self.color_to_colorref(start_attr.fg, start_attr.is_inverse, theme);
+                            let bg_colorref = self.color_to_colorref(
+                                start_attr.bg,
+                                !start_attr.is_inverse,
+                                theme,
+                            );
 
                             // 特定の背景色（PowerShellのディレクトリ表示等）における視認性向上のための例外処理
                             // 背景が明示的に指定されており、かつ前景がデフォルトの場合、
                             // 前景を「基本背景色」にすることで、背景色ブロックの中に文字を浮き上がらせる。
-                            if !start_attr.is_inverse && start_attr.bg != TerminalColor::Default && start_attr.fg == TerminalColor::Default {
+                            if !start_attr.is_inverse
+                                && start_attr.bg != TerminalColor::Default
+                                && start_attr.fg == TerminalColor::Default
+                            {
                                 fg_colorref =
                                     self.color_to_colorref(TerminalColor::Default, true, theme);
                             }
