@@ -65,7 +65,7 @@ pub enum CursorStyle {
 
 impl Default for CursorStyle {
     fn default() -> Self {
-        Self::BlinkingBlock
+        Self::BlinkingBar
     }
 }
 
@@ -656,29 +656,35 @@ impl Perform for TerminalBufferEntity {
             }
             'h' => {
                 if _intermediates.first() == Some(&b'?') {
-                    let mode = self.get_param(params, 0, 0);
-                    match mode {
-                        6 => {
-                            self.is_origin_mode = true;
-                            self.cursor.y = self.scroll_top;
-                            self.cursor.x = 0;
+                    for subparams in params.iter() {
+                        for mode in subparams.iter() {
+                            match mode {
+                                6 => {
+                                    self.is_origin_mode = true;
+                                    self.cursor.y = self.scroll_top;
+                                    self.cursor.x = 0;
+                                }
+                                25 => self.cursor.is_visible = true,
+                                _ => {}
+                            }
                         }
-                        25 => self.cursor.is_visible = true,
-                        _ => {}
                     }
                 }
             }
             'l' => {
                 if _intermediates.first() == Some(&b'?') {
-                    let mode = self.get_param(params, 0, 0);
-                    match mode {
-                        6 => {
-                            self.is_origin_mode = false;
-                            self.cursor.y = 0;
-                            self.cursor.x = 0;
+                    for subparams in params.iter() {
+                        for mode in subparams.iter() {
+                            match mode {
+                                6 => {
+                                    self.is_origin_mode = false;
+                                    self.cursor.y = 0;
+                                    self.cursor.x = 0;
+                                }
+                                25 => self.cursor.is_visible = false,
+                                _ => {}
+                            }
                         }
-                        25 => self.cursor.is_visible = false,
-                        _ => {}
                     }
                 }
             }
@@ -901,8 +907,8 @@ mod tests {
         let mut buffer = TerminalBufferEntity::new(80, 24);
         let mut parser = Parser::new();
 
-        // Default should be BlinkingBlock
-        assert_eq!(buffer.cursor.style, CursorStyle::BlinkingBlock);
+        // Default should be BlinkingBar
+        assert_eq!(buffer.cursor.style, CursorStyle::BlinkingBar);
 
         // ESC [ 2 SP q -> SteadyBlock
         let seq = b"\x1b[2 q";

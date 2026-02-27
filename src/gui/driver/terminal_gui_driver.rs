@@ -398,23 +398,13 @@ impl TerminalGuiDriver {
                             let old_font = SelectObject(hdc, HGDIOBJ(h_font.0));
                             let _font_guard = SelectedObjectGuard::new(hdc, old_font);
 
-                            let fg = if start_attr.is_inverse {
-                                start_attr.bg
-                            } else {
-                                start_attr.fg
-                            };
-                            let bg = if start_attr.is_inverse {
-                                start_attr.fg
-                            } else {
-                                start_attr.bg
-                            };
-                            let mut fg_colorref = self.color_to_colorref(fg, false, theme);
-                            let bg_colorref = self.color_to_colorref(bg, true, theme);
+                            let mut fg_colorref = self.color_to_colorref(start_attr.fg, start_attr.is_inverse, theme);
+                            let bg_colorref = self.color_to_colorref(start_attr.bg, !start_attr.is_inverse, theme);
 
                             // 特定の背景色（PowerShellのディレクトリ表示等）における視認性向上のための例外処理
                             // 背景が明示的に指定されており、かつ前景がデフォルトの場合、
                             // 前景を「基本背景色」にすることで、背景色ブロックの中に文字を浮き上がらせる。
-                            if bg != TerminalColor::Default && fg == TerminalColor::Default {
+                            if !start_attr.is_inverse && start_attr.bg != TerminalColor::Default && start_attr.fg == TerminalColor::Default {
                                 fg_colorref =
                                     self.color_to_colorref(TerminalColor::Default, true, theme);
                             }
