@@ -513,7 +513,7 @@ impl Perform for TerminalBufferEntity {
     fn csi_dispatch(
         &mut self,
         params: &Params,
-        _intermediates: &[u8],
+        intermediates: &[u8],
         _ignore: bool,
         action: char,
     ) {
@@ -655,7 +655,7 @@ impl Perform for TerminalBufferEntity {
                 self.cursor.x = 0;
             }
             'h' => {
-                if _intermediates.first() == Some(&b'?') {
+                if intermediates.first() == Some(&b'?') {
                     for subparams in params.iter() {
                         for mode in subparams.iter() {
                             match mode {
@@ -672,7 +672,7 @@ impl Perform for TerminalBufferEntity {
                 }
             }
             'l' => {
-                if _intermediates.first() == Some(&b'?') {
+                if intermediates.first() == Some(&b'?') {
                     for subparams in params.iter() {
                         for mode in subparams.iter() {
                             match mode {
@@ -729,7 +729,7 @@ impl Perform for TerminalBufferEntity {
                 self.delete_lines(n);
             }
             'q' => {
-                if _intermediates.first() == Some(&b' ') {
+                if intermediates.first() == Some(&b' ') {
                     self.handle_decscusr(params);
                 }
             }
@@ -759,7 +759,13 @@ impl TerminalBufferEntity {
     }
 
     fn handle_decscusr(&mut self, params: &Params) {
-        let n = self.get_param(params, 0, 1);
+        let n = params
+            .iter()
+            .last()
+            .and_then(|subparams| subparams.first())
+            .copied()
+            .unwrap_or(1); // Default to 1 if no params
+
         self.cursor.style = match n {
             0 | 1 => CursorStyle::BlinkingBlock,
             2 => CursorStyle::SteadyBlock,
@@ -910,29 +916,44 @@ mod tests {
         // Default should be BlinkingBar
         assert_eq!(buffer.cursor.style, CursorStyle::BlinkingBar);
 
-        // ESC [ 2 SP q -> SteadyBlock
+        // CSI SP q (no params) -> BlinkingBlock (default to 1)
+        let seq = b"\x1b[ q";
+        parser.advance(&mut buffer, seq);
+        assert_eq!(buffer.cursor.style, CursorStyle::BlinkingBlock);
+
+        // CSI 2 SP q -> SteadyBlock
         let seq = b"\x1b[2 q";
         parser.advance(&mut buffer, seq);
         assert_eq!(buffer.cursor.style, CursorStyle::SteadyBlock);
 
-        // ESC [ 4 SP q -> SteadyUnderline
+        // CSI 4 SP q -> SteadyUnderline
         let seq = b"\x1b[4 q";
         parser.advance(&mut buffer, seq);
         assert_eq!(buffer.cursor.style, CursorStyle::SteadyUnderline);
 
-        // ESC [ 6 SP q -> SteadyBar
+        // CSI 6 SP q -> SteadyBar
         let seq = b"\x1b[6 q";
         parser.advance(&mut buffer, seq);
         assert_eq!(buffer.cursor.style, CursorStyle::SteadyBar);
 
-        // ESC [ 0 SP q -> BlinkingBlock (Default)
+        // CSI 0 SP q -> BlinkingBlock (0 maps to 1)
         let seq = b"\x1b[0 q";
         parser.advance(&mut buffer, seq);
         assert_eq!(buffer.cursor.style, CursorStyle::BlinkingBlock);
 
-        // ESC [ 5 SP q -> BlinkingBar
+        // CSI 5 SP q -> BlinkingBar
         let seq = b"\x1b[5 q";
         parser.advance(&mut buffer, seq);
         assert_eq!(buffer.cursor.style, CursorStyle::BlinkingBar);
+
+        // Multiple params: CSI 2;5 SP q -> should use last param (5: BlinkingBar)
+        let seq = b"\x1b[2;5 q";
+        parser.advance(&mut buffer, seq);
+        assert_eq!(buffer.cursor.style, CursorStyle::BlinkingBar);
+
+        // Invalid param: CSI 9 SP q -> should default to BlinkingBlock
+        let seq = b"\x1b[9 q";
+        parser.advance(&mut buffer, seq);
+        assert_eq!(buffer.cursor.style, CursorStyle::BlinkingBlock);
     }
 }

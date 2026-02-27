@@ -459,27 +459,49 @@ impl TerminalGuiDriver {
                         self.render_composition(hdc, &ctx, comp, theme);
                     } else if buffer.is_cursor_visible() {
                         let style = buffer.get_cursor_style();
-                        let rect = match style {
-                            CursorStyle::BlinkingBlock | CursorStyle::SteadyBlock => RECT {
-                                left: cursor_pixel_x,
-                                top: current_y,
-                                right: cursor_pixel_x + base_width,
-                                bottom: current_y + char_height,
-                            },
-                            CursorStyle::BlinkingUnderline | CursorStyle::SteadyUnderline => RECT {
-                                left: cursor_pixel_x,
-                                top: current_y + char_height - 2,
-                                right: cursor_pixel_x + base_width,
-                                bottom: current_y + char_height,
-                            },
-                            CursorStyle::BlinkingBar | CursorStyle::SteadyBar => RECT {
-                                left: cursor_pixel_x,
-                                top: current_y,
-                                right: cursor_pixel_x + 2,
-                                bottom: current_y + char_height,
-                            },
-                        };
-                        let _ = InvertRect(hdc, &rect);
+
+                        // カーソル位置のセルの属性と文字幅を取得
+                        let (is_inverse, display_width) =
+                            if let Some(line) = buffer.get_line_at_visual_row(visual_row) {
+                                line.get(cursor_x)
+                                    .map(|cell| {
+                                        (
+                                            cell.attribute.is_inverse,
+                                            TerminalBufferEntity::char_display_width(cell.c),
+                                        )
+                                    })
+                                    .unwrap_or((false, 1))
+                            } else {
+                                (false, 1)
+                            };
+
+                        // セルが既に反転属性を持っている場合、二重反転による消失を防ぐため描画をスキップする
+                        if !is_inverse {
+                            let rect_width = display_width as i32 * base_width;
+                            let rect = match style {
+                                CursorStyle::BlinkingBlock | CursorStyle::SteadyBlock => RECT {
+                                    left: cursor_pixel_x,
+                                    top: current_y,
+                                    right: cursor_pixel_x + rect_width,
+                                    bottom: current_y + char_height,
+                                },
+                                CursorStyle::BlinkingUnderline | CursorStyle::SteadyUnderline => {
+                                    RECT {
+                                        left: cursor_pixel_x,
+                                        top: current_y + char_height - 2,
+                                        right: cursor_pixel_x + rect_width,
+                                        bottom: current_y + char_height,
+                                    }
+                                }
+                                CursorStyle::BlinkingBar | CursorStyle::SteadyBar => RECT {
+                                    left: cursor_pixel_x,
+                                    top: current_y,
+                                    right: cursor_pixel_x + 2,
+                                    bottom: current_y + char_height,
+                                },
+                            };
+                            let _ = InvertRect(hdc, &rect);
+                        }
                     }
                 }
                 current_y += char_height;

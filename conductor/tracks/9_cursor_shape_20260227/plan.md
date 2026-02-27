@@ -42,6 +42,22 @@
 
 - [x] Task: 全体テストとリファクタリング
     - [x] `cargo test`, `cargo clippy` の実行
-- [ ] Task: 完了報告とドキュメントの整理
-- [ ] Task: Conductor - ユーザー手動検証 'Phase 4: Final' (Protocol in workflow.md)
-- [ ] Task: `git commit -m "chore(conductor): Track 9_cursor_shape_20260227 completed"`
+- [x] Task: 完了報告とドキュメントの整理
+- [x] Task: Conductor - ユーザー手動検証 'Phase 4: Final' (Protocol in workflow.md)
+- [x] Task: `git commit -m "chore(conductor): Track 9_cursor_shape_20260227 completed"`
+
+## Phase 5: レビューフィードバックへの対応 (Addressing Review Feedback)
+**目的:** Opus および AcePilot によるコードレビューの指摘事項を修正し、品質を向上させる。
+
+- [x] Task: `DECSCUSR` の複数パラメータ処理の修正
+    - [x] `handle_decscusr` 内で `params.iter().last()` を使用するように修正
+- [x] Task: カーソル幅の全角文字（Wide Character）対応
+    - [x] `TerminalGuiDriver` で描画対象セルの文字幅を取得し、矩形幅に反映
+- [x] Task: 二重反転によるカーソル消失の防止
+    - [x] セルが既に `is_inverse` の場合、物理カーソルの描画をスキップするロジックを追加
+- [x] Task: `_intermediates` 引数の命名修正
+    - [x] `csi_dispatch` の `_intermediates` を `intermediates` にリネーム
+- [x] Task: テストケースの拡充
+    - [x] 無効なパラメータ値、パラメータなし（デフォルト挙動）のテストを追加
+- [x] Task: Conductor - ユーザー手動検証 'Phase 5: Review Feedback' (Protocol in workflow.md)
+- [ ] Task: `git commit -m "fix: Address review feedback (multi-param, wide char, inverse visibility, naming)"`
