@@ -53,10 +53,27 @@ impl Default for Cell {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum CursorStyle {
+    BlinkingBlock,
+    SteadyBlock,
+    BlinkingUnderline,
+    SteadyUnderline,
+    BlinkingBar,
+    SteadyBar,
+}
+
+impl Default for CursorStyle {
+    fn default() -> Self {
+        Self::BlinkingBar
+    }
+}
+
 pub struct Cursor {
     pub x: usize, // Column (0 to width-1)
     pub y: usize, // Row (0 to height-1)
     pub is_visible: bool,
+    pub style: CursorStyle,
 }
 
 impl Default for Cursor {
@@ -65,6 +82,7 @@ impl Default for Cursor {
             x: 0,
             y: 0,
             is_visible: true,
+            style: CursorStyle::default(),
         }
     }
 }
@@ -404,6 +422,9 @@ impl TerminalBufferEntity {
     pub fn get_cursor_pos(&self) -> (usize, usize) {
         (self.cursor.x, self.cursor.y)
     }
+    pub fn get_cursor_style(&self) -> CursorStyle {
+        self.cursor.style
+    }
     pub fn save_cursor(&mut self) {
         self.saved_cursor = Some((self.cursor.x, self.cursor.y));
     }
@@ -492,7 +513,7 @@ impl Perform for TerminalBufferEntity {
     fn csi_dispatch(
         &mut self,
         params: &Params,
-        _intermediates: &[u8],
+        intermediates: &[u8],
         _ignore: bool,
         action: char,
     ) {
@@ -634,30 +655,36 @@ impl Perform for TerminalBufferEntity {
                 self.cursor.x = 0;
             }
             'h' => {
-                if _intermediates.first() == Some(&b'?') {
-                    let mode = self.get_param(params, 0, 0);
-                    match mode {
-                        6 => {
-                            self.is_origin_mode = true;
-                            self.cursor.y = self.scroll_top;
-                            self.cursor.x = 0;
+                if intermediates.first() == Some(&b'?') {
+                    for subparams in params.iter() {
+                        for mode in subparams.iter() {
+                            match mode {
+                                6 => {
+                                    self.is_origin_mode = true;
+                                    self.cursor.y = self.scroll_top;
+                                    self.cursor.x = 0;
+                                }
+                                25 => self.cursor.is_visible = true,
+                                _ => {}
+                            }
                         }
-                        25 => self.cursor.is_visible = true,
-                        _ => {}
                     }
                 }
             }
             'l' => {
-                if _intermediates.first() == Some(&b'?') {
-                    let mode = self.get_param(params, 0, 0);
-                    match mode {
-                        6 => {
-                            self.is_origin_mode = false;
-                            self.cursor.y = 0;
-                            self.cursor.x = 0;
+                if intermediates.first() == Some(&b'?') {
+                    for subparams in params.iter() {
+                        for mode in subparams.iter() {
+                            match mode {
+                                6 => {
+                                    self.is_origin_mode = false;
+                                    self.cursor.y = 0;
+                                    self.cursor.x = 0;
+                                }
+                                25 => self.cursor.is_visible = false,
+                                _ => {}
+                            }
                         }
-                        25 => self.cursor.is_visible = false,
-                        _ => {}
                     }
                 }
             }
@@ -701,6 +728,11 @@ impl Perform for TerminalBufferEntity {
                 let n = self.get_param(params, 0, 1) as usize;
                 self.delete_lines(n);
             }
+            'q' => {
+                if intermediates.first() == Some(&b' ') {
+                    self.handle_decscusr(params);
+                }
+            }
             _ => {}
         }
     }
@@ -724,6 +756,25 @@ impl TerminalBufferEntity {
             .and_then(|p| p.first())
             .copied()
             .unwrap_or(default)
+    }
+
+    fn handle_decscusr(&mut self, params: &Params) {
+        let n = params
+            .iter()
+            .last()
+            .and_then(|subparams| subparams.first())
+            .copied()
+            .unwrap_or(1); // Default to 1 if no params
+
+        self.cursor.style = match n {
+            0 | 1 => CursorStyle::BlinkingBlock,
+            2 => CursorStyle::SteadyBlock,
+            3 => CursorStyle::BlinkingUnderline,
+            4 => CursorStyle::SteadyUnderline,
+            5 => CursorStyle::BlinkingBar,
+            6 => CursorStyle::SteadyBar,
+            _ => CursorStyle::BlinkingBlock,
+        };
     }
 
     fn handle_sgr(&mut self, params: &Params) {
@@ -849,5 +900,60 @@ impl TerminalBufferEntity {
                 _ => {}
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use vte::Parser;
+
+    #[test]
+    fn test_decscusr_handling() {
+        let mut buffer = TerminalBufferEntity::new(80, 24);
+        let mut parser = Parser::new();
+
+        // Default should be BlinkingBar
+        assert_eq!(buffer.cursor.style, CursorStyle::BlinkingBar);
+
+        // CSI SP q (no params) -> BlinkingBlock (default to 1)
+        let seq = b"\x1b[ q";
+        parser.advance(&mut buffer, seq);
+        assert_eq!(buffer.cursor.style, CursorStyle::BlinkingBlock);
+
+        // CSI 2 SP q -> SteadyBlock
+        let seq = b"\x1b[2 q";
+        parser.advance(&mut buffer, seq);
+        assert_eq!(buffer.cursor.style, CursorStyle::SteadyBlock);
+
+        // CSI 4 SP q -> SteadyUnderline
+        let seq = b"\x1b[4 q";
+        parser.advance(&mut buffer, seq);
+        assert_eq!(buffer.cursor.style, CursorStyle::SteadyUnderline);
+
+        // CSI 6 SP q -> SteadyBar
+        let seq = b"\x1b[6 q";
+        parser.advance(&mut buffer, seq);
+        assert_eq!(buffer.cursor.style, CursorStyle::SteadyBar);
+
+        // CSI 0 SP q -> BlinkingBlock (0 maps to 1)
+        let seq = b"\x1b[0 q";
+        parser.advance(&mut buffer, seq);
+        assert_eq!(buffer.cursor.style, CursorStyle::BlinkingBlock);
+
+        // CSI 5 SP q -> BlinkingBar
+        let seq = b"\x1b[5 q";
+        parser.advance(&mut buffer, seq);
+        assert_eq!(buffer.cursor.style, CursorStyle::BlinkingBar);
+
+        // Multiple params: CSI 2;5 SP q -> should use last param (5: BlinkingBar)
+        let seq = b"\x1b[2;5 q";
+        parser.advance(&mut buffer, seq);
+        assert_eq!(buffer.cursor.style, CursorStyle::BlinkingBar);
+
+        // Invalid param: CSI 9 SP q -> should default to BlinkingBlock
+        let seq = b"\x1b[9 q";
+        parser.advance(&mut buffer, seq);
+        assert_eq!(buffer.cursor.style, CursorStyle::BlinkingBlock);
     }
 }

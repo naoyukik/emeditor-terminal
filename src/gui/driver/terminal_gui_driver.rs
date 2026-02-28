@@ -1,4 +1,6 @@
-use crate::domain::model::terminal_buffer_entity::{TerminalBufferEntity, TerminalColor};
+use crate::domain::model::terminal_buffer_entity::{
+    CursorStyle, TerminalBufferEntity, TerminalColor,
+};
 use std::collections::HashMap;
 use windows::core::{w, PCWSTR};
 use windows::Win32::Foundation::{COLORREF, RECT, SIZE};
@@ -398,23 +400,20 @@ impl TerminalGuiDriver {
                             let old_font = SelectObject(hdc, HGDIOBJ(h_font.0));
                             let _font_guard = SelectedObjectGuard::new(hdc, old_font);
 
-                            let fg = if start_attr.is_inverse {
-                                start_attr.bg
-                            } else {
-                                start_attr.fg
-                            };
-                            let bg = if start_attr.is_inverse {
-                                start_attr.fg
-                            } else {
-                                start_attr.bg
-                            };
-                            let mut fg_colorref = self.color_to_colorref(fg, false, theme);
-                            let bg_colorref = self.color_to_colorref(bg, true, theme);
+                            let mut fg_colorref = self.color_to_colorref(start_attr.fg, false, theme);
+                            let mut bg_colorref = self.color_to_colorref(start_attr.bg, true, theme);
+
+                            if start_attr.is_inverse {
+                                std::mem::swap(&mut fg_colorref, &mut bg_colorref);
+                            }
 
                             // 特定の背景色（PowerShellのディレクトリ表示等）における視認性向上のための例外処理
                             // 背景が明示的に指定されており、かつ前景がデフォルトの場合、
                             // 前景を「基本背景色」にすることで、背景色ブロックの中に文字を浮き上がらせる。
-                            if bg != TerminalColor::Default && fg == TerminalColor::Default {
+                            if !start_attr.is_inverse
+                                && start_attr.bg != TerminalColor::Default
+                                && start_attr.fg == TerminalColor::Default
+                            {
                                 fg_colorref =
                                     self.color_to_colorref(TerminalColor::Default, true, theme);
                             }
@@ -448,7 +447,9 @@ impl TerminalGuiDriver {
                 }
 
                 if viewport_offset == 0 && visual_row == cursor_y {
-                    let cursor_pixel_x = cursor_x as i32 * base_width;
+                    // カーソルがバッファ幅の末尾（行末の次）を指している場合があるため、クランプする
+                    let safe_cursor_x = std::cmp::min(cursor_x, buffer.get_width().saturating_sub(1));
+                    let cursor_pixel_x = safe_cursor_x as i32 * base_width;
                     if let Some(comp) = composition {
                         let ctx = RenderContext {
                             x: cursor_pixel_x,
@@ -458,11 +459,37 @@ impl TerminalGuiDriver {
                         };
                         self.render_composition(hdc, &ctx, comp, theme);
                     } else if buffer.is_cursor_visible() {
-                        let rect = RECT {
-                            left: cursor_pixel_x,
-                            top: current_y,
-                            right: cursor_pixel_x + 2,
-                            bottom: current_y + char_height,
+                        let style = buffer.get_cursor_style();
+
+                        // カーソル位置のセルの文字幅を取得
+                        let display_width = if let Some(line) = buffer.get_line_at_visual_row(visual_row) {
+                            line.get(safe_cursor_x)
+                                .map(|cell| TerminalBufferEntity::char_display_width(cell.c))
+                                .unwrap_or(1)
+                        } else {
+                            1
+                        };
+
+                        let rect_width = display_width as i32 * base_width;
+                        let rect = match style {
+                            CursorStyle::BlinkingBlock | CursorStyle::SteadyBlock => RECT {
+                                left: cursor_pixel_x,
+                                top: current_y,
+                                right: cursor_pixel_x + rect_width,
+                                bottom: current_y + char_height,
+                            },
+                            CursorStyle::BlinkingUnderline | CursorStyle::SteadyUnderline => RECT {
+                                left: cursor_pixel_x,
+                                top: current_y + char_height - 2,
+                                right: cursor_pixel_x + rect_width,
+                                bottom: current_y + char_height,
+                            },
+                            CursorStyle::BlinkingBar | CursorStyle::SteadyBar => RECT {
+                                left: cursor_pixel_x,
+                                top: current_y,
+                                right: cursor_pixel_x + 2,
+                                bottom: current_y + char_height,
+                            },
                         };
                         let _ = InvertRect(hdc, &rect);
                     }
