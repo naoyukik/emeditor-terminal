@@ -1,5 +1,6 @@
 use std::collections::VecDeque;
 use vte::{Params, Perform};
+use unicode_width::UnicodeWidthStr;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum TerminalColor {
@@ -36,9 +37,9 @@ impl Default for TerminalAttribute {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Debug)]
+#[derive(Clone, PartialEq, Debug)]
 pub struct Cell {
-    pub c: char,
+    pub text: String,
     pub attribute: TerminalAttribute,
     pub is_wide_continuation: bool,
 }
@@ -46,7 +47,7 @@ pub struct Cell {
 impl Default for Cell {
     fn default() -> Self {
         Self {
-            c: ' ',
+            text: " ".to_string(),
             attribute: TerminalAttribute::default(),
             is_wide_continuation: false,
         }
@@ -127,7 +128,7 @@ impl TerminalBufferEntity {
 
     pub(crate) fn get_empty_cell(&self) -> Cell {
         Cell {
-            c: ' ',
+            text: " ".to_string(),
             attribute: TerminalAttribute {
                 fg: TerminalColor::Default,
                 bg: self.current_attribute.bg,
@@ -203,7 +204,7 @@ impl TerminalBufferEntity {
         for _ in 0..n {
             self.lines.remove(self.scroll_bottom);
             self.lines
-                .insert(self.cursor.y, vec![empty_cell; self.width]);
+                .insert(self.cursor.y, vec![empty_cell.clone(); self.width]);
         }
     }
 
@@ -216,7 +217,7 @@ impl TerminalBufferEntity {
         for _ in 0..n {
             self.lines.remove(self.cursor.y);
             self.lines
-                .insert(self.scroll_bottom, vec![empty_cell; self.width]);
+                .insert(self.scroll_bottom, vec![empty_cell.clone(); self.width]);
         }
     }
 
@@ -228,7 +229,7 @@ impl TerminalBufferEntity {
                 return;
             }
             for _ in 0..n {
-                line.insert(self.cursor.x, empty_cell);
+                line.insert(self.cursor.x, empty_cell.clone());
                 line.pop();
             }
         }
@@ -297,7 +298,8 @@ impl TerminalBufferEntity {
                 }
             }
             _ => {
-                let char_width = Self::char_display_width(c);
+                let text = c.to_string();
+                let char_width = text.width();
                 if self.cursor.x + char_width > self.width {
                     // TUI apps usually don't rely on auto-wrap, but we handle it just in case
                     self.cursor.x = 0;
@@ -310,7 +312,8 @@ impl TerminalBufferEntity {
     }
 
     pub(crate) fn put_char(&mut self, c: char) {
-        let char_width = Self::char_display_width(c);
+        let text = c.to_string();
+        let char_width = text.width();
         let x = self.cursor.x;
         let y = self.cursor.y;
 
@@ -327,20 +330,22 @@ impl TerminalBufferEntity {
             // Clear existing wide char parts if we overwrite them
             if x > 0 && line.get(x).is_some_and(|cell| cell.is_wide_continuation) {
                 if let Some(prev) = line.get_mut(x - 1) {
-                    *prev = empty_cell;
+                    *prev = empty_cell.clone();
                 }
             }
             if let Some(current) = line.get(x) {
-                if Self::char_display_width(current.c) == 2 && x + 1 < line.len() {
+                // Use unicode-width for existing text
+                let current_width = current.text.width();
+                if current_width == 2 && x + 1 < line.len() {
                     if let Some(next) = line.get_mut(x + 1) {
-                        *next = empty_cell;
+                        *next = empty_cell.clone();
                     }
                 }
             }
 
             if let Some(cell) = line.get_mut(x) {
                 *cell = Cell {
-                    c,
+                    text: c.to_string(),
                     attribute: self.current_attribute,
                     is_wide_continuation: false,
                 };
@@ -349,33 +354,12 @@ impl TerminalBufferEntity {
             if char_width == 2 && x + 1 < line.len() {
                 if let Some(next) = line.get_mut(x + 1) {
                     *next = Cell {
-                        c: ' ',
+                        text: " ".to_string(),
                         attribute: self.current_attribute,
                         is_wide_continuation: true,
                     };
                 }
             }
-        }
-    }
-
-    pub fn char_display_width(c: char) -> usize {
-        let code = c as u32;
-        // East Asian Wide / Fullwidth characters → 2 columns
-        // Box Drawing (0x2500-0x257F) is NOT included (stays at 1 column)
-        if (0x1100..=0x115F).contains(&code) // Hangul Jamo
-            || (0x2E80..=0x9FFF).contains(&code) // CJK Unified Ideographs
-            || (0xAC00..=0xD7A3).contains(&code) // Hangul Syllables
-            || (0xF900..=0xFAFF).contains(&code) // CJK Compatibility Ideographs
-            || (0xFE10..=0xFE1F).contains(&code) // Vertical forms
-            || (0xFE30..=0xFE6F).contains(&code) // CJK Compatibility Forms
-            || (0xFF00..=0xFF60).contains(&code) // Fullwidth Forms
-            || (0xFFE0..=0xFFE6).contains(&code) // Fullwidth Symbols
-            || (0x20000..=0x3FFFF).contains(&code)
-        // Plane 2 & 3
-        {
-            2
-        } else {
-            1
         }
     }
 
@@ -548,13 +532,13 @@ impl Perform for TerminalBufferEntity {
                     match mode {
                         0 => {
                             for cell in line.iter_mut().skip(self.cursor.x) {
-                                *cell = empty_cell;
+                                *cell = empty_cell.clone();
                             }
                         }
                         1 => {
                             let end = std::cmp::min(self.cursor.x + 1, self.width);
                             for cell in line.iter_mut().take(end) {
-                                *cell = empty_cell;
+                                *cell = empty_cell.clone();
                             }
                         }
                         2 => {
@@ -573,7 +557,7 @@ impl Perform for TerminalBufferEntity {
                         let end_idx = std::cmp::min(x + n as usize, self.width);
                         let removed_count = end_idx - x;
                         line.drain(x..end_idx);
-                        line.extend(std::iter::repeat_n(empty_cell, removed_count));
+                        line.extend(std::iter::repeat(empty_cell).take(removed_count));
                     }
                 }
             }
@@ -583,7 +567,7 @@ impl Perform for TerminalBufferEntity {
                 if let Some(line) = self.lines.get_mut(self.cursor.y) {
                     let end_idx = std::cmp::min(self.cursor.x + n as usize, self.width);
                     for cell in line.iter_mut().take(end_idx).skip(self.cursor.x) {
-                        *cell = empty_cell;
+                        *cell = empty_cell.clone();
                     }
                 }
             }
@@ -606,31 +590,31 @@ impl Perform for TerminalBufferEntity {
                     0 => {
                         if let Some(line) = self.lines.get_mut(self.cursor.y) {
                             for cell in line.iter_mut().skip(self.cursor.x) {
-                                *cell = empty_cell;
+                                *cell = empty_cell.clone();
                             }
                         }
                         for y in (self.cursor.y + 1)..self.height {
                             if let Some(line) = self.lines.get_mut(y) {
-                                line.fill(empty_cell);
+                                line.fill(empty_cell.clone());
                             }
                         }
                     }
                     1 => {
                         for y in 0..self.cursor.y {
                             if let Some(line) = self.lines.get_mut(y) {
-                                line.fill(empty_cell);
+                                line.fill(empty_cell.clone());
                             }
                         }
                         if let Some(line) = self.lines.get_mut(self.cursor.y) {
                             let end = std::cmp::min(self.cursor.x + 1, self.width);
                             for cell in line.iter_mut().take(end) {
-                                *cell = empty_cell;
+                                *cell = empty_cell.clone();
                             }
                         }
                     }
                     2 | 3 => {
                         for line in self.lines.iter_mut() {
-                            line.fill(empty_cell);
+                            line.fill(empty_cell.clone());
                         }
                     }
                     _ => {}

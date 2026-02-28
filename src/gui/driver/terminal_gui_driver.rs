@@ -1,6 +1,7 @@
 use crate::domain::model::terminal_buffer_entity::{
     CursorStyle, TerminalBufferEntity, TerminalColor,
 };
+use unicode_width::UnicodeWidthStr;
 use std::collections::HashMap;
 use windows::core::{w, PCWSTR};
 use windows::Win32::Foundation::{COLORREF, RECT, SIZE};
@@ -369,12 +370,12 @@ impl TerminalGuiDriver {
                                 break;
                             }
 
-                            run_text.push(c.c);
-                            let w =
-                                TerminalBufferEntity::char_display_width(c.c) as i32 * base_width;
+                            run_text.push_str(&c.text);
+                            let w = c.text.width() as i32 * base_width;
                             run_dx.push(w);
-                            run_dx
-                                .extend(std::iter::repeat_n(0, c.c.len_utf16().saturating_sub(1)));
+                            run_dx.extend(
+                                std::iter::repeat(0).take(c.text.encode_utf16().count().saturating_sub(1)),
+                            );
                             cell_idx += 1;
                         }
 
@@ -464,7 +465,7 @@ impl TerminalGuiDriver {
                         // カーソル位置のセルの文字幅を取得
                         let display_width = if let Some(line) = buffer.get_line_at_visual_row(visual_row) {
                             line.get(safe_cursor_x)
-                                .map(|cell| TerminalBufferEntity::char_display_width(cell.c))
+                                .map(|cell| cell.text.width())
                                 .unwrap_or(1)
                         } else {
                             1
@@ -510,9 +511,10 @@ impl TerminalGuiDriver {
         let mut comp_dx = Vec::with_capacity(comp_wide.len());
         let mut pixel_width = 0;
         for c in comp.text.chars() {
-            let w = TerminalBufferEntity::char_display_width(c) as i32 * ctx.base_width;
+            let text = c.to_string();
+            let w = text.width() as i32 * ctx.base_width;
             comp_dx.push(w);
-            comp_dx.extend(std::iter::repeat_n(0, c.len_utf16().saturating_sub(1)));
+            comp_dx.extend(std::iter::repeat(0).take(text.encode_utf16().count().saturating_sub(1)));
             pixel_width += w;
         }
         let comp_rect = RECT {

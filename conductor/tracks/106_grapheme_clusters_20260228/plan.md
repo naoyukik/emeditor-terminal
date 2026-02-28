@@ -1,9 +1,9 @@
 # Implementation Plan: Grapheme Clusters 方式による文字処理エンジンの刷新 (Issue #106)
 
 ## Phase 1: 依存関係の追加とデータ構造の定義
-- [ ] Task: `Cargo.toml` に `unicode-segmentation` と `unicode-width` クレートを追加する。
-- [ ] Task: `src/domain/model/cell_entity.rs` (仮) の `Cell` 構造体を拡張し、`char` ではなく `String` を保持するように変更する。
-- [ ] Task: 既存の `TerminalBufferEntity` の関連するメソッド（`get_cell`, `set_cell` 等）のシグネチャを新しい `Cell` に合わせて調整する。
+- [x] Task: `Cargo.toml` に `unicode-segmentation` と `unicode-width` クレートを追加する。
+- [x] Task: `src/domain/model/cell_entity.rs` (仮) の `Cell` 構造体を拡張し、`char` ではなく `String` を保持するように変更する。
+- [x] Task: 既存の `TerminalBufferEntity` の関連するメソッド（`get_cell`, `set_cell` 等）のシグネチャを新しい `Cell` に合わせて調整する。
 - [ ] Task: コードをコミットする。
 - [ ] Task: Conductor - User Manual Verification 'Phase 1' (Protocol in workflow.md)
 
