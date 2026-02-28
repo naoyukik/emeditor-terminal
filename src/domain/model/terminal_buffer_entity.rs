@@ -1,6 +1,7 @@
 use std::collections::VecDeque;
 use vte::{Params, Perform};
-use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
+use unicode_width::UnicodeWidthStr;
+use unicode_segmentation::UnicodeSegmentation;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum TerminalColor {
@@ -102,6 +103,9 @@ pub struct TerminalBufferEntity {
     history: VecDeque<Vec<Cell>>,
     viewport_offset: usize,
     scrollback_limit: usize,
+
+    /// 確定待ちの書記素クラスターバッファ
+    pending_cluster: String,
 }
 
 impl TerminalBufferEntity {
@@ -123,6 +127,7 @@ impl TerminalBufferEntity {
             history: VecDeque::new(),
             viewport_offset: 0,
             scrollback_limit: 10000,
+            pending_cluster: String::new(),
         }
     }
 
@@ -332,40 +337,49 @@ impl TerminalBufferEntity {
         self.viewport_offset = 0;
     }
 
+    /// 制御文字やエスケープシーケンスの開始時に、バッファに残っている書記素を強制的に出力する
+    pub(crate) fn flush_pending_cluster(&mut self) {
+        if self.pending_cluster.is_empty() {
+            return;
+        }
+        let cluster = std::mem::take(&mut self.pending_cluster);
+        self.write_cluster_to_grid(&cluster);
+    }
+
+    fn write_cluster_to_grid(&mut self, cluster: &str) {
+        // unicode-width による過大な幅（Emoji ZWJ 等）を 1〜2 カラムに制限する
+        let char_width = cluster.width();
+        let display_width = std::cmp::min(std::cmp::max(char_width, 1), 2);
+
+        if self.cursor.x + display_width > self.width {
+            self.cursor.x = 0;
+            self.index();
+        }
+        self.put_char(cluster, display_width);
+        self.cursor.x += display_width;
+    }
+
     pub fn process_normal_char(&mut self, c: char) {
         if c.is_control() && c != '\r' && c != '\n' && c != '\t' && c != '\x08' {
             return;
         }
 
-        let char_width = UnicodeWidthChar::width(c).unwrap_or(0);
-        let mut attached = false;
+        self.pending_cluster.push(c);
 
-        if self.cursor.x > 0 {
-            let mut target_x = self.cursor.x - 1;
-            if let Some(line) = self.lines.get_mut(self.cursor.y) {
-                if target_x < line.len() && line[target_x].is_wide_continuation && target_x > 0 {
-                    target_x -= 1;
-                }
-                
-                if target_x < line.len() {
-                    let last_text = &line[target_x].text;
-                    let last_char_is_zwj = last_text.ends_with('\u{200D}');
-                    
-                    if char_width == 0 || last_char_is_zwj {
-                        line[target_x].text.push(c);
-                        attached = true;
-                    }
-                }
-            }
-        }
+        // unicode-segmentation を用いた正規の書記素クラスター判定
+        let mut clusters: Vec<String> = self
+            .pending_cluster
+            .graphemes(true)
+            .map(|s| s.to_string())
+            .collect();
 
-        if !attached {
-            if self.cursor.x + char_width > self.width {
-                self.cursor.x = 0;
-                self.index();
+        // 次の文字が来るまで確定できない可能性があるため、2つ以上のクラスターがある場合に前方を確定させる
+        if clusters.len() > 1 {
+            let last = clusters.pop().unwrap();
+            for cluster in clusters {
+                self.write_cluster_to_grid(&cluster);
             }
-            self.put_char(&c.to_string());
-            self.cursor.x += char_width;
+            self.pending_cluster = last;
         }
     }
 
@@ -375,6 +389,7 @@ impl TerminalBufferEntity {
                 break;
             }
             self.cursor.x -= 1;
+            // 継続セルに乗った場合の正規化（1カラムずつ戻るが、論理文字の途中ならさらに戻る）
             if let Some(line) = self.lines.get(self.cursor.y) {
                 if let Some(cell) = line.get(self.cursor.x) {
                     if cell.is_wide_continuation && self.cursor.x > 0 {
@@ -390,21 +405,12 @@ impl TerminalBufferEntity {
             if self.cursor.x >= self.width.saturating_sub(1) {
                 break;
             }
-            if let Some(line) = self.lines.get(self.cursor.y) {
-                if let Some(cell) = line.get(self.cursor.x) {
-                    let w = cell.text.width();
-                    self.cursor.x = std::cmp::min(self.width.saturating_sub(1), self.cursor.x + w);
-                } else {
-                    self.cursor.x += 1;
-                }
-            } else {
-                self.cursor.x += 1;
-            }
+            self.cursor.x += 1;
+            // ANSI CUF はカラム単位。継続セルに乗った場合、それが論理的に分断されていれば後の put_char で修復される
         }
     }
 
-    pub(crate) fn put_char(&mut self, text: &str) {
-        let char_width = text.width();
+    pub(crate) fn put_char(&mut self, text: &str, display_width: usize) {
         let x = self.cursor.x;
         let y = self.cursor.y;
 
@@ -413,7 +419,7 @@ impl TerminalBufferEntity {
         }
 
         self.ensure_safe_boundary(y, x);
-        if char_width == 2 && x + 1 < self.width {
+        if display_width == 2 && x + 1 < self.width {
             self.ensure_safe_boundary(y, x + 1);
         }
 
@@ -426,7 +432,7 @@ impl TerminalBufferEntity {
                 };
             }
 
-            if char_width == 2 && x + 1 < line.len() {
+            if display_width == 2 && x + 1 < line.len() {
                 if let Some(next) = line.get_mut(x + 1) {
                     *next = Cell {
                         text: " ".to_string(),
@@ -519,6 +525,7 @@ impl Perform for TerminalBufferEntity {
     }
 
     fn execute(&mut self, byte: u8) {
+        self.flush_pending_cluster();
         match byte {
             0x08 => self.move_cursor_backward(1),
             0x09 => {
@@ -528,7 +535,7 @@ impl Perform for TerminalBufferEntity {
                     self.index();
                 } else {
                     while self.cursor.x < next_x {
-                        self.put_char(" ");
+                        self.put_char(" ", 1);
                         self.cursor.x += 1;
                     }
                 }
@@ -542,10 +549,18 @@ impl Perform for TerminalBufferEntity {
         }
     }
 
-    fn hook(&mut self, _params: &Params, _intermediates: &[u8], _ignore: bool, _action: char) {}
-    fn put(&mut self, _byte: u8) {}
-    fn unhook(&mut self) {}
-    fn osc_dispatch(&mut self, _params: &[&[u8]], _bell_terminated: bool) {}
+    fn hook(&mut self, _params: &Params, _intermediates: &[u8], _ignore: bool, _action: char) {
+        self.flush_pending_cluster();
+    }
+    fn put(&mut self, _byte: u8) {
+        self.flush_pending_cluster();
+    }
+    fn unhook(&mut self) {
+        self.flush_pending_cluster();
+    }
+    fn osc_dispatch(&mut self, _params: &[&[u8]], _bell_terminated: bool) {
+        self.flush_pending_cluster();
+    }
 
     fn csi_dispatch(
         &mut self,
@@ -554,6 +569,7 @@ impl Perform for TerminalBufferEntity {
         _ignore: bool,
         action: char,
     ) {
+        self.flush_pending_cluster();
         match action {
             'm' => self.handle_sgr(params),
             'A' => {
@@ -752,6 +768,7 @@ impl Perform for TerminalBufferEntity {
     }
 
     fn esc_dispatch(&mut self, _intermediates: &[u8], _ignore: bool, byte: u8) {
+        self.flush_pending_cluster();
         match byte as char {
             '7' => self.save_cursor(),
             '8' => self.restore_cursor(),
@@ -887,18 +904,85 @@ mod tests {
     fn test_decscusr_handling() {
         let mut buffer = TerminalBufferEntity::new(80, 24);
         let mut parser = Parser::new();
+
+        // Default should be BlinkingBar
         assert_eq!(buffer.cursor.style, CursorStyle::BlinkingBar);
-        parser.advance(&mut buffer, b"\x1b[2 q");
+
+        // CSI SP q (no params) -> BlinkingBlock (default to 1)
+        let seq = b"\x1b[ q";
+        parser.advance(&mut buffer, seq);
+        assert_eq!(buffer.cursor.style, CursorStyle::BlinkingBlock);
+
+        // CSI 2 SP q -> SteadyBlock
+        let seq = b"\x1b[2 q";
+        parser.advance(&mut buffer, seq);
         assert_eq!(buffer.cursor.style, CursorStyle::SteadyBlock);
+
+        // CSI 4 SP q -> SteadyUnderline
+        let seq = b"\x1b[4 q";
+        parser.advance(&mut buffer, seq);
+        assert_eq!(buffer.cursor.style, CursorStyle::SteadyUnderline);
+
+        // CSI 6 SP q -> SteadyBar
+        let seq = b"\x1b[6 q";
+        parser.advance(&mut buffer, seq);
+        assert_eq!(buffer.cursor.style, CursorStyle::SteadyBar);
+
+        // CSI 0 SP q -> BlinkingBlock (0 maps to 1)
+        let seq = b"\x1b[0 q";
+        parser.advance(&mut buffer, seq);
+        assert_eq!(buffer.cursor.style, CursorStyle::BlinkingBlock);
+
+        // CSI 5 SP q -> BlinkingBar
+        let seq = b"\x1b[5 q";
+        parser.advance(&mut buffer, seq);
+        assert_eq!(buffer.cursor.style, CursorStyle::BlinkingBar);
+
+        // Multiple params: CSI 2;5 SP q -> should use last param (5: BlinkingBar)
+        let seq = b"\x1b[2;5 q";
+        parser.advance(&mut buffer, seq);
+        assert_eq!(buffer.cursor.style, CursorStyle::BlinkingBar);
+
+        // Invalid param: CSI 9 SP q -> should default to BlinkingBlock
+        let seq = b"\x1b[9 q";
+        parser.advance(&mut buffer, seq);
+        assert_eq!(buffer.cursor.style, CursorStyle::BlinkingBlock);
     }
 
     #[test]
     fn test_grapheme_cluster_handling() {
         let mut buffer = TerminalBufferEntity::new(80, 24);
         let mut parser = Parser::new();
+
+        // 1. 結合文字 (a + COMBINING RING ABOVE = å)
         parser.advance(&mut buffer, "a\u{030A}".as_bytes());
+        buffer.flush_pending_cluster();
         assert_eq!(buffer.cursor.x, 1);
-        assert_eq!(buffer.lines[0][0].text, "a\u{030A}");
+        let cell = &buffer.lines[0][0];
+        assert_eq!(cell.text, "a\u{030A}");
+        assert!(!cell.is_wide_continuation);
+
+        // 2. Emoji ZWJ Sequence (Family)
+        buffer.cursor.x = 0;
+        let family_emoji = "👨‍👩‍👧‍👦";
+        parser.advance(&mut buffer, family_emoji.as_bytes());
+        buffer.flush_pending_cluster();
+        // 物理カラム幅は 2 に制限されるべき
+        assert_eq!(buffer.cursor.x, 2);
+        assert_eq!(buffer.lines[0][0].text, family_emoji);
+        assert!(buffer.lines[0][1].is_wide_continuation);
+
+        // 3. 国旗 (Regional Indicator)
+        buffer.cursor.x = 0;
+        let flag_emoji = "🇯🇵";
+        parser.advance(&mut buffer, flag_emoji.as_bytes());
+        buffer.flush_pending_cluster();
+        assert_eq!(buffer.cursor.x, 2);
+        assert_eq!(buffer.lines[0][0].text, flag_emoji);
+
+        // 4. クラスター単位のバックスペース
+        parser.advance(&mut buffer, b"\x08");
+        assert_eq!(buffer.cursor.x, 0);
     }
 
     #[test]
@@ -906,12 +990,17 @@ mod tests {
         let mut buffer = TerminalBufferEntity::new(10, 5);
         let mut parser = Parser::new();
         parser.advance(&mut buffer, "日本語".as_bytes());
+        buffer.flush_pending_cluster();
+        
         buffer.cursor.x = 1;
         parser.advance(&mut buffer, b"A");
+        buffer.flush_pending_cluster();
         assert_eq!(buffer.lines[0][0].text, " ");
         assert_eq!(buffer.lines[0][1].text, "A");
+        
         buffer.cursor.x = 2;
         parser.advance(&mut buffer, b"B");
+        buffer.flush_pending_cluster();
         assert_eq!(buffer.lines[0][2].text, "B");
         assert_eq!(buffer.lines[0][3].text, " ");
     }
@@ -921,6 +1010,8 @@ mod tests {
         let mut buffer = TerminalBufferEntity::new(10, 5);
         let mut parser = Parser::new();
         parser.advance(&mut buffer, "日本".as_bytes());
+        buffer.flush_pending_cluster();
+        
         buffer.cursor.x = 1; 
         parser.advance(&mut buffer, b"\x1b[1P");
         assert_eq!(buffer.lines[0][0].text, " "); 

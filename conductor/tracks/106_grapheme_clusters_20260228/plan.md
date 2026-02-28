@@ -25,5 +25,14 @@
 - [x] Task: 複雑な Unicode シーケンス（Emoji ZWJ, 結合文字）を用いた単体テストを作成・実行し、期待通りに動作することを確認する。
 - [x] Task: Issue #104 の再現ケースを用い、ワイド文字間での挿入・削除によって座標がズレないことを確認する。
 - [x] Task: `Clippy` / `cargo fmt` を実行し、既存のマルチバイト再構築ロジックのクリーンアップ（不要コードの削除）を行う。
+- [x] Task: コードをコミットする。
+- [x] Task: Conductor - User Manual Verification 'Phase 4' (Protocol in workflow.md)
+
+## Phase 5: レビュー指摘修正と標準準拠
+- [x] Task: `unicode-segmentation` を実際に使用し、`pending_cluster` バッファによる確実なクラスター判定を実装する。
+- [x] Task: 文字幅計算を 1-2 カラムに制限し、カーソル移動 (CUF/CUB) を 1カラム単位の標準挙動に戻す。
+- [x] Task: ログ出力から生テキストを除去し、セキュリティ・プライバシーリスクを解消する。
+- [x] Task: 削除された `handle_decscusr` のテストを復元し、絵文字・国旗・NFD 等の検証ケースを拡充する。
+- [x] Task: 描画ループ内の属性参照化など、レビューで指摘された最適化を適用する。
 - [ ] Task: コードをコミットする。
-- [ ] Task: Conductor - User Manual Verification 'Phase 4' (Protocol in workflow.md)
+- [ ] Task: Conductor - User Manual Verification 'Phase 5' (Protocol in workflow.md)
