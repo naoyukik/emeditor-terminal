@@ -1020,4 +1020,71 @@ mod tests {
         parser.advance(&mut buffer, seq);
         assert_eq!(buffer.cursor.style, CursorStyle::BlinkingBlock);
     }
+
+    #[test]
+    fn test_grapheme_cluster_handling() {
+        let mut buffer = TerminalBufferEntity::new(80, 24);
+        let mut parser = Parser::new();
+
+        // 1. 結合文字 (a + COMBINING RING ABOVE = å)
+        // 'a' は確定しないため、次の文字が来るまでバッファリングされる
+        parser.advance(&mut buffer, "a\u{030A}".as_bytes());
+        buffer.flush_graphemes(); // 強制確定
+        assert_eq!(buffer.cursor.x, 1);
+        let cell = &buffer.lines[0][0];
+        assert_eq!(cell.text, "a\u{030A}");
+        assert!(!cell.is_wide_continuation);
+
+        // 2. Emoji ZWJ Sequence (Family: Man, Woman, Girl, Boy)
+        buffer.cursor.x = 0;
+        let family_emoji = "👨‍👩‍👧‍👦";
+        parser.advance(&mut buffer, family_emoji.as_bytes());
+        buffer.flush_graphemes();
+        // 多くの環境でこの絵文字は幅2として扱われる
+        let emoji_width = family_emoji.width();
+        assert_eq!(buffer.cursor.x, emoji_width);
+        assert_eq!(buffer.lines[0][0].text, family_emoji);
+        if emoji_width == 2 {
+            assert!(buffer.lines[0][1].is_wide_continuation);
+        }
+
+        // 3. クラスター単位のバックスペース
+        // 現在位置から1クラスター戻る
+        parser.advance(&mut buffer, b"\x08");
+        assert_eq!(buffer.cursor.x, 0);
+    }
+
+    #[test]
+    fn test_wide_char_boundary_protection_issue_104() {
+        let mut buffer = TerminalBufferEntity::new(10, 5);
+        let mut parser = Parser::new();
+
+        // "日本語" (幅6) を書き込む
+        parser.advance(&mut buffer, "日本語".as_bytes());
+        buffer.flush_graphemes();
+        assert_eq!(buffer.cursor.x, 6);
+        assert_eq!(buffer.lines[0][0].text, "日");
+        assert!(buffer.lines[0][1].is_wide_continuation);
+        assert_eq!(buffer.lines[0][2].text, "本");
+        assert!(buffer.lines[0][3].is_wide_continuation);
+        assert_eq!(buffer.lines[0][4].text, "語");
+        assert!(buffer.lines[0][5].is_wide_continuation);
+
+        // 2カラム目（「日」の継続セル）に 'A' を上書きする
+        // 期待される動作: 「日」が消えて空白になり、2カラム目に 'A' が入る
+        buffer.cursor.x = 1;
+        parser.advance(&mut buffer, b"A");
+        buffer.flush_graphemes();
+        assert_eq!(buffer.lines[0][0].text, " "); // 「日」の本体が消去される
+        assert_eq!(buffer.lines[0][1].text, "A");
+        assert!(!buffer.lines[0][1].is_wide_continuation);
+
+        // 4カラム目（「本」の開始位置）に 'B' を上書きする
+        // 期待される動作: 「本」の継続セルが空白でクリアされる
+        buffer.cursor.x = 2;
+        parser.advance(&mut buffer, b"B");
+        buffer.flush_graphemes();
+        assert_eq!(buffer.lines[0][2].text, "B");
+        assert_eq!(buffer.lines[0][3].text, " "); // 「本」の継続セルが消去される
+    }
 }

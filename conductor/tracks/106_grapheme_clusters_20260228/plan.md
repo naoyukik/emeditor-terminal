@@ -18,12 +18,12 @@
 - [x] Task: カーソル移動（左右）において、クラスターの境界を跨ぐようにロジックを修正する。
 - [x] Task: バックスペースおよび `DEL` キー処理を、クラスター単位での削除に対応させる。
 - [x] Task: ワイド文字（全角）の「泣き別れ」を防ぐための境界保護ロジックを、クラスター方式に合わせて再構築する。
-- [ ] Task: コードをコミットする。
-- [ ] Task: Conductor - User Manual Verification 'Phase 3' (Protocol in workflow.md)
+- [x] Task: コードをコミットする。
+- [x] Task: Conductor - User Manual Verification 'Phase 3' (Protocol in workflow.md)
 
 ## Phase 4: テストによる検証とクリーンアップ
-- [ ] Task: 複雑な Unicode シーケンス（Emoji ZWJ, 結合文字）を用いた単体テストを作成・実行し、期待通りに動作することを確認する。
-- [ ] Task: Issue #104 の再現ケースを用い、ワイド文字間での挿入・削除によって座標がズレないことを確認する。
-- [ ] Task: `Clippy` / `cargo fmt` を実行し、既存のマルチバイト再構築ロジックのクリーンアップ（不要コードの削除）を行う。
+- [x] Task: 複雑な Unicode シーケンス（Emoji ZWJ, 結合文字）を用いた単体テストを作成・実行し、期待通りに動作することを確認する。
+- [x] Task: Issue #104 の再現ケースを用い、ワイド文字間での挿入・削除によって座標がズレないことを確認する。
+- [x] Task: `Clippy` / `cargo fmt` を実行し、既存のマルチバイト再構築ロジックのクリーンアップ（不要コードの削除）を行う。
 - [ ] Task: コードをコミットする。
 - [ ] Task: Conductor - User Manual Verification 'Phase 4' (Protocol in workflow.md)
