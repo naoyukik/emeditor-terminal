@@ -1,0 +1,29 @@
+# Implementation Plan: Grapheme Clusters 方式による文字処理エンジンの刷新 (Issue #106)
+
+## Phase 1: 依存関係の追加とデータ構造の定義
+- [ ] Task: `Cargo.toml` に `unicode-segmentation` と `unicode-width` クレートを追加する。
+- [ ] Task: `src/domain/model/cell_entity.rs` (仮) の `Cell` 構造体を拡張し、`char` ではなく `String` を保持するように変更する。
+- [ ] Task: 既存の `TerminalBufferEntity` の関連するメソッド（`get_cell`, `set_cell` 等）のシグネチャを新しい `Cell` に合わせて調整する。
+- [ ] Task: コードをコミットする。
+- [ ] Task: Conductor - User Manual Verification 'Phase 1' (Protocol in workflow.md)
+
+## Phase 2: 書記素クラスター判定とパースロジックの刷新
+- [ ] Task: `TerminalBufferEntity` 内に、不完全な書記素クラスターを保持するためのテンポラリバッファ（確定待ちバッファ）を実装する。
+- [ ] Task: `print(char)` 時の入力をバッファリングし、`unicode-segmentation` を用いてクラスターが確定したタイミングでグリッドへ書き込むロジックを実装する。
+- [ ] Task: `unicode-width` を用いて、クラスター全体の物理カラム数（1 or 2）を算出し、グリッド上のセル占有を制御する。
+- [ ] Task: コードをコミットする。
+- [ ] Task: Conductor - User Manual Verification 'Phase 2' (Protocol in workflow.md)
+
+## Phase 3: 操作ロジック（カーソル・削除・境界保護）の刷新
+- [ ] Task: カーソル移動（左右）において、クラスターの境界を跨ぐようにロジックを修正する。
+- [ ] Task: バックスペースおよび `DEL` キー処理を、クラスター単位での削除に対応させる。
+- [ ] Task: ワイド文字（全角）の「泣き別れ」を防ぐための境界保護ロジックを、クラスター方式に合わせて再構築する。
+- [ ] Task: コードをコミットする。
+- [ ] Task: Conductor - User Manual Verification 'Phase 3' (Protocol in workflow.md)
+
+## Phase 4: テストによる検証とクリーンアップ
+- [ ] Task: 複雑な Unicode シーケンス（Emoji ZWJ, 結合文字）を用いた単体テストを作成・実行し、期待通りに動作することを確認する。
+- [ ] Task: Issue #104 の再現ケースを用い、ワイド文字間での挿入・削除によって座標がズレないことを確認する。
+- [ ] Task: `Clippy` / `cargo fmt` を実行し、既存のマルチバイト再構築ロジックのクリーンアップ（不要コードの削除）を行う。
+- [ ] Task: コードをコミットする。
+- [ ] Task: Conductor - User Manual Verification 'Phase 4' (Protocol in workflow.md)
