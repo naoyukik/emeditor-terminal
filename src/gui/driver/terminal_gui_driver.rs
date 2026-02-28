@@ -212,7 +212,7 @@ impl TerminalGuiDriver {
 
     fn color_to_colorref(
         &self,
-        color: TerminalColor,
+        color: &TerminalColor,
         is_background: bool,
         theme: &crate::domain::model::color_theme_value::ColorTheme,
     ) -> COLORREF {
@@ -226,16 +226,16 @@ impl TerminalGuiDriver {
                 Self::rgb_to_colorref(rgb)
             }
             TerminalColor::Ansi(n) => {
-                let idx = if n < 16 { n as usize } else { 15 };
+                let idx = if *n < 16 { *n as usize } else { 15 };
                 Self::rgb_to_colorref(&theme.ansi_palette[idx])
             }
-            TerminalColor::Xterm(n) => match n {
+            TerminalColor::Xterm(n) => match *n {
                 0..=15 => {
-                    let idx = n as usize;
+                    let idx = *n as usize;
                     Self::rgb_to_colorref(&theme.ansi_palette[idx])
                 }
                 16..=231 => {
-                    let idx = n - 16;
+                    let idx = *n - 16;
                     let r_idx = idx / 36;
                     let g_idx = (idx % 36) / 6;
                     let b_idx = idx % 6;
@@ -245,12 +245,12 @@ impl TerminalGuiDriver {
                     COLORREF((r as u32) | ((g as u32) << 8) | ((b as u32) << 16))
                 }
                 232..=255 => {
-                    let val = (n - 232) * 10 + 8;
+                    let val = (*n - 232) * 10 + 8;
                     COLORREF((val as u32) | ((val as u32) << 8) | ((val as u32) << 16))
                 }
             },
             TerminalColor::Rgb(r, g, b) => {
-                COLORREF((r as u32) | ((g as u32) << 8) | ((b as u32) << 16))
+                COLORREF((*r as u32) | ((*g as u32) << 8) | ((*b as u32) << 16))
             }
         }
     }
@@ -317,7 +317,7 @@ impl TerminalGuiDriver {
             bottom: height,
         };
 
-        let bg_colorref = self.color_to_colorref(TerminalColor::Default, true, theme);
+        let bg_colorref = self.color_to_colorref(&TerminalColor::Default, true, theme);
         unsafe {
             let h_brush = CreateSolidBrush(bg_colorref);
             if !h_brush.0.is_null() {
@@ -353,7 +353,7 @@ impl TerminalGuiDriver {
                             continue;
                         }
 
-                        let start_attr = cell.attribute;
+                        let start_attr = cell.attribute.clone();
                         let mut run_text = String::new();
                         let mut run_dx = Vec::new();
 
@@ -401,8 +401,8 @@ impl TerminalGuiDriver {
                             let old_font = SelectObject(hdc, HGDIOBJ(h_font.0));
                             let _font_guard = SelectedObjectGuard::new(hdc, old_font);
 
-                            let mut fg_colorref = self.color_to_colorref(start_attr.fg, false, theme);
-                            let mut bg_colorref = self.color_to_colorref(start_attr.bg, true, theme);
+                            let mut fg_colorref = self.color_to_colorref(&start_attr.fg, false, theme);
+                            let mut bg_colorref = self.color_to_colorref(&start_attr.bg, true, theme);
 
                             if start_attr.is_inverse {
                                 std::mem::swap(&mut fg_colorref, &mut bg_colorref);
@@ -416,7 +416,7 @@ impl TerminalGuiDriver {
                                 && start_attr.fg == TerminalColor::Default
                             {
                                 fg_colorref =
-                                    self.color_to_colorref(TerminalColor::Default, true, theme);
+                                    self.color_to_colorref(&TerminalColor::Default, true, theme);
                             }
 
                             if start_attr.is_dim {

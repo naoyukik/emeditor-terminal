@@ -1,8 +1,9 @@
 use std::collections::VecDeque;
 use vte::{Params, Perform};
 use unicode_width::UnicodeWidthStr;
+use unicode_segmentation::UnicodeSegmentation;
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum TerminalColor {
     Default,
     Ansi(u8),
@@ -10,7 +11,7 @@ pub enum TerminalColor {
     Rgb(u8, u8, u8),
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct TerminalAttribute {
     pub fg: TerminalColor,
     pub bg: TerminalColor,
@@ -102,6 +103,7 @@ pub struct TerminalBufferEntity {
     history: VecDeque<Vec<Cell>>,
     viewport_offset: usize,
     scrollback_limit: usize,
+    grapheme_buffer: String,
 }
 
 impl TerminalBufferEntity {
@@ -123,6 +125,7 @@ impl TerminalBufferEntity {
             history: VecDeque::new(),
             viewport_offset: 0,
             scrollback_limit: 10000,
+            grapheme_buffer: String::new(),
         }
     }
 
@@ -131,7 +134,7 @@ impl TerminalBufferEntity {
             text: " ".to_string(),
             attribute: TerminalAttribute {
                 fg: TerminalColor::Default,
-                bg: self.current_attribute.bg,
+                bg: self.current_attribute.bg.clone(),
                 ..TerminalAttribute::default()
             },
             is_wide_continuation: false,
@@ -274,45 +277,89 @@ impl TerminalBufferEntity {
     }
 
     pub fn process_normal_char(&mut self, c: char) {
-        match c {
-            '\r' => self.cursor.x = 0,
-            '\n' => {
-                self.cursor.x = 0;
-                self.index();
+        if c.is_control() && c != '\r' && c != '\n' && c != '\t' && c != '\x08' {
+            return;
+        }
+
+        self.grapheme_buffer.push(c);
+
+        // クラスターが確定したか判定
+        let mut clusters: Vec<String> = self
+            .grapheme_buffer
+            .graphemes(true)
+            .map(|s| s.to_string())
+            .collect();
+
+        // 最後のクラスターが未完成（さらなる結合文字が続く可能性がある）かもしれないので、
+        // 少なくとも2つ以上のクラスターがある場合に、最後以外のクラスターを確定させる。
+        if clusters.len() > 1 {
+            let last = clusters.pop().unwrap();
+            for cluster in clusters {
+                self.process_completed_grapheme(&cluster);
             }
-            '\x08' => {
-                if self.cursor.x > 0 {
-                    self.cursor.x -= 1;
-                }
-            }
-            '\t' => {
-                let next_x = (self.cursor.x / 8 + 1) * 8;
-                if next_x >= self.width {
-                    self.cursor.x = 0;
-                    self.index();
-                } else {
-                    while self.cursor.x < next_x {
-                        self.put_char(' ');
-                        self.cursor.x += 1;
-                    }
-                }
-            }
-            _ => {
-                let text = c.to_string();
-                let char_width = text.width();
-                if self.cursor.x + char_width > self.width {
-                    // TUI apps usually don't rely on auto-wrap, but we handle it just in case
-                    self.cursor.x = 0;
-                    self.index();
-                }
-                self.put_char(c);
-                self.cursor.x += char_width;
-            }
+            self.grapheme_buffer = last;
         }
     }
 
-    pub(crate) fn put_char(&mut self, c: char) {
-        let text = c.to_string();
+    fn process_completed_grapheme(&mut self, cluster: &str) {
+        // 制御文字の特別処理
+        if cluster.len() == 1 {
+            let c = cluster.chars().next().unwrap();
+            match c {
+                '\r' => {
+                    self.cursor.x = 0;
+                    return;
+                }
+                '\n' => {
+                    self.cursor.x = 0;
+                    self.index();
+                    return;
+                }
+                '\x08' => {
+                    if self.cursor.x > 0 {
+                        self.cursor.x -= 1;
+                    }
+                    return;
+                }
+                '\t' => {
+                    let next_x = (self.cursor.x / 8 + 1) * 8;
+                    if next_x >= self.width {
+                        self.cursor.x = 0;
+                        self.index();
+                    } else {
+                        while self.cursor.x < next_x {
+                            self.put_char(" ");
+                            self.cursor.x += 1;
+                        }
+                    }
+                    return;
+                }
+                _ => {}
+            }
+        }
+
+        // 通常文字（クラスター）の出力
+        let char_width = cluster.width();
+        if self.cursor.x + char_width > self.width {
+            self.cursor.x = 0;
+            self.index();
+        }
+        self.put_char(cluster);
+        self.cursor.x += char_width;
+    }
+
+    /// 制御文字やエスケープシーケンスの開始時に、バッファに残っている書記素を強制的に出力する
+    pub(crate) fn flush_graphemes(&mut self) {
+        if self.grapheme_buffer.is_empty() {
+            return;
+        }
+        let buffer = std::mem::take(&mut self.grapheme_buffer);
+        for cluster in buffer.graphemes(true) {
+            self.process_completed_grapheme(cluster);
+        }
+    }
+
+    pub(crate) fn put_char(&mut self, text: &str) {
         let char_width = text.width();
         let x = self.cursor.x;
         let y = self.cursor.y;
@@ -345,8 +392,8 @@ impl TerminalBufferEntity {
 
             if let Some(cell) = line.get_mut(x) {
                 *cell = Cell {
-                    text: c.to_string(),
-                    attribute: self.current_attribute,
+                    text: text.to_string(),
+                    attribute: self.current_attribute.clone(),
                     is_wide_continuation: false,
                 };
             }
@@ -355,7 +402,7 @@ impl TerminalBufferEntity {
                 if let Some(next) = line.get_mut(x + 1) {
                     *next = Cell {
                         text: " ".to_string(),
-                        attribute: self.current_attribute,
+                        attribute: self.current_attribute.clone(),
                         is_wide_continuation: true,
                     };
                 }
@@ -445,6 +492,7 @@ impl Perform for TerminalBufferEntity {
     }
 
     fn execute(&mut self, byte: u8) {
+        self.flush_graphemes();
         match byte {
             0x08 => {
                 // BS
@@ -460,7 +508,7 @@ impl Perform for TerminalBufferEntity {
                     self.index();
                 } else {
                     while self.cursor.x < next_x {
-                        self.put_char(' ');
+                        self.put_char(" ");
                         self.cursor.x += 1;
                     }
                 }
@@ -479,19 +527,19 @@ impl Perform for TerminalBufferEntity {
     }
 
     fn hook(&mut self, _params: &Params, _intermediates: &[u8], _ignore: bool, _action: char) {
-        // No-op for now
+        self.flush_graphemes();
     }
 
     fn put(&mut self, _byte: u8) {
-        // No-op for now
+        self.flush_graphemes();
     }
 
     fn unhook(&mut self) {
-        // No-op for now
+        self.flush_graphemes();
     }
 
     fn osc_dispatch(&mut self, _params: &[&[u8]], _bell_terminated: bool) {
-        // No-op for now
+        self.flush_graphemes();
     }
 
     fn csi_dispatch(
@@ -501,6 +549,7 @@ impl Perform for TerminalBufferEntity {
         _ignore: bool,
         action: char,
     ) {
+        self.flush_graphemes();
         match action {
             'm' => self.handle_sgr(params),
             'A' => {
@@ -722,6 +771,7 @@ impl Perform for TerminalBufferEntity {
     }
 
     fn esc_dispatch(&mut self, _intermediates: &[u8], _ignore: bool, byte: u8) {
+        self.flush_graphemes();
         match byte as char {
             '7' => self.save_cursor(),
             '8' => self.restore_cursor(),

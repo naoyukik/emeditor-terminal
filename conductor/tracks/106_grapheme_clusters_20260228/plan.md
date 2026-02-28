@@ -4,13 +4,13 @@
 - [x] Task: `Cargo.toml` に `unicode-segmentation` と `unicode-width` クレートを追加する。
 - [x] Task: `src/domain/model/cell_entity.rs` (仮) の `Cell` 構造体を拡張し、`char` ではなく `String` を保持するように変更する。
 - [x] Task: 既存の `TerminalBufferEntity` の関連するメソッド（`get_cell`, `set_cell` 等）のシグネチャを新しい `Cell` に合わせて調整する。
-- [ ] Task: コードをコミットする。
-- [ ] Task: Conductor - User Manual Verification 'Phase 1' (Protocol in workflow.md)
+- [x] Task: コードをコミットする。
+- [x] Task: Conductor - User Manual Verification 'Phase 1' (Protocol in workflow.md)
 
 ## Phase 2: 書記素クラスター判定とパースロジックの刷新
-- [ ] Task: `TerminalBufferEntity` 内に、不完全な書記素クラスターを保持するためのテンポラリバッファ（確定待ちバッファ）を実装する。
-- [ ] Task: `print(char)` 時の入力をバッファリングし、`unicode-segmentation` を用いてクラスターが確定したタイミングでグリッドへ書き込むロジックを実装する。
-- [ ] Task: `unicode-width` を用いて、クラスター全体の物理カラム数（1 or 2）を算出し、グリッド上のセル占有を制御する。
+- [x] Task: `TerminalBufferEntity` 内に、不完全な書記素クラスターを保持するためのテンポラリバッファ（確定待ちバッファ）を実装する。
+- [x] Task: `print(char)` 時の入力をバッファリングし、`unicode-segmentation` を用いてクラスターが確定したタイミングでグリッドへ書き込むロジックを実装する。
+- [x] Task: `unicode-width` を用いて、クラスター全体の物理カラム数（1 or 2）を算出し、グリッド上のセル占有を制御する。
 - [ ] Task: コードをコミットする。
 - [ ] Task: Conductor - User Manual Verification 'Phase 2' (Protocol in workflow.md)
 
