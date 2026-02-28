@@ -42,7 +42,6 @@ mod tests {
         let mut buffer = TerminalBufferEntity::new(80, 25);
         let mut parser = AnsiParserDomainService::new();
         parser.parse(b"Hello", &mut buffer);
-        buffer.flush_graphemes();
         let first_line = line_to_string(&buffer.get_lines()[0]);
         assert!(first_line.starts_with("Hello"));
     }
@@ -54,7 +53,6 @@ mod tests {
         parser.parse(&[0xE3, 0x81], &mut buffer);
         assert_eq!(buffer.get_cursor_pos().0, 0);
         parser.parse(&[0x82], &mut buffer);
-        buffer.flush_graphemes();
         assert_eq!(buffer.get_cursor_pos().0, 2);
         assert_eq!(buffer.get_lines()[0][0].text, "あ");
     }
@@ -71,7 +69,6 @@ mod tests {
         let mut buffer = TerminalBufferEntity::new(80, 25);
         let mut parser = AnsiParserDomainService::new();
         parser.parse(b"\x1b[31mRED\x1b[0m", &mut buffer);
-        buffer.flush_graphemes();
         let line = &buffer.get_lines()[0];
         assert_eq!(line[0].text, "R");
         assert_eq!(line[0].attribute.fg, TerminalColor::Ansi(1));
@@ -83,7 +80,6 @@ mod tests {
         let mut buffer = TerminalBufferEntity::new(5, 2);
         let mut parser = AnsiParserDomainService::new();
         parser.parse(b"1234567", &mut buffer);
-        buffer.flush_graphemes();
         assert_eq!(buffer.get_cursor_pos().1, 1);
         assert_eq!(buffer.get_cursor_pos().0, 2);
 
@@ -98,7 +94,6 @@ mod tests {
         let mut buffer = TerminalBufferEntity::new(10, 3);
         let mut parser = AnsiParserDomainService::new();
         parser.parse(b"1\n2\n3\n4\n5", &mut buffer);
-        buffer.flush_graphemes();
 
         assert_eq!(buffer.get_history_len(), 2);
         assert_eq!(buffer.get_line_at_visual_row(0).unwrap()[0].text, "3");
@@ -110,7 +105,6 @@ mod tests {
         let mut buffer = TerminalBufferEntity::new(10, 3);
         let mut parser = AnsiParserDomainService::new();
         parser.parse(b"1\n2\n3\n4\n5", &mut buffer);
-        buffer.flush_graphemes();
 
         let line = buffer.get_line_at_visual_row(0).unwrap();
         assert_eq!(line[0].text, "3");
@@ -151,17 +145,14 @@ mod tests {
 
         // BS
         parser.parse(b"AB\x08", &mut buffer);
-        buffer.flush_graphemes();
         assert_eq!(buffer.get_cursor_pos().0, 1);
 
         // TAB
         parser.parse(b"\r\t", &mut buffer);
-        buffer.flush_graphemes();
         assert_eq!(buffer.get_cursor_pos().0, 8);
 
         // CR
         parser.parse(b"XY\r", &mut buffer);
-        buffer.flush_graphemes();
         assert_eq!(buffer.get_cursor_pos().0, 0);
     }
 }
