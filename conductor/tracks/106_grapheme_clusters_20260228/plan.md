@@ -11,13 +11,13 @@
 - [x] Task: `TerminalBufferEntity` 内に、不完全な書記素クラスターを保持するためのテンポラリバッファ（確定待ちバッファ）を実装する。
 - [x] Task: `print(char)` 時の入力をバッファリングし、`unicode-segmentation` を用いてクラスターが確定したタイミングでグリッドへ書き込むロジックを実装する。
 - [x] Task: `unicode-width` を用いて、クラスター全体の物理カラム数（1 or 2）を算出し、グリッド上のセル占有を制御する。
-- [ ] Task: コードをコミットする。
-- [ ] Task: Conductor - User Manual Verification 'Phase 2' (Protocol in workflow.md)
+- [x] Task: コードをコミットする。
+- [x] Task: Conductor - User Manual Verification 'Phase 2' (Protocol in workflow.md)
 
 ## Phase 3: 操作ロジック（カーソル・削除・境界保護）の刷新
-- [ ] Task: カーソル移動（左右）において、クラスターの境界を跨ぐようにロジックを修正する。
-- [ ] Task: バックスペースおよび `DEL` キー処理を、クラスター単位での削除に対応させる。
-- [ ] Task: ワイド文字（全角）の「泣き別れ」を防ぐための境界保護ロジックを、クラスター方式に合わせて再構築する。
+- [x] Task: カーソル移動（左右）において、クラスターの境界を跨ぐようにロジックを修正する。
+- [x] Task: バックスペースおよび `DEL` キー処理を、クラスター単位での削除に対応させる。
+- [x] Task: ワイド文字（全角）の「泣き別れ」を防ぐための境界保護ロジックを、クラスター方式に合わせて再構築する。
 - [ ] Task: コードをコミットする。
 - [ ] Task: Conductor - User Manual Verification 'Phase 3' (Protocol in workflow.md)
 

@@ -316,9 +316,7 @@ impl TerminalBufferEntity {
                     return;
                 }
                 '\x08' => {
-                    if self.cursor.x > 0 {
-                        self.cursor.x -= 1;
-                    }
+                    self.move_cursor_backward(1);
                     return;
                 }
                 '\t' => {
@@ -356,6 +354,41 @@ impl TerminalBufferEntity {
         let buffer = std::mem::take(&mut self.grapheme_buffer);
         for cluster in buffer.graphemes(true) {
             self.process_completed_grapheme(cluster);
+        }
+    }
+
+    pub(crate) fn move_cursor_backward(&mut self, n: usize) {
+        for _ in 0..n {
+            if self.cursor.x == 0 {
+                break;
+            }
+            self.cursor.x -= 1;
+            // 戻った先がワイド文字の継続セルである場合、さらに1つ戻る（論理的な1文字戻り）
+            if let Some(line) = self.lines.get(self.cursor.y) {
+                if let Some(cell) = line.get(self.cursor.x) {
+                    if cell.is_wide_continuation && self.cursor.x > 0 {
+                        self.cursor.x -= 1;
+                    }
+                }
+            }
+        }
+    }
+
+    pub(crate) fn move_cursor_forward(&mut self, n: usize) {
+        for _ in 0..n {
+            if self.cursor.x >= self.width.saturating_sub(1) {
+                break;
+            }
+            if let Some(line) = self.lines.get(self.cursor.y) {
+                if let Some(cell) = line.get(self.cursor.x) {
+                    let w = cell.text.width();
+                    self.cursor.x = std::cmp::min(self.width.saturating_sub(1), self.cursor.x + w);
+                } else {
+                    self.cursor.x += 1;
+                }
+            } else {
+                self.cursor.x += 1;
+            }
         }
     }
 
@@ -496,9 +529,7 @@ impl Perform for TerminalBufferEntity {
         match byte {
             0x08 => {
                 // BS
-                if self.cursor.x > 0 {
-                    self.cursor.x -= 1;
-                }
+                self.move_cursor_backward(1);
             }
             0x09 => {
                 // TAB
@@ -567,12 +598,11 @@ impl Perform for TerminalBufferEntity {
             }
             'C' => {
                 let n = self.get_param(params, 0, 1);
-                self.cursor.x =
-                    std::cmp::min(self.width.saturating_sub(1), self.cursor.x + n as usize);
+                self.move_cursor_forward(n as usize);
             }
             'D' => {
                 let n = self.get_param(params, 0, 1);
-                self.cursor.x = self.cursor.x.saturating_sub(n as usize);
+                self.move_cursor_backward(n as usize);
             }
             'K' => {
                 let mode = self.get_param(params, 0, 0);
