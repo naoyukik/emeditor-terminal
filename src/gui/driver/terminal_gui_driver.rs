@@ -141,7 +141,7 @@ impl TerminalGuiDriver {
                 } else {
                     FW_NORMAL.0 as i32
                 },
-                lfItalic: if (style_mask & STYLE_ITALIC) != 0 { 1 } else { 0 },
+                lfItalic: if (style_mask & STYLE_ITALIC) != 0 { 1 } else { 0 },   
                 lfUnderline: if (style_mask & STYLE_UNDERLINE) != 0 { 1 } else { 0 },
                 lfStrikeOut: if (style_mask & STYLE_STRIKEOUT) != 0 { 1 } else { 0 },
                 lfCharSet: FONT_CHARSET(DEFAULT_CHARSET.0),
@@ -206,8 +206,8 @@ impl TerminalGuiDriver {
                     let idx = *n - 16;
                     let r = if (idx / 36) > 0 { (idx / 36) * 40 + 55 } else { 0 };
                     let g = if ((idx % 36) / 6) > 0 { ((idx % 36) / 6) * 40 + 55 } else { 0 };
-                    let b = if (idx % 6) > 0 { (idx % 6) * 40 + 55 } else { 0 };
-                    COLORREF((r as u32) | ((g as u32) << 8) | ((b as u32) << 16))
+                    let b = if (idx % 6) > 0 { (idx % 6) * 40 + 55 } else { 0 };  
+                    COLORREF((r as u32) | ((g as u32) << 8) | ((b as u32) << 16)) 
                 }
                 232..=255 => {
                     let val = (*n - 232) * 10 + 8;
@@ -331,10 +331,6 @@ impl TerminalGuiDriver {
 
                             let run_rect = RECT { left: x_offset, top: current_y, right: x_offset + run_pixel_width, bottom: current_y + char_height };
                             
-                            if visual_row == cursor_y {
-                                log::trace!("GUI render row {}: text='{}' x={} px_w={}", visual_row, run_text, x_offset, run_pixel_width);
-                            }
-
                             let _ = ExtTextOutW(hdc, x_offset, current_y, ETO_OPTIONS(ETO_OPAQUE.0), Some(&run_rect), PCWSTR(wide_run.as_ptr()), wide_run.len() as u32, Some(run_dx.as_ptr()));
                         }
                         x_offset += run_pixel_width;

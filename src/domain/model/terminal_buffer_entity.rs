@@ -224,7 +224,6 @@ impl TerminalBufferEntity {
     pub(crate) fn insert_cells(&mut self, n: usize) {
         let x = self.cursor.x;
         let y = self.cursor.y;
-        log::debug!("insert_cells: n={} at ({}, {})", n, x, y);
         if y >= self.lines.len() || x >= self.width {
             return;
         }
@@ -245,7 +244,6 @@ impl TerminalBufferEntity {
             if self.width > 0 {
                 let last_idx = self.width - 1;
                 if line[last_idx].text.width() == 2 && !line[last_idx].is_wide_continuation {
-                    log::debug!("insert_cells: boundary cleanup at end of line (x={})", last_idx);
                     line[last_idx] = empty_cell.clone();
                 }
             }
@@ -255,7 +253,6 @@ impl TerminalBufferEntity {
     pub(crate) fn delete_cells(&mut self, n: usize) {
         let x = self.cursor.x;
         let y = self.cursor.y;
-        log::debug!("delete_cells: n={} at ({}, {})", n, x, y);
         if y >= self.lines.len() || x >= self.width {
             return;
         }
@@ -283,7 +280,6 @@ impl TerminalBufferEntity {
         let line = &mut self.lines[y];
 
         if line[x].is_wide_continuation {
-            log::debug!("ensure_safe_boundary: splitting wide char (continuation) at ({}, {}) - clearing pair", y, x);
             if x > 0 {
                 line[x - 1] = empty_cell.clone();
             }
@@ -291,7 +287,6 @@ impl TerminalBufferEntity {
         }
 
         if line[x].text.width() == 2 && !line[x].is_wide_continuation {
-            log::debug!("ensure_safe_boundary: splitting wide char (base) at ({}, {}) - clearing pair", y, x);
             if x + 1 < line.len() {
                 line[x + 1] = empty_cell.clone();
             }
@@ -357,7 +352,6 @@ impl TerminalBufferEntity {
                     let last_char_is_zwj = last_text.ends_with('\u{200D}');
                     
                     if char_width == 0 || last_char_is_zwj {
-                        log::trace!("process_normal_char: attaching '{}' to cell at ({}, {})", c, self.cursor.y, target_x);
                         line[target_x].text.push(c);
                         attached = true;
                     }
@@ -417,8 +411,6 @@ impl TerminalBufferEntity {
         if y >= self.lines.len() || x >= self.width {
             return;
         }
-
-        log::trace!("put_char: text='{}' width={} at ({}, {})", text, char_width, x, y);
 
         self.ensure_safe_boundary(y, x);
         if char_width == 2 && x + 1 < self.width {
@@ -929,9 +921,8 @@ mod tests {
         let mut buffer = TerminalBufferEntity::new(10, 5);
         let mut parser = Parser::new();
         parser.advance(&mut buffer, "日本".as_bytes());
-        buffer.cursor.x = 1; // 「日」の継続セル
+        buffer.cursor.x = 1; 
         parser.advance(&mut buffer, b"\x1b[1P");
-        // 境界保護により「日」がクリアされ、跡地(x=0)は空白
         assert_eq!(buffer.lines[0][0].text, " "); 
     }
 }
