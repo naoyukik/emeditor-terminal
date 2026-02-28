@@ -61,3 +61,12 @@
     - [x] 無効なパラメータ値、パラメータなし（デフォルト挙動）のテストを追加
 - [x] Task: Conductor - ユーザー手動検証 'Phase 5: Review Feedback' (Protocol in workflow.md)
 - [x] Task: `git commit -m "fix: Address review feedback (multi-param, wide char, inverse visibility, naming)"`
+
+## Phase 6: GitHub Review Fixes
+**目的:** GitHub PR (#105) のレビューコメントに対する追加の修正。
+
+- [x] Task: `is_inverse` 時の FG/BG スワップロジックの修正
+- [x] Task: カーソル X 座標の描画領域クランプの追加
+- [x] Task: 色解決後のスワップによる Default 色反転の修正とカーソル消失防止の再修正
+- [x] Task: Conductor - ユーザー手動検証 'Phase 6: GitHub Review Fixes' (Protocol in workflow.md)
+- [x] Task: `git commit -m "fix: Address GitHub PR review comments (inverse swap, cursor clamp)"`
