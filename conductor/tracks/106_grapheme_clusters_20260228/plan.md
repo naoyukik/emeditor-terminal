@@ -34,5 +34,5 @@
 - [x] Task: ログ出力から生テキストを除去し、セキュリティ・プライバシーリスクを解消する。
 - [x] Task: 削除された `handle_decscusr` のテストを復元し、絵文字・国旗・NFD 等の検証ケースを拡充する。
 - [x] Task: 描画ループ内の属性参照化など、レビューで指摘された最適化を適用する。
-- [ ] Task: コードをコミットする。
-- [ ] Task: Conductor - User Manual Verification 'Phase 5' (Protocol in workflow.md)
+- [x] Task: コードをコミットする。
+- [x] Task: Conductor - User Manual Verification 'Phase 5' (Protocol in workflow.md)
