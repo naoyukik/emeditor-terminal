@@ -22,7 +22,7 @@
 
 ## Build Tools & Environment
 - **Cargo**: Rust のビルドおよび依存関係管理。
-- **MSVC Toolchain**: Windows ネイティブ DLL の生成に使用.
+- **MSVC Toolchain**: Windows ネイティブ DLL の生成に使用。
 - **Clippy**: Rust の静的解析ツール（リンター）。
 - **rustfmt**: Rust のコードフォーマッタ。
 

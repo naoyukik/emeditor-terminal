@@ -36,3 +36,12 @@
 - [x] Task: 描画ループ内の属性参照化など、レビューで指摘された最適化を適用する。
 - [x] Task: コードをコミットする。
 - [x] Task: Conductor - User Manual Verification 'Phase 5' (Protocol in workflow.md)
+
+## Phase 6: 追加レビュー指摘修正と最終調整
+- [x] Task: `pending_cluster` の描画遅延を解消するため、`AnsiParserDomainService::parse` の末尾で強制フラッシュを行う。
+- [x] Task: 境界保護 (`ensure_safe_boundary`, `insert_cells`) の判定条件を `width() > 1` に変更し、クランプされた絵文字に対応する。
+- [x] Task: `SendHFONT` の `unsafe impl` に対する SAFETY コメントを復元する。
+- [x] Task: `tech-stack.md` の句読点（`.` -> `。`）を修正する。
+- [x] Task: 最終的な単体テストを実行し、全ての修正を確認する。
+- [x] Task: コードをコミットする。
+- [x] Task: Conductor - User Manual Verification 'Phase 6' (Protocol in workflow.md)

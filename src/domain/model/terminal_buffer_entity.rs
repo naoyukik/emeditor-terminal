@@ -248,7 +248,8 @@ impl TerminalBufferEntity {
             }
             if self.width > 0 {
                 let last_idx = self.width - 1;
-                if line[last_idx].text.width() == 2 && !line[last_idx].is_wide_continuation {
+                // レビュー指摘修正: width() > 1 でワイド文字（クランプされた絵文字等を含む）を判定
+                if line[last_idx].text.width() > 1 && !line[last_idx].is_wide_continuation {
                     line[last_idx] = empty_cell.clone();
                 }
             }
@@ -291,7 +292,8 @@ impl TerminalBufferEntity {
             line[x] = empty_cell.clone();
         }
 
-        if line[x].text.width() == 2 && !line[x].is_wide_continuation {
+        // レビュー指摘修正: width() > 1 でワイド文字（クランプされた絵文字等を含む）を判定
+        if line[x].text.width() > 1 && !line[x].is_wide_continuation {
             if x + 1 < line.len() {
                 line[x + 1] = empty_cell.clone();
             }

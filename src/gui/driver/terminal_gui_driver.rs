@@ -25,6 +25,19 @@ pub struct TerminalMetrics {
 }
 
 pub struct SendHFONT(pub HFONT);
+
+// SAFETY:
+// - SendHFONT は GDI フォントオブジェクト HFONT のラッパーであり、自身はハンドル値のみを保持する。
+// - この型は「HFONT の所有権を表す値」をスレッド間で転送したり共有したりする目的でのみ用いる。
+// - HFONT の生成と破棄（CreateFontIndirectW / DeleteObject 等）は、呼び出し側のコードで
+//   「所有スレッド」を 1 つに決め、そのスレッド上で一貫して行うことを前提とする。
+// - 他スレッドは、所有スレッドが有効期間を管理している HFONT を「選択して描画に利用する」
+//   などの読み取り専用用途でのみ参照し、所有スレッド以外から DeleteObject を呼び出さない。
+// - DeleteObject の呼び出しと、他スレッドからの HFONT 利用が同時に発生しないよう、
+//   ライフタイム管理は高レベルの同期（join, メッセージループの終了待ち 等）で保証される。
+// 前提が崩れた場合の危険:
+// - 所有スレッド以外から DeleteObject したり、破棄後の HFONT が他スレッドで参照されると、
+//   未定義動作や GDI リソース破損の可能性がある。
 unsafe impl Send for SendHFONT {}
 unsafe impl Sync for SendHFONT {}
 
