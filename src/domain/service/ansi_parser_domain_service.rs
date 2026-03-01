@@ -22,6 +22,9 @@ impl Default for AnsiParserDomainService {
 impl AnsiParserDomainService {
     pub(crate) fn parse(&mut self, bytes: &[u8], buffer: &mut TerminalBufferEntity) {
         self.parser.advance(buffer, bytes);
+        // レビュー指摘修正: バッファリングによる描画遅延を解消するため、
+        // 各データ受信パケットの処理後に強制的にフラッシュを行う。
+        buffer.flush_pending_cluster();
     }
 }
 
@@ -33,7 +36,7 @@ mod tests {
     fn line_to_string(line: &[Cell]) -> String {
         line.iter()
             .filter(|c| !c.is_wide_continuation)
-            .map(|cell| cell.c)
+            .map(|cell| cell.text.as_str())
             .collect()
     }
 
@@ -54,7 +57,7 @@ mod tests {
         assert_eq!(buffer.get_cursor_pos().0, 0);
         parser.parse(&[0x82], &mut buffer);
         assert_eq!(buffer.get_cursor_pos().0, 2);
-        assert_eq!(buffer.get_lines()[0][0].c, 'あ');
+        assert_eq!(buffer.get_lines()[0][0].text, "あ");
     }
 
     #[test]
@@ -70,9 +73,9 @@ mod tests {
         let mut parser = AnsiParserDomainService::new();
         parser.parse(b"\x1b[31mRED\x1b[0m", &mut buffer);
         let line = &buffer.get_lines()[0];
-        assert_eq!(line[0].c, 'R');
+        assert_eq!(line[0].text, "R");
         assert_eq!(line[0].attribute.fg, TerminalColor::Ansi(1));
-        assert_eq!(line[3].c, ' ');
+        assert_eq!(line[3].text, " ");
     }
 
     #[test]
@@ -86,7 +89,7 @@ mod tests {
         buffer.resize(10, 5);
         assert_eq!(buffer.get_width(), 10);
         assert_eq!(buffer.get_height(), 5);
-        assert_eq!(buffer.get_lines()[0][0].c, '1');
+        assert_eq!(buffer.get_lines()[0][0].text, "1");
     }
 
     #[test]
@@ -96,9 +99,8 @@ mod tests {
         parser.parse(b"1\n2\n3\n4\n5", &mut buffer);
 
         assert_eq!(buffer.get_history_len(), 2);
-        // lines and history are now private, use get_line_at_visual_row or similar
-        assert_eq!(buffer.get_line_at_visual_row(0).unwrap()[0].c, '3');
-        assert_eq!(buffer.get_line_at_visual_row(2).unwrap()[0].c, '5');
+        assert_eq!(buffer.get_line_at_visual_row(0).unwrap()[0].text, "3");
+        assert_eq!(buffer.get_line_at_visual_row(2).unwrap()[0].text, "5");
     }
 
     #[test]
@@ -108,11 +110,11 @@ mod tests {
         parser.parse(b"1\n2\n3\n4\n5", &mut buffer);
 
         let line = buffer.get_line_at_visual_row(0).unwrap();
-        assert_eq!(line[0].c, '3');
+        assert_eq!(line[0].text, "3");
 
         buffer.scroll_lines(1);
         let line = buffer.get_line_at_visual_row(0).unwrap();
-        assert_eq!(line[0].c, '2');
+        assert_eq!(line[0].text, "2");
     }
 
     #[test]

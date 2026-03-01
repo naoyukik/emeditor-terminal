@@ -1,7 +1,9 @@
 use std::collections::VecDeque;
 use vte::{Params, Perform};
+use unicode_width::UnicodeWidthStr;
+use unicode_segmentation::UnicodeSegmentation;
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum TerminalColor {
     Default,
     Ansi(u8),
@@ -9,7 +11,7 @@ pub enum TerminalColor {
     Rgb(u8, u8, u8),
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct TerminalAttribute {
     pub fg: TerminalColor,
     pub bg: TerminalColor,
@@ -36,9 +38,9 @@ impl Default for TerminalAttribute {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Debug)]
+#[derive(Clone, PartialEq, Debug)]
 pub struct Cell {
-    pub c: char,
+    pub text: String,
     pub attribute: TerminalAttribute,
     pub is_wide_continuation: bool,
 }
@@ -46,7 +48,7 @@ pub struct Cell {
 impl Default for Cell {
     fn default() -> Self {
         Self {
-            c: ' ',
+            text: " ".to_string(),
             attribute: TerminalAttribute::default(),
             is_wide_continuation: false,
         }
@@ -101,6 +103,9 @@ pub struct TerminalBufferEntity {
     history: VecDeque<Vec<Cell>>,
     viewport_offset: usize,
     scrollback_limit: usize,
+
+    /// 確定待ちの書記素クラスターバッファ
+    pending_cluster: String,
 }
 
 impl TerminalBufferEntity {
@@ -122,15 +127,16 @@ impl TerminalBufferEntity {
             history: VecDeque::new(),
             viewport_offset: 0,
             scrollback_limit: 10000,
+            pending_cluster: String::new(),
         }
     }
 
     pub(crate) fn get_empty_cell(&self) -> Cell {
         Cell {
-            c: ' ',
+            text: " ".to_string(),
             attribute: TerminalAttribute {
                 fg: TerminalColor::Default,
-                bg: self.current_attribute.bg,
+                bg: self.current_attribute.bg.clone(),
                 ..TerminalAttribute::default()
             },
             is_wide_continuation: false,
@@ -203,7 +209,7 @@ impl TerminalBufferEntity {
         for _ in 0..n {
             self.lines.remove(self.scroll_bottom);
             self.lines
-                .insert(self.cursor.y, vec![empty_cell; self.width]);
+                .insert(self.cursor.y, vec![empty_cell.clone(); self.width]);
         }
     }
 
@@ -216,21 +222,82 @@ impl TerminalBufferEntity {
         for _ in 0..n {
             self.lines.remove(self.cursor.y);
             self.lines
-                .insert(self.scroll_bottom, vec![empty_cell; self.width]);
+                .insert(self.scroll_bottom, vec![empty_cell.clone(); self.width]);
         }
     }
 
     pub(crate) fn insert_cells(&mut self, n: usize) {
+        let x = self.cursor.x;
+        let y = self.cursor.y;
+        if y >= self.lines.len() || x >= self.width {
+            return;
+        }
+
+        let n = std::cmp::min(n, self.width - x);
+        if n == 0 {
+            return;
+        }
+
+        self.ensure_safe_boundary(y, x);
+
         let empty_cell = self.get_empty_cell();
-        if let Some(line) = self.lines.get_mut(self.cursor.y) {
-            let n = std::cmp::min(n, self.width.saturating_sub(self.cursor.x));
-            if n == 0 {
-                return;
-            }
+        if let Some(line) = self.lines.get_mut(y) {
             for _ in 0..n {
-                line.insert(self.cursor.x, empty_cell);
+                line.insert(x, empty_cell.clone());
                 line.pop();
             }
+            if self.width > 0 {
+                let last_idx = self.width - 1;
+                // レビュー指摘修正: width() > 1 でワイド文字（クランプされた絵文字等を含む）を判定
+                if line[last_idx].text.width() > 1 && !line[last_idx].is_wide_continuation {
+                    line[last_idx] = empty_cell.clone();
+                }
+            }
+        }
+    }
+
+    pub(crate) fn delete_cells(&mut self, n: usize) {
+        let x = self.cursor.x;
+        let y = self.cursor.y;
+        if y >= self.lines.len() || x >= self.width {
+            return;
+        }
+
+        let n = std::cmp::min(n, self.width - x);
+        if n == 0 {
+            return;
+        }
+
+        self.ensure_safe_boundary(y, x);
+        self.ensure_safe_boundary(y, x + n);
+
+        let empty_cell = self.get_empty_cell();
+        if let Some(line) = self.lines.get_mut(y) {
+            line.drain(x..(x + n));
+            line.extend(std::iter::repeat(empty_cell).take(n));
+        }
+    }
+
+    fn ensure_safe_boundary(&mut self, y: usize, x: usize) {
+        if y >= self.lines.len() || x >= self.width {
+            return;
+        }
+        let empty_cell = self.get_empty_cell();
+        let line = &mut self.lines[y];
+
+        if line[x].is_wide_continuation {
+            if x > 0 {
+                line[x - 1] = empty_cell.clone();
+            }
+            line[x] = empty_cell.clone();
+        }
+
+        // レビュー指摘修正: width() > 1 でワイド文字（クランプされた絵文字等を含む）を判定
+        if line[x].text.width() > 1 && !line[x].is_wide_continuation {
+            if x + 1 < line.len() {
+                line[x + 1] = empty_cell.clone();
+            }
+            line[x] = empty_cell.clone();
         }
     }
 
@@ -272,45 +339,80 @@ impl TerminalBufferEntity {
         self.viewport_offset = 0;
     }
 
+    /// 制御文字やエスケープシーケンスの開始時に、バッファに残っている書記素を強制的に出力する
+    pub(crate) fn flush_pending_cluster(&mut self) {
+        if self.pending_cluster.is_empty() {
+            return;
+        }
+        let cluster = std::mem::take(&mut self.pending_cluster);
+        self.write_cluster_to_grid(&cluster);
+    }
+
+    fn write_cluster_to_grid(&mut self, cluster: &str) {
+        // unicode-width による過大な幅（Emoji ZWJ 等）を 1〜2 カラムに制限する
+        let char_width = cluster.width();
+        let display_width = std::cmp::min(std::cmp::max(char_width, 1), 2);
+
+        if self.cursor.x + display_width > self.width {
+            self.cursor.x = 0;
+            self.index();
+        }
+        self.put_char(cluster, display_width);
+        self.cursor.x += display_width;
+    }
+
     pub fn process_normal_char(&mut self, c: char) {
-        match c {
-            '\r' => self.cursor.x = 0,
-            '\n' => {
-                self.cursor.x = 0;
-                self.index();
+        if c.is_control() && c != '\r' && c != '\n' && c != '\t' && c != '\x08' {
+            return;
+        }
+
+        self.pending_cluster.push(c);
+
+        // unicode-segmentation を用いた正規の書記素クラスター判定
+        let mut clusters: Vec<String> = self
+            .pending_cluster
+            .graphemes(true)
+            .map(|s| s.to_string())
+            .collect();
+
+        // 次の文字が来るまで確定できない可能性があるため、2つ以上のクラスターがある場合に前方を確定させる
+        if clusters.len() > 1 {
+            let last = clusters.pop().unwrap();
+            for cluster in clusters {
+                self.write_cluster_to_grid(&cluster);
             }
-            '\x08' => {
-                if self.cursor.x > 0 {
-                    self.cursor.x -= 1;
-                }
+            self.pending_cluster = last;
+        }
+    }
+
+    pub(crate) fn move_cursor_backward(&mut self, n: usize) {
+        for _ in 0..n {
+            if self.cursor.x == 0 {
+                break;
             }
-            '\t' => {
-                let next_x = (self.cursor.x / 8 + 1) * 8;
-                if next_x >= self.width {
-                    self.cursor.x = 0;
-                    self.index();
-                } else {
-                    while self.cursor.x < next_x {
-                        self.put_char(' ');
-                        self.cursor.x += 1;
+            self.cursor.x -= 1;
+            // 継続セルに乗った場合の正規化（1カラムずつ戻るが、論理文字の途中ならさらに戻る）
+            if let Some(line) = self.lines.get(self.cursor.y) {
+                if let Some(cell) = line.get(self.cursor.x) {
+                    if cell.is_wide_continuation && self.cursor.x > 0 {
+                        self.cursor.x -= 1;
                     }
                 }
-            }
-            _ => {
-                let char_width = Self::char_display_width(c);
-                if self.cursor.x + char_width > self.width {
-                    // TUI apps usually don't rely on auto-wrap, but we handle it just in case
-                    self.cursor.x = 0;
-                    self.index();
-                }
-                self.put_char(c);
-                self.cursor.x += char_width;
             }
         }
     }
 
-    pub(crate) fn put_char(&mut self, c: char) {
-        let char_width = Self::char_display_width(c);
+    pub(crate) fn move_cursor_forward(&mut self, n: usize) {
+        for _ in 0..n {
+            if self.cursor.x >= self.width.saturating_sub(1) {
+                break;
+            }
+            self.cursor.x += 1;
+            // ANSI CUF はカラム単位。継続セルに乗った場合、それが論理的に分断されていれば後の put_char で修復される
+        }
+    }
+
+    pub(crate) fn put_char(&mut self, text: &str, display_width: usize) {
         let x = self.cursor.x;
         let y = self.cursor.y;
 
@@ -318,64 +420,29 @@ impl TerminalBufferEntity {
             return;
         }
 
-        let empty_cell = self.get_empty_cell();
+        self.ensure_safe_boundary(y, x);
+        if display_width == 2 && x + 1 < self.width {
+            self.ensure_safe_boundary(y, x + 1);
+        }
+
         if let Some(line) = self.lines.get_mut(y) {
-            if x >= line.len() {
-                return;
-            }
-
-            // Clear existing wide char parts if we overwrite them
-            if x > 0 && line.get(x).is_some_and(|cell| cell.is_wide_continuation) {
-                if let Some(prev) = line.get_mut(x - 1) {
-                    *prev = empty_cell;
-                }
-            }
-            if let Some(current) = line.get(x) {
-                if Self::char_display_width(current.c) == 2 && x + 1 < line.len() {
-                    if let Some(next) = line.get_mut(x + 1) {
-                        *next = empty_cell;
-                    }
-                }
-            }
-
             if let Some(cell) = line.get_mut(x) {
                 *cell = Cell {
-                    c,
-                    attribute: self.current_attribute,
+                    text: text.to_string(),
+                    attribute: self.current_attribute.clone(),
                     is_wide_continuation: false,
                 };
             }
 
-            if char_width == 2 && x + 1 < line.len() {
+            if display_width == 2 && x + 1 < line.len() {
                 if let Some(next) = line.get_mut(x + 1) {
                     *next = Cell {
-                        c: ' ',
-                        attribute: self.current_attribute,
+                        text: " ".to_string(),
+                        attribute: self.current_attribute.clone(),
                         is_wide_continuation: true,
                     };
                 }
             }
-        }
-    }
-
-    pub fn char_display_width(c: char) -> usize {
-        let code = c as u32;
-        // East Asian Wide / Fullwidth characters → 2 columns
-        // Box Drawing (0x2500-0x257F) is NOT included (stays at 1 column)
-        if (0x1100..=0x115F).contains(&code) // Hangul Jamo
-            || (0x2E80..=0x9FFF).contains(&code) // CJK Unified Ideographs
-            || (0xAC00..=0xD7A3).contains(&code) // Hangul Syllables
-            || (0xF900..=0xFAFF).contains(&code) // CJK Compatibility Ideographs
-            || (0xFE10..=0xFE1F).contains(&code) // Vertical forms
-            || (0xFE30..=0xFE6F).contains(&code) // CJK Compatibility Forms
-            || (0xFF00..=0xFF60).contains(&code) // Fullwidth Forms
-            || (0xFFE0..=0xFFE6).contains(&code) // Fullwidth Symbols
-            || (0x20000..=0x3FFFF).contains(&code)
-        // Plane 2 & 3
-        {
-            2
-        } else {
-            1
         }
     }
 
@@ -395,7 +462,6 @@ impl TerminalBufferEntity {
         }
     }
 
-    #[allow(dead_code)]
     pub fn get_lines(&self) -> &VecDeque<Vec<Cell>> {
         &self.lines
     }
@@ -461,53 +527,41 @@ impl Perform for TerminalBufferEntity {
     }
 
     fn execute(&mut self, byte: u8) {
+        self.flush_pending_cluster();
         match byte {
-            0x08 => {
-                // BS
-                if self.cursor.x > 0 {
-                    self.cursor.x -= 1;
-                }
-            }
+            0x08 => self.move_cursor_backward(1),
             0x09 => {
-                // TAB
                 let next_x = (self.cursor.x / 8 + 1) * 8;
                 if next_x >= self.width {
                     self.cursor.x = 0;
                     self.index();
                 } else {
                     while self.cursor.x < next_x {
-                        self.put_char(' ');
+                        self.put_char(" ", 1);
                         self.cursor.x += 1;
                     }
                 }
             }
             0x0A..=0x0C => {
-                // LF, VT, FF
                 self.cursor.x = 0;
                 self.index();
             }
-            0x0D => {
-                // CR
-                self.cursor.x = 0;
-            }
-            _ => {} // Ignore other control characters (BEL, etc.) to prevent garbage rendering
+            0x0D => self.cursor.x = 0,
+            _ => {}
         }
     }
 
     fn hook(&mut self, _params: &Params, _intermediates: &[u8], _ignore: bool, _action: char) {
-        // No-op for now
+        self.flush_pending_cluster();
     }
-
     fn put(&mut self, _byte: u8) {
-        // No-op for now
+        self.flush_pending_cluster();
     }
-
     fn unhook(&mut self) {
-        // No-op for now
+        self.flush_pending_cluster();
     }
-
     fn osc_dispatch(&mut self, _params: &[&[u8]], _bell_terminated: bool) {
-        // No-op for now
+        self.flush_pending_cluster();
     }
 
     fn csi_dispatch(
@@ -517,6 +571,7 @@ impl Perform for TerminalBufferEntity {
         _ignore: bool,
         action: char,
     ) {
+        self.flush_pending_cluster();
         match action {
             'm' => self.handle_sgr(params),
             'A' => {
@@ -525,8 +580,7 @@ impl Perform for TerminalBufferEntity {
             }
             'B' => {
                 let n = self.get_param(params, 0, 1);
-                self.cursor.y =
-                    std::cmp::min(self.height.saturating_sub(1), self.cursor.y + n as usize);
+                self.cursor.y = std::cmp::min(self.height.saturating_sub(1), self.cursor.y + n as usize);
             }
             '@' => {
                 let n = self.get_param(params, 0, 1);
@@ -534,12 +588,11 @@ impl Perform for TerminalBufferEntity {
             }
             'C' => {
                 let n = self.get_param(params, 0, 1);
-                self.cursor.x =
-                    std::cmp::min(self.width.saturating_sub(1), self.cursor.x + n as usize);
+                self.move_cursor_forward(n as usize);
             }
             'D' => {
                 let n = self.get_param(params, 0, 1);
-                self.cursor.x = self.cursor.x.saturating_sub(n as usize);
+                self.move_cursor_backward(n as usize);
             }
             'K' => {
                 let mode = self.get_param(params, 0, 0);
@@ -548,34 +601,23 @@ impl Perform for TerminalBufferEntity {
                     match mode {
                         0 => {
                             for cell in line.iter_mut().skip(self.cursor.x) {
-                                *cell = empty_cell;
+                                *cell = empty_cell.clone();
                             }
                         }
                         1 => {
                             let end = std::cmp::min(self.cursor.x + 1, self.width);
                             for cell in line.iter_mut().take(end) {
-                                *cell = empty_cell;
+                                *cell = empty_cell.clone();
                             }
                         }
-                        2 => {
-                            line.fill(empty_cell);
-                        }
+                        2 => line.fill(empty_cell),
                         _ => {}
                     }
                 }
             }
             'P' => {
                 let n = self.get_param(params, 0, 1);
-                let empty_cell = self.get_empty_cell();
-                if let Some(line) = self.lines.get_mut(self.cursor.y) {
-                    let x = self.cursor.x;
-                    if x < self.width {
-                        let end_idx = std::cmp::min(x + n as usize, self.width);
-                        let removed_count = end_idx - x;
-                        line.drain(x..end_idx);
-                        line.extend(std::iter::repeat_n(empty_cell, removed_count));
-                    }
-                }
+                self.delete_cells(n as usize);
             }
             'X' => {
                 let n = self.get_param(params, 0, 1);
@@ -583,14 +625,13 @@ impl Perform for TerminalBufferEntity {
                 if let Some(line) = self.lines.get_mut(self.cursor.y) {
                     let end_idx = std::cmp::min(self.cursor.x + n as usize, self.width);
                     for cell in line.iter_mut().take(end_idx).skip(self.cursor.x) {
-                        *cell = empty_cell;
+                        *cell = empty_cell.clone();
                     }
                 }
             }
             'H' | 'f' => {
                 let row = self.get_param(params, 0, 1) as usize;
                 let col = self.get_param(params, 1, 1) as usize;
-
                 let target_row = if self.is_origin_mode {
                     (self.scroll_top + row).saturating_sub(1)
                 } else {
@@ -606,31 +647,31 @@ impl Perform for TerminalBufferEntity {
                     0 => {
                         if let Some(line) = self.lines.get_mut(self.cursor.y) {
                             for cell in line.iter_mut().skip(self.cursor.x) {
-                                *cell = empty_cell;
+                                *cell = empty_cell.clone();
                             }
                         }
                         for y in (self.cursor.y + 1)..self.height {
                             if let Some(line) = self.lines.get_mut(y) {
-                                line.fill(empty_cell);
+                                line.fill(empty_cell.clone());
                             }
                         }
                     }
                     1 => {
                         for y in 0..self.cursor.y {
                             if let Some(line) = self.lines.get_mut(y) {
-                                line.fill(empty_cell);
+                                line.fill(empty_cell.clone());
                             }
                         }
                         if let Some(line) = self.lines.get_mut(self.cursor.y) {
                             let end = std::cmp::min(self.cursor.x + 1, self.width);
                             for cell in line.iter_mut().take(end) {
-                                *cell = empty_cell;
+                                *cell = empty_cell.clone();
                             }
                         }
                     }
                     2 | 3 => {
                         for line in self.lines.iter_mut() {
-                            line.fill(empty_cell);
+                            line.fill(empty_cell.clone());
                         }
                     }
                     _ => {}
@@ -691,7 +732,6 @@ impl Perform for TerminalBufferEntity {
             'r' => {
                 let top = self.get_param(params, 0, 1) as usize;
                 let bottom = self.get_param(params, 1, self.height as u16) as usize;
-
                 let top_idx = top.saturating_sub(1);
                 let bottom_idx = bottom.saturating_sub(1);
                 if top_idx < bottom_idx && bottom_idx < self.height {
@@ -701,24 +741,16 @@ impl Perform for TerminalBufferEntity {
                     self.scroll_top = 0;
                     self.scroll_bottom = self.height.saturating_sub(1);
                 }
-                self.cursor.y = if self.is_origin_mode {
-                    self.scroll_top
-                } else {
-                    0
-                };
+                self.cursor.y = if self.is_origin_mode { self.scroll_top } else { 0 };
                 self.cursor.x = 0;
             }
             'S' => {
                 let n = self.get_param(params, 0, 1) as usize;
-                for _ in 0..n {
-                    self.scroll_up();
-                }
+                for _ in 0..n { self.scroll_up(); }
             }
             'T' => {
                 let n = self.get_param(params, 0, 1) as usize;
-                for _ in 0..n {
-                    self.scroll_down();
-                }
+                for _ in 0..n { self.scroll_down(); }
             }
             'L' => {
                 let n = self.get_param(params, 0, 1) as usize;
@@ -738,6 +770,7 @@ impl Perform for TerminalBufferEntity {
     }
 
     fn esc_dispatch(&mut self, _intermediates: &[u8], _ignore: bool, byte: u8) {
+        self.flush_pending_cluster();
         match byte as char {
             '7' => self.save_cursor(),
             '8' => self.restore_cursor(),
@@ -750,22 +783,11 @@ impl Perform for TerminalBufferEntity {
 
 impl TerminalBufferEntity {
     fn get_param(&self, params: &Params, index: usize, default: u16) -> u16 {
-        params
-            .iter()
-            .nth(index)
-            .and_then(|p| p.first())
-            .copied()
-            .unwrap_or(default)
+        params.iter().nth(index).and_then(|p| p.first()).copied().unwrap_or(default)
     }
 
     fn handle_decscusr(&mut self, params: &Params) {
-        let n = params
-            .iter()
-            .last()
-            .and_then(|subparams| subparams.first())
-            .copied()
-            .unwrap_or(1); // Default to 1 if no params
-
+        let n = params.iter().last().and_then(|subparams| subparams.first()).copied().unwrap_or(1);
         self.cursor.style = match n {
             0 | 1 => CursorStyle::BlinkingBlock,
             2 => CursorStyle::SteadyBlock,
@@ -782,7 +804,6 @@ impl TerminalBufferEntity {
             self.current_attribute = TerminalAttribute::default();
             return;
         }
-
         let mut iter = params.iter();
         while let Some(subparams) = iter.next() {
             let p = subparams.first().copied().unwrap_or(0);
@@ -804,44 +825,30 @@ impl TerminalBufferEntity {
                 29 => self.current_attribute.is_strikethrough = false,
                 30..=37 => self.current_attribute.fg = TerminalColor::Ansi((p - 30) as u8),
                 38 => {
-                    // Extended foreground color
                     if let Some(type_p) = subparams.get(1).copied() {
                         match type_p {
-                            5 => {
-                                if let Some(color_idx) = subparams.get(2).copied() {
-                                    self.current_attribute.fg =
-                                        TerminalColor::Xterm(color_idx as u8);
-                                }
-                            }
-                            2 => {
-                                if subparams.len() >= 5 {
-                                    let r = subparams[2] as u8;
-                                    let g = subparams[3] as u8;
-                                    let b = subparams[4] as u8;
-                                    self.current_attribute.fg = TerminalColor::Rgb(r, g, b);
-                                }
-                            }
+                            5 => if let Some(color_idx) = subparams.get(2).copied() {
+                                self.current_attribute.fg = TerminalColor::Xterm(color_idx as u8);
+                            },
+                            2 => if subparams.len() >= 5 {
+                                self.current_attribute.fg = TerminalColor::Rgb(subparams[2] as u8, subparams[3] as u8, subparams[4] as u8);
+                            },
                             _ => {}
                         }
                     } else if let Some(next_subparams) = iter.next() {
-                        // Legacy semicolon separated format (38;5;n)
                         let type_p = next_subparams.first().copied().unwrap_or(0);
                         match type_p {
-                            5 => {
-                                if let Some(color_sub) = iter.next() {
-                                    if let Some(color_idx) = color_sub.first().copied() {
-                                        self.current_attribute.fg =
-                                            TerminalColor::Xterm(color_idx as u8);
-                                    }
+                            5 => if let Some(color_sub) = iter.next() {
+                                if let Some(color_idx) = color_sub.first().copied() {
+                                    self.current_attribute.fg = TerminalColor::Xterm(color_idx as u8);
                                 }
-                            }
+                            },
                             2 => {
                                 let r = iter.next().and_then(|s| s.first()).copied();
                                 let g = iter.next().and_then(|s| s.first()).copied();
                                 let b = iter.next().and_then(|s| s.first()).copied();
                                 if let (Some(r), Some(g), Some(b)) = (r, g, b) {
-                                    self.current_attribute.fg =
-                                        TerminalColor::Rgb(r as u8, g as u8, b as u8);
+                                    self.current_attribute.fg = TerminalColor::Rgb(r as u8, g as u8, b as u8);
                                 }
                             }
                             _ => {}
@@ -851,43 +858,30 @@ impl TerminalBufferEntity {
                 39 => self.current_attribute.fg = TerminalColor::Default,
                 40..=47 => self.current_attribute.bg = TerminalColor::Ansi((p - 40) as u8),
                 48 => {
-                    // Extended background color
                     if let Some(type_p) = subparams.get(1).copied() {
                         match type_p {
-                            5 => {
-                                if let Some(color_idx) = subparams.get(2).copied() {
-                                    self.current_attribute.bg =
-                                        TerminalColor::Xterm(color_idx as u8);
-                                }
-                            }
-                            2 => {
-                                if subparams.len() >= 5 {
-                                    let r = subparams[2] as u8;
-                                    let g = subparams[3] as u8;
-                                    let b = subparams[4] as u8;
-                                    self.current_attribute.bg = TerminalColor::Rgb(r, g, b);
-                                }
-                            }
+                            5 => if let Some(color_idx) = subparams.get(2).copied() {
+                                self.current_attribute.bg = TerminalColor::Xterm(color_idx as u8);
+                            },
+                            2 => if subparams.len() >= 5 {
+                                self.current_attribute.bg = TerminalColor::Rgb(subparams[2] as u8, subparams[3] as u8, subparams[4] as u8);
+                            },
                             _ => {}
                         }
                     } else if let Some(next_subparams) = iter.next() {
                         let type_p = next_subparams.first().copied().unwrap_or(0);
                         match type_p {
-                            5 => {
-                                if let Some(color_sub) = iter.next() {
-                                    if let Some(color_idx) = color_sub.first().copied() {
-                                        self.current_attribute.bg =
-                                            TerminalColor::Xterm(color_idx as u8);
-                                    }
+                            5 => if let Some(color_sub) = iter.next() {
+                                if let Some(color_idx) = color_sub.first().copied() {
+                                    self.current_attribute.bg = TerminalColor::Xterm(color_idx as u8);
                                 }
-                            }
+                            },
                             2 => {
                                 let r = iter.next().and_then(|s| s.first()).copied();
                                 let g = iter.next().and_then(|s| s.first()).copied();
                                 let b = iter.next().and_then(|s| s.first()).copied();
                                 if let (Some(r), Some(g), Some(b)) = (r, g, b) {
-                                    self.current_attribute.bg =
-                                        TerminalColor::Rgb(r as u8, g as u8, b as u8);
+                                    self.current_attribute.bg = TerminalColor::Rgb(r as u8, g as u8, b as u8);
                                 }
                             }
                             _ => {}
@@ -955,5 +949,73 @@ mod tests {
         let seq = b"\x1b[9 q";
         parser.advance(&mut buffer, seq);
         assert_eq!(buffer.cursor.style, CursorStyle::BlinkingBlock);
+    }
+
+    #[test]
+    fn test_grapheme_cluster_handling() {
+        let mut buffer = TerminalBufferEntity::new(80, 24);
+        let mut parser = Parser::new();
+
+        // 1. 結合文字 (a + COMBINING RING ABOVE = å)
+        parser.advance(&mut buffer, "a\u{030A}".as_bytes());
+        buffer.flush_pending_cluster();
+        assert_eq!(buffer.cursor.x, 1);
+        let cell = &buffer.lines[0][0];
+        assert_eq!(cell.text, "a\u{030A}");
+        assert!(!cell.is_wide_continuation);
+
+        // 2. Emoji ZWJ Sequence (Family)
+        buffer.cursor.x = 0;
+        let family_emoji = "👨‍👩‍👧‍👦";
+        parser.advance(&mut buffer, family_emoji.as_bytes());
+        buffer.flush_pending_cluster();
+        // 物理カラム幅は 2 に制限されるべき
+        assert_eq!(buffer.cursor.x, 2);
+        assert_eq!(buffer.lines[0][0].text, family_emoji);
+        assert!(buffer.lines[0][1].is_wide_continuation);
+
+        // 3. 国旗 (Regional Indicator)
+        buffer.cursor.x = 0;
+        let flag_emoji = "🇯🇵";
+        parser.advance(&mut buffer, flag_emoji.as_bytes());
+        buffer.flush_pending_cluster();
+        assert_eq!(buffer.cursor.x, 2);
+        assert_eq!(buffer.lines[0][0].text, flag_emoji);
+
+        // 4. クラスター単位のバックスペース
+        parser.advance(&mut buffer, b"\x08");
+        assert_eq!(buffer.cursor.x, 0);
+    }
+
+    #[test]
+    fn test_wide_char_boundary_protection_issue_104() {
+        let mut buffer = TerminalBufferEntity::new(10, 5);
+        let mut parser = Parser::new();
+        parser.advance(&mut buffer, "日本語".as_bytes());
+        buffer.flush_pending_cluster();
+        
+        buffer.cursor.x = 1;
+        parser.advance(&mut buffer, b"A");
+        buffer.flush_pending_cluster();
+        assert_eq!(buffer.lines[0][0].text, " ");
+        assert_eq!(buffer.lines[0][1].text, "A");
+        
+        buffer.cursor.x = 2;
+        parser.advance(&mut buffer, b"B");
+        buffer.flush_pending_cluster();
+        assert_eq!(buffer.lines[0][2].text, "B");
+        assert_eq!(buffer.lines[0][3].text, " ");
+    }
+
+    #[test]
+    fn test_delete_character_alignment_issue() {
+        let mut buffer = TerminalBufferEntity::new(10, 5);
+        let mut parser = Parser::new();
+        parser.advance(&mut buffer, "日本".as_bytes());
+        buffer.flush_pending_cluster();
+        
+        buffer.cursor.x = 1; 
+        parser.advance(&mut buffer, b"\x1b[1P");
+        assert_eq!(buffer.lines[0][0].text, " "); 
     }
 }

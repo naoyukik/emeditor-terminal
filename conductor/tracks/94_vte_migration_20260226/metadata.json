@@ -1,8 +1,0 @@
-{
-  "track_id": "94_vte_migration_20260226",
-  "type": "feature",
-  "status": "new",
-  "created_at": "2026-02-26T20:20:00Z",
-  "updated_at": "2026-02-26T20:20:00Z",
-  "description": "feat: vteクレートの導入とパースエンジンの完全換装"
-}
