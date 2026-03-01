@@ -64,6 +64,12 @@
             "type": "command",
             "command": "$PYTHON_COMMAND $GEMINI_PROJECT_DIR/.gemini/hooks/restrict_git_add_all.py",
             "description": "git add . や -A を制限する"
+          },
+          {
+            "name": "suggest-conductor-skill",
+            "type": "command",
+            "command": "$PYTHON_COMMAND $GEMINI_PROJECT_DIR/.gemini/hooks/suggest_conductor_skill.py",
+            "description": "/conductor コマンド検出時にスキルの使用を促す"
           }
         ]
       },

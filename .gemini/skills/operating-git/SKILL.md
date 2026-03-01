@@ -10,7 +10,7 @@ description: Managing Git workflows with zero tolerance for 'git add .' or 'git 
 **重要**: `git add .` および `git add -A` の使用は厳禁。
 
 - 原則として、ファイルは必ず個別に指定する。
-- **例外**: `conductor/` 配下のドキュメント類は、管理の整合性を保つためフォルダごと追加すること。
+- **例外**: `conductor/` 配下のドキュメント類は、管理の整合性を保つため必ずフォルダごと追加すること。
   - **Good**: `git add conductor/`
 - `git add` の前後に `git diff` または `git diff --staged` で差分を確認すること。
 
