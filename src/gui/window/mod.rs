@@ -45,7 +45,12 @@ fn start_conpty_and_reader_thread(
     cols: i16,
     rows: i16,
 ) -> bool {
-    match ConptyIoDriver::new("pwsh.exe", cols, rows) {
+    let config_repo = crate::infra::repository::emeditor_config_repository_impl::EmEditorConfigRepositoryImpl::new(
+        SendHWND(hwnd_editor),
+    );
+    let config = crate::domain::repository::configuration_repository::ConfigurationRepository::load(&config_repo);
+
+    match ConptyIoDriver::new(&config.shell_path, cols, rows) {
         Ok(conpty) => {
             log::info!(
                 "ConptyIoDriver started successfully with size {}x{}",
@@ -65,11 +70,7 @@ fn start_conpty_and_reader_thread(
                         conpty,
                     ),
                 );
-                let config_repo = Box::new(
-                    crate::infra::repository::emeditor_config_repository_impl::EmEditorConfigRepositoryImpl::new(
-                        SendHWND(hwnd_editor),
-                    ),
-                );
+                let config_repo = Box::new(config_repo);
 
                 // 新しいリポジトリでサービスを再構築する（DI）
                 window_data.service = crate::application::TerminalWorkflow::new(

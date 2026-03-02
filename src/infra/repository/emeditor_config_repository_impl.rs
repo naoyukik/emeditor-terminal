@@ -24,7 +24,7 @@ impl EmEditorConfigRepositoryImpl {
         let mut info = REG_QUERY_VALUE_INFO {
             cbSize: size_of::<REG_QUERY_VALUE_INFO>(),
             dwKey: EEREG_EMEDITORPLUGIN,
-            pszConfig: w!("emeditor-terminal"),
+            pszConfig: w!("Terminal"),
             pszValue: windows::core::PCWSTR(value_name_wide.as_ptr()),
             dwType: REG_SZ,
             lpData: buffer.as_mut_ptr() as *mut u8,
@@ -47,7 +47,7 @@ impl EmEditorConfigRepositoryImpl {
         let mut info = REG_QUERY_VALUE_INFO {
             cbSize: size_of::<REG_QUERY_VALUE_INFO>(),
             dwKey: EEREG_EMEDITORPLUGIN,
-            pszConfig: w!("emeditor-terminal"),
+            pszConfig: w!("Terminal"),
             pszValue: windows::core::PCWSTR(value_name_wide.as_ptr()),
             dwType: REG_DWORD,
             lpData: &mut data as *mut u32 as *mut u8,
@@ -61,6 +61,42 @@ impl EmEditorConfigRepositoryImpl {
             default
         }
     }
+
+    fn set_string(&self, value_name: &str, value: &str) {
+        let value_wide: Vec<u16> = value.encode_utf16().chain(std::iter::once(0)).collect();
+        let value_name_wide: Vec<u16> = value_name.encode_utf16().chain(std::iter::once(0)).collect();
+
+        let info = emeditor_io_driver::REG_SET_VALUE_INFO {
+            cbSize: size_of::<emeditor_io_driver::REG_SET_VALUE_INFO>(),
+            dwKey: EEREG_EMEDITORPLUGIN,
+            pszConfig: w!("Terminal"),
+            pszValue: windows::core::PCWSTR(value_name_wide.as_ptr()),
+            dwType: emeditor_io_driver::REG_SZ,
+            lpData: value_wide.as_ptr() as *const u8,
+            cbData: (value_wide.len() * size_of::<u16>()) as u32,
+            dwFlags: 0,
+        };
+
+        emeditor_io_driver::reg_set_value(self.hwnd.0, &info);
+    }
+
+    fn set_dword(&self, value_name: &str, value: i32) {
+        let data = value as u32;
+        let value_name_wide: Vec<u16> = value_name.encode_utf16().chain(std::iter::once(0)).collect();
+
+        let info = emeditor_io_driver::REG_SET_VALUE_INFO {
+            cbSize: size_of::<emeditor_io_driver::REG_SET_VALUE_INFO>(),
+            dwKey: EEREG_EMEDITORPLUGIN,
+            pszConfig: w!("Terminal"),
+            pszValue: windows::core::PCWSTR(value_name_wide.as_ptr()),
+            dwType: emeditor_io_driver::REG_DWORD,
+            lpData: &data as *const u32 as *const u8,
+            cbData: size_of::<u32>() as u32,
+            dwFlags: 0,
+        };
+
+        emeditor_io_driver::reg_set_value(self.hwnd.0, &info);
+    }
 }
 
 impl ConfigurationRepository for EmEditorConfigRepositoryImpl {
@@ -73,15 +109,17 @@ impl ConfigurationRepository for EmEditorConfigRepositoryImpl {
         }
 
         TerminalConfig {
-            theme_type: default.theme_type, // TODO: Phase 2以降で実装
+            theme_type: default.theme_type,
             font_face: self.query_string("FontFaceName", &default.font_face),
             font_size: self.query_dword("FontSize", default.font_size),
             shell_path: self.query_string("ShellPath", &default.shell_path),
         }
     }
 
-    fn save(&self, _config: &TerminalConfig) {
-        // TODO: EE_REG_SET_VALUE を使用して保存する
+    fn save(&self, config: &TerminalConfig) {
+        self.set_string("FontFaceName", &config.font_face);
+        self.set_dword("FontSize", config.font_size);
+        self.set_string("ShellPath", &config.shell_path);
     }
 
     fn get_terminal_config(&self) -> TerminalConfig {

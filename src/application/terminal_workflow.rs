@@ -29,6 +29,12 @@ impl TerminalWorkflow {
         config_repo: Box<dyn ConfigurationRepository>,
     ) -> Self {
         let config = config_repo.load();
+        log::info!(
+            "Loaded terminal config: font_face='{}', font_size={}, shell_path='{}'",
+            config.font_face,
+            config.font_size,
+            config.shell_path
+        );
         let font_face = config.font_face.clone();
         let font_size = config.font_size;
         let color_theme = config.get_color_theme();
