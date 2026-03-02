@@ -3,18 +3,18 @@
 ## Phase 1: 設定エンティティとインターフェースの定義 (Entity & Repository Interface)
 **目的:** 設定データ構造と、それを取得するための Repository トレイトを定義する。
 
-- [ ] Task: `TerminalConfig` 構造体の定義。`font_face`, `font_size`, `shell_path` を含める。
-- [ ] Task: `ConfigRepository` トレイトの定義。`load()` と `save()` メソッドを備える。
-- [ ] Task: Commit Phase 1 - `feat: 設定エンティティとインターフェースの定義`
+- [x] Task: `TerminalConfig` 構造体の定義。`font_face`, `font_size`, `shell_path` を含める。
+- [x] Task: `ConfigRepository` トレイトの定義。`load()` と `save()` メソッドを備える。
+- [x] Task: Commit Phase 1 - `feat: 設定エンティティとインターフェースの定義`
 - [ ] Task: Conductor - User Manual Verification 'Phase 1 - 設定構造の定義' (Protocol in workflow.md)
 
 ## Phase 2: インフラ層の実装 (Infrastructure Implementation)
 **目的:** EmEditor SDK のメッセージを使用して設定を読み書きする Repository の実装。
 
-- [ ] Task: `EmEditorConfigRepositoryImpl` の実装。`EE_REG_QUERY_VALUE` / `EE_REG_SET_VALUE` メッセージを使用する。
-- [ ] Task: デフォルト値（フォールバック）の解決ロジックの実装。
+- [x] Task: `EmEditorConfigRepositoryImpl` の実装。`EE_REG_QUERY_VALUE` / `EE_REG_SET_VALUE` メッセージを使用する。
+- [x] Task: デフォルト値（フォールバック）の解決ロジックの実装。
 - [ ] Task: テストコード（Mock を用いた Config 取得テスト）の作成。
-- [ ] Task: Commit Phase 2 - `feat: EmEditor標準APIによる設定読み書きの実装`
+- [x] Task: Commit Phase 2 - `feat: EmEditor標準APIによる設定読み書きの実装`
 - [ ] Task: Conductor - User Manual Verification 'Phase 2 - インフラ層の読み書き' (Protocol in workflow.md)
 
 ## Phase 3: アプリケーション層への統合 (Application Integration)

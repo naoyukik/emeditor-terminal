@@ -28,9 +28,9 @@ impl TerminalWorkflow {
         output_repo: Box<dyn TerminalOutputRepository>,
         config_repo: Box<dyn ConfigurationRepository>,
     ) -> Self {
-        let font_face = config_repo.get_font_face();
-        let font_size = config_repo.get_font_size();
-        let config = config_repo.get_terminal_config();
+        let config = config_repo.load();
+        let font_face = config.font_face.clone();
+        let font_size = config.font_size;
         let color_theme = config.get_color_theme();
 
         Self {
@@ -68,8 +68,10 @@ impl TerminalWorkflow {
     /// 設定を最新状態に更新する
     #[allow(dead_code)] // TODO: フォント設定UI実装時に使用予定
     pub fn refresh_config(&mut self) {
-        self.font_face = self.config_repo.get_font_face();
-        self.font_size = self.config_repo.get_font_size();
+        let config = self.config_repo.load();
+        self.font_face = config.font_face.clone();
+        self.font_size = config.font_size;
+        self.config = config;
     }
 
     #[allow(dead_code)] // TODO: フォント設定UI実装時に使用予定
