@@ -14,9 +14,23 @@ impl Default for ThemeType {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalConfig {
     pub theme_type: ThemeType,
+    pub font_face: String,
+    pub font_size: i32,
+    pub shell_path: String,
+}
+
+impl Default for TerminalConfig {
+    fn default() -> Self {
+        Self {
+            theme_type: ThemeType::OneHalfDark,
+            font_face: "Consolas".to_string(),
+            font_size: 10,
+            shell_path: "pwsh.exe".to_string(),
+        }
+    }
 }
 
 impl TerminalConfig {
