@@ -50,7 +50,13 @@ fn start_conpty_and_reader_thread(
     );
     let config = crate::domain::repository::configuration_repository::ConfigurationRepository::load(&config_repo);
 
-    match ConptyIoDriver::new(&config.shell_path, cols, rows) {
+    let shell_path = if config.shell_path.trim().is_empty() {
+        "pwsh.exe".to_string()
+    } else {
+        config.shell_path.clone()
+    };
+
+    match ConptyIoDriver::new(&shell_path, cols, rows) {
         Ok(conpty) => {
             log::info!(
                 "ConptyIoDriver started successfully with size {}x{}",

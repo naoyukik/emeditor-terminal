@@ -1,4 +1,4 @@
-﻿use crate::domain::model::terminal_config_value::TerminalConfig;
+use crate::domain::model::terminal_config_value::TerminalConfig;
 use crate::domain::repository::configuration_repository::ConfigurationRepository;
 use crate::gui::resolver::terminal_window_resolver::SendHWND;
 use crate::infra::driver::emeditor_io_driver::{
@@ -33,7 +33,13 @@ impl EmEditorConfigRepositoryImpl {
         };
 
         if emeditor_io_driver::reg_query_value(self.hwnd.0, &mut info) == 0 {
-            String::from_utf16_lossy(&buffer[..(cb_data as usize / 2).saturating_sub(1)])
+            let len = buffer.iter().position(|&c| c == 0).unwrap_or(buffer.len());
+            let result = String::from_utf16_lossy(&buffer[..len]);
+            if result.trim().is_empty() {
+                default.to_string()
+            } else {
+                result
+            }
         } else {
             default.to_string()
         }
@@ -108,11 +114,24 @@ impl ConfigurationRepository for EmEditorConfigRepositoryImpl {
             return default;
         }
 
+        let font_face = self.query_string("FontFaceName", &default.font_face);
+        let font_size = self.query_dword("FontSize", default.font_size);
+        let shell_path_raw = self.query_string("ShellPath", &default.shell_path);
+
+        // ロードされたパスが絶対パスでない、あるいは見つからない場合は再解決を試みる
+        let shell_path = if std::path::Path::new(&shell_path_raw).is_absolute() {
+            shell_path_raw
+        } else {
+            which::which(&shell_path_raw)
+                .map(|p| p.to_string_lossy().into_owned())
+                .unwrap_or(shell_path_raw)
+        };
+
         TerminalConfig {
             theme_type: default.theme_type,
-            font_face: self.query_string("FontFaceName", &default.font_face),
-            font_size: self.query_dword("FontSize", default.font_size),
-            shell_path: self.query_string("ShellPath", &default.shell_path),
+            font_face,
+            font_size,
+            shell_path,
         }
     }
 

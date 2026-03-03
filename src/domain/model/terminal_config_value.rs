@@ -24,11 +24,18 @@ pub struct TerminalConfig {
 
 impl Default for TerminalConfig {
     fn default() -> Self {
+        // pwsh.exe -> powershell.exe -> cmd.exe の順で絶対パスを取得する
+        let shell_path = which::which("pwsh.exe")
+            .or_else(|_| which::which("powershell.exe"))
+            .or_else(|_| which::which("cmd.exe"))
+            .map(|p| p.to_string_lossy().into_owned())
+            .unwrap_or_else(|_| "cmd.exe".to_string());
+
         Self {
             theme_type: ThemeType::OneHalfDark,
             font_face: "Consolas".to_string(),
             font_size: 10,
-            shell_path: "pwsh.exe".to_string(),
+            shell_path,
         }
     }
 }

@@ -35,6 +35,7 @@ pub struct ConptyIoDriver {
 
 impl ConptyIoDriver {
     pub fn new(cmd_line: &str, width: i16, height: i16) -> Result<Self, String> {
+        log::info!("ConptyIoDriver::new called with cmd_line: '{}'", cmd_line);
         let mut h_pipe_pt_in = INVALID_HANDLE_VALUE;
         let mut h_pipe_in_write = INVALID_HANDLE_VALUE;
         let mut h_pipe_pt_out = INVALID_HANDLE_VALUE;
@@ -130,9 +131,19 @@ impl ConptyIoDriver {
             startup_info_ex.lpAttributeList = lp_attribute_list;
 
             let mut process_information = PROCESS_INFORMATION::default();
+
+            // コマンドラインにスペースが含まれる場合、かつ引用符で囲まれていない場合は引用符を追加する
+            let cmd_line_final = if cmd_line.contains(' ') && !cmd_line.starts_with('"') {
+                format!("\"{}\"", cmd_line)
+            } else {
+                cmd_line.to_string()
+            };
+
             // Convert cmd_line to wide string (null terminated)
             let mut cmd_line_w: Vec<u16> =
-                cmd_line.encode_utf16().chain(std::iter::once(0)).collect();
+                cmd_line_final.encode_utf16().chain(std::iter::once(0)).collect();
+
+            log::info!("Starting process with command line: {}", cmd_line_final);
 
             let lp_current_directory = if current_dir_w.is_empty() {
                 PCWSTR::null()
@@ -156,10 +167,12 @@ impl ConptyIoDriver {
             DeleteProcThreadAttributeList(lp_attribute_list);
 
             if success.is_err() {
+                let err = windows::Win32::Foundation::GetLastError();
+                log::error!("Failed to create process. Command: {}, Error: {:?}", cmd_line_final, err);
                 ClosePseudoConsole(h_pcon);
                 let _ = CloseHandle(h_pipe_in_write);
                 let _ = CloseHandle(h_pipe_out_read);
-                return Err("Failed to create process".to_string());
+                return Err(format!("Failed to create process: {:?}", err));
             }
 
             Ok(ConptyIoDriver {
