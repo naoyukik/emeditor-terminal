@@ -28,3 +28,11 @@
 
 ## Phase: Review Fixes
 - [x] Task: Apply review suggestions (Test code fix)
+- [x] Task: `query_string` の動性バッファサイズ対応とヌル終端処理の堅牢化 (Copilot/Opus)
+- [x] Task: 実行ファイルパスのみをクォートする堅牢なコマンドライン構築 (Copilot)
+- [x] Task: ログレベルの調整 (`info` -> `debug`) による機密情報の保護 (Copilot)
+- [x] Task: `shell_path` の解決時にファイル存在確認 (`Path::exists`) を追加 (Copilot)
+- [x] Task: `set_dword` における `std::ptr::addr_of!` の使用 (Opus)
+- [x] Task: GitHub Issue #74 のコメントに方針変更と進捗を記録 (User)
+- [x] Task: Commit Review Fixes - `fix: レビュー指摘事項の反映（堅牢性とセキュリティの向上）`
+- [x] Task: Conductor - User Manual Verification 'Review Fixes - 修正後の安定性確認' (Protocol in workflow.md)

@@ -35,7 +35,7 @@ pub struct ConptyIoDriver {
 
 impl ConptyIoDriver {
     pub fn new(cmd_line: &str, width: i16, height: i16) -> Result<Self, String> {
-        log::info!("ConptyIoDriver::new called with cmd_line: '{}'", cmd_line);
+        log::debug!("ConptyIoDriver::new called with cmd_line: '{}'", cmd_line);
         let mut h_pipe_pt_in = INVALID_HANDLE_VALUE;
         let mut h_pipe_in_write = INVALID_HANDLE_VALUE;
         let mut h_pipe_pt_out = INVALID_HANDLE_VALUE;
@@ -132,18 +132,45 @@ impl ConptyIoDriver {
 
             let mut process_information = PROCESS_INFORMATION::default();
 
-            // コマンドラインにスペースが含まれる場合、かつ引用符で囲まれていない場合は引用符を追加する
-            let cmd_line_final = if cmd_line.contains(' ') && !cmd_line.starts_with('"') {
-                format!("\"{}\"", cmd_line)
-            } else {
+            // CreateProcessW に渡すコマンドラインを構築する。
+            // すでに引用符で始まっている場合は、そのまま信頼して使う。
+            // そうでない場合は、実行ファイルパスらしき部分のみを引用符で囲む。
+            let cmd_line_final = if cmd_line.starts_with('"') {
                 cmd_line.to_string()
+            } else {
+                // 実行ファイル拡張子を探し、そこまでを実行ファイルパスとみなす
+                let lower = cmd_line.to_ascii_lowercase();
+                let exts = [".exe", ".bat", ".cmd", ".com"];
+                let exe_end = exts
+                    .iter()
+                    .filter_map(|ext| lower.find(ext).map(|idx| idx + ext.len()))
+                    .min();
+
+                if let Some(end) = exe_end {
+                    let (exe_part, rest_part) = cmd_line.split_at(end);
+                    let rest_part = rest_part.trim_start();
+                    if rest_part.is_empty() {
+                        format!("\"{}\"", exe_part)
+                    } else {
+                        format!("\"{}\" {}", exe_part, rest_part)
+                    }
+                } else {
+                    // 実行ファイル拡張子が判別できない場合は、上位から渡された文字列をそのまま使用する
+                    // (スペースが含まれる単一のパスなら、全体を囲む必要があるかもしれないが、
+                    //  which による絶対パス解決後の場合は原則 .exe が含まれるはず)
+                    if cmd_line.contains(' ') {
+                        format!("\"{}\"", cmd_line)
+                    } else {
+                        cmd_line.to_string()
+                    }
+                }
             };
 
             // Convert cmd_line to wide string (null terminated)
             let mut cmd_line_w: Vec<u16> =
                 cmd_line_final.encode_utf16().chain(std::iter::once(0)).collect();
 
-            log::info!("Starting process with command line: {}", cmd_line_final);
+            log::debug!("Starting process with command line: {}", cmd_line_final);
 
             let lp_current_directory = if current_dir_w.is_empty() {
                 PCWSTR::null()
@@ -168,7 +195,11 @@ impl ConptyIoDriver {
 
             if success.is_err() {
                 let err = windows::Win32::Foundation::GetLastError();
-                log::error!("Failed to create process. Command: {}, Error: {:?}", cmd_line_final, err);
+                log::error!(
+                    "Failed to create process. Command: {}, Error: {:?}",
+                    cmd_line_final,
+                    err
+                );
                 ClosePseudoConsole(h_pcon);
                 let _ = CloseHandle(h_pipe_in_write);
                 let _ = CloseHandle(h_pipe_out_read);
@@ -193,7 +224,7 @@ impl ConptyIoDriver {
         self.input_write_pipe_handle
     }
 
-    pub fn resize(&self, width: i16, height: i16) -> Result<(), String> {
+    pub fn resize(&self, width: i16, height: i16) -> Result<() , String> {
         let size = COORD {
             X: width,
             Y: height,
