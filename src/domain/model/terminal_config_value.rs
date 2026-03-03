@@ -66,6 +66,7 @@ mod tests {
     fn test_terminal_config_one_half_dark() {
         let config = TerminalConfig {
             theme_type: ThemeType::OneHalfDark,
+            ..TerminalConfig::default()
         };
         let theme = config.get_color_theme();
         assert_eq!(theme, ColorTheme::one_half_dark());
@@ -75,6 +76,7 @@ mod tests {
     fn test_terminal_config_one_half_light() {
         let config = TerminalConfig {
             theme_type: ThemeType::OneHalfLight,
+            ..TerminalConfig::default()
         };
         let theme = config.get_color_theme();
         assert_eq!(theme, ColorTheme::one_half_light());
