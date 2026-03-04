@@ -39,8 +39,24 @@ pub fn is_ime_composing(hwnd: HWND) -> bool {
     crate::gui::driver::ime_gui_driver::is_composing(hwnd)
 }
 
-fn start_conpty_and_reader_thread(hwnd: HWND, cols: i16, rows: i16) -> bool {
-    match ConptyIoDriver::new("pwsh.exe", cols, rows) {
+fn start_conpty_and_reader_thread(
+    hwnd_client: HWND,
+    hwnd_editor: HWND,
+    cols: i16,
+    rows: i16,
+) -> bool {
+    let config_repo = crate::infra::repository::emeditor_config_repository_impl::EmEditorConfigRepositoryImpl::new(
+        SendHWND(hwnd_editor),
+    );
+    let config = crate::domain::repository::configuration_repository::ConfigurationRepository::load(&config_repo);
+
+    let shell_path = if config.shell_path.trim().is_empty() {
+        "pwsh.exe".to_string()
+    } else {
+        config.shell_path.clone()
+    };
+
+    match ConptyIoDriver::new(&shell_path, cols, rows) {
         Ok(conpty) => {
             log::info!(
                 "ConptyIoDriver started successfully with size {}x{}",
@@ -60,7 +76,7 @@ fn start_conpty_and_reader_thread(hwnd: HWND, cols: i16, rows: i16) -> bool {
                         conpty,
                     ),
                 );
-                let config_repo = Box::new(crate::infra::repository::emeditor_config_repository_impl::EmEditorConfigRepositoryImpl::new());
+                let config_repo = Box::new(config_repo);
 
                 // 新しいリポジトリでサービスを再構築する（DI）
                 window_data.service = crate::application::TerminalWorkflow::new(
@@ -71,7 +87,7 @@ fn start_conpty_and_reader_thread(hwnd: HWND, cols: i16, rows: i16) -> bool {
                 );
             }
 
-            let send_hwnd = SendHWND(hwnd);
+            let send_hwnd = SendHWND(hwnd_client);
 
             thread::spawn(move || {
                 let output_handle = output_handle; // Force capture of SendHandle to avoid disjoint capture of !Send HANDLE
@@ -237,7 +253,7 @@ pub fn open_custom_bar(hwnd_editor: HWND) -> bool {
                     (80, 25)
                 };
 
-                start_conpty_and_reader_thread(hwnd_client, initial_cols, initial_rows)
+                start_conpty_and_reader_thread(hwnd_client, hwnd_editor, initial_cols, initial_rows)
             }
             Err(e) => {
                 log::error!("Failed to create custom bar window: {}", e);

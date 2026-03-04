@@ -17,6 +17,7 @@
 - **simplelog / log**: デバッグログ出力。
 - **vte**: ANSI/VT エスケープシーケンスのパース。業界標準のステートマシン実装により、高信頼・高性能なパースを実現。
 - **unicode-width / unicode-segmentation**: 高精度なテキスト測定と書記素クラスター境界判定に使用。
+- **which**: システムパスから実行ファイルの絶対パスを探索するために導入。シェル起動の安定性を向上。
   - **Grapheme Clusters 判定**: `unicode-segmentation` により、ユーザーが「1文字」と認識する最小単位を正確に識別。
   - **物理表示幅の正規化**: `unicode-width` に基づきつつ、物理カラムへの割り当てを 1〜2 に制限することで、複雑な絵文字の描画崩れを防止。
 
@@ -32,6 +33,7 @@
 - **Dependency Injection (DI)**: コンストラクタ注入により依存関係を管理し、テスト容易性と結合度の低下を実現。
 - **Domain 層 (`src/domain/`)**: `windows` クレートに依存しない Pure Rust 領域。
     - **Entity / Value Object**: `_entity.rs` / `_value.rs`
+    - **Configuration**: `TerminalConfig` による構成管理。
     - **Domain Service**: `_domain_service.rs`
     - **Repository (IF)**: `_repository.rs`
 - **Application 層 (`src/application/`)**: ユースケースの調整。`_workflow.rs`

@@ -14,9 +14,30 @@ impl Default for ThemeType {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalConfig {
     pub theme_type: ThemeType,
+    pub font_face: String,
+    pub font_size: i32,
+    pub shell_path: String,
+}
+
+impl Default for TerminalConfig {
+    fn default() -> Self {
+        // pwsh.exe -> powershell.exe -> cmd.exe の順で絶対パスを取得する
+        let shell_path = which::which("pwsh.exe")
+            .or_else(|_| which::which("powershell.exe"))
+            .or_else(|_| which::which("cmd.exe"))
+            .map(|p| p.to_string_lossy().into_owned())
+            .unwrap_or_else(|_| "cmd.exe".to_string());
+
+        Self {
+            theme_type: ThemeType::OneHalfDark,
+            font_face: "Consolas".to_string(),
+            font_size: 10,
+            shell_path,
+        }
+    }
 }
 
 impl TerminalConfig {
@@ -45,6 +66,7 @@ mod tests {
     fn test_terminal_config_one_half_dark() {
         let config = TerminalConfig {
             theme_type: ThemeType::OneHalfDark,
+            ..TerminalConfig::default()
         };
         let theme = config.get_color_theme();
         assert_eq!(theme, ColorTheme::one_half_dark());
@@ -54,6 +76,7 @@ mod tests {
     fn test_terminal_config_one_half_light() {
         let config = TerminalConfig {
             theme_type: ThemeType::OneHalfLight,
+            ..TerminalConfig::default()
         };
         let theme = config.get_color_theme();
         assert_eq!(theme, ColorTheme::one_half_light());
