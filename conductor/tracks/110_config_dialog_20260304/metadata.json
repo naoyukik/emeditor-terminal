@@ -1,0 +1,8 @@
+{
+  "track_id": "110_config_dialog_20260304",
+  "type": "feature",
+  "status": "new",
+  "created_at": "2026-03-04T21:00:00Z",
+  "updated_at": "2026-03-04T21:00:00Z",
+  "description": "GitHub Issue #110: プラグイン設定ダイアログの実装"
+}
