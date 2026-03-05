@@ -28,7 +28,7 @@ impl EmEditorConfigRepositoryImpl {
         let mut info = REG_QUERY_VALUE_INFO {
             cbSize: size_of::<REG_QUERY_VALUE_INFO>(),
             dwKey: EEREG_EMEDITORPLUGIN,
-            pszConfig: w!("emeditor_terminal.dll"),
+            pszConfig: w!("Terminal"), // Changed from emeditor_terminal.dll to Terminal
             pszValue: windows::core::PCWSTR(value_name_wide.as_ptr()),
             dwType: REG_SZ,
             lpData: buffer.as_mut_ptr() as *mut u8,
@@ -61,7 +61,7 @@ impl EmEditorConfigRepositoryImpl {
         let mut info = REG_QUERY_VALUE_INFO {
             cbSize: size_of::<REG_QUERY_VALUE_INFO>(),
             dwKey: EEREG_EMEDITORPLUGIN,
-            pszConfig: w!("emeditor_terminal.dll"),
+            pszConfig: w!("Terminal"), // Changed to Terminal
             pszValue: windows::core::PCWSTR(value_name_wide.as_ptr()),
             dwType: REG_DWORD,
             lpData: &mut data as *mut u32 as *mut u8,
@@ -90,7 +90,7 @@ impl EmEditorConfigRepositoryImpl {
         let info = emeditor_io_driver::REG_SET_VALUE_INFO {
             cbSize: size_of::<emeditor_io_driver::REG_SET_VALUE_INFO>(),
             dwKey: EEREG_EMEDITORPLUGIN,
-            pszConfig: w!("emeditor_terminal.dll"),
+            pszConfig: w!("Terminal"), // Changed to Terminal
             pszValue: windows::core::PCWSTR(value_name_wide.as_ptr()),
             dwType: emeditor_io_driver::REG_SZ,
             lpData: value_wide.as_ptr() as *const u8,
@@ -111,7 +111,7 @@ impl EmEditorConfigRepositoryImpl {
         let info = emeditor_io_driver::REG_SET_VALUE_INFO {
             cbSize: size_of::<emeditor_io_driver::REG_SET_VALUE_INFO>(),
             dwKey: EEREG_EMEDITORPLUGIN,
-            pszConfig: w!("emeditor_terminal.dll"),
+            pszConfig: w!("Terminal"), // Changed to Terminal
             pszValue: windows::core::PCWSTR(value_name_wide.as_ptr()),
             dwType: emeditor_io_driver::REG_DWORD,
             lpData: &data as *const u32 as *const u8,
