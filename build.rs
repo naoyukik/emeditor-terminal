@@ -8,4 +8,7 @@ fn main() {
 
     // Link with the .def file to ensure exported function names are not mangled
     println!("cargo:rustc-cdylib-link-arg=/DEF:{}", def_file.display());
+
+    // Compile resource file
+    embed_resource::compile("emeditor-terminal.rc", embed_resource::NONE);
 }

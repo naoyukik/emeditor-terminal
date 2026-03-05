@@ -3,13 +3,13 @@
 ## Phase 1: Resource Setup & SDK Message Integration
 EmEditor SDK の `EP_QUERY_PROPERTIES` および `EP_SET_PROPERTIES` メッセージを処理し、ダイアログ表示のトリガーを実装する。また、リソーススクリプト (`.rc`) をプロジェクトに導入する。
 
-- [ ] Task: プロジェクトへのリソーススクリプト (`emeditor-terminal.rc`) の導入
-    - [ ] `build.rs` を更新し、`embed-resource` 等を用いてリソースをコンパイル対象に含める。
-    - [ ] 最小限の設定ダイアログ（OK/Cancel/Static Text）を定義する。
-- [ ] Task: EmEditor SDK メッセージの受信処理の実装 (`lib.rs`)
-    - [ ] `EP_QUERY_PROPERTIES` に対して `TRUE` を返す。
-    - [ ] `EP_SET_PROPERTIES` 受信時に `MessageBoxW` 等で動作を確認する。
-- [ ] Task: Conductor - ユーザー手動検証 'Phase 1' (Protocol in workflow.md)
+- [x] Task: プロジェクトへのリソーススクリプト (`emeditor-terminal.rc`) の導入
+    - [x] `build.rs` を更新し、`embed-resource` 等を用いてリソースをコンパイル対象に含める。
+    - [x] 最小限の設定ダイアログ（OK/Cancel/Static Text）を定義する。
+- [x] Task: EmEditor SDK メッセージの受信処理の実装 (`lib.rs`)
+    - [x] `EP_QUERY_PROPERTIES` に対して `TRUE` を返す。
+    - [x] `EP_SET_PROPERTIES` 受信時に `MessageBoxW` 等で動作を確認する。
+- [x] Task: Conductor - ユーザー手動検証 'Phase 1' (Protocol in workflow.md)
 
 ## Phase 2: Configuration Dialog Implementation
 リソースダイアログを実際に表示し、Win32 ダイアログプロシージャを通じてコントロールを制御する。

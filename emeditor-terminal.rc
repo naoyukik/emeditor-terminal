@@ -1,0 +1,22 @@
+#include <windows.h>
+
+#ifndef IDC_STATIC
+#define IDC_STATIC -1
+#endif
+
+#define IDD_SET_PROPERTIES 101
+#define IDC_STATIC_FONT_NAME 1001
+#define IDC_BTN_CHANGE_FONT 1002
+
+IDD_SET_PROPERTIES DIALOGEX 0, 0, 240, 160
+STYLE DS_SETFONT | DS_MODALFRAME | DS_FIXEDSYS | WS_POPUP | WS_CAPTION | WS_SYSMENU
+CAPTION "Terminal Settings"
+FONT 9, "MS Shell Dlg", 400, 0, 0x1
+BEGIN
+    DEFPUSHBUTTON   "OK",IDOK,120,140,50,14
+    PUSHBUTTON      "Cancel",IDCANCEL,180,140,50,14
+    GROUPBOX        "Font Settings",IDC_STATIC,7,7,226,50
+    LTEXT           "Current Font: Loading...",IDC_STATIC_FONT_NAME,15,22,150,8
+    PUSHBUTTON      "Change Font...",IDC_BTN_CHANGE_FONT,170,20,55,14
+    LTEXT           "Note: Changes will take effect after restart.",IDC_STATIC,15,35,150,8
+END
