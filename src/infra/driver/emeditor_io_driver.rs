@@ -16,7 +16,6 @@ pub const EE_CUSTOM_BAR_OPEN: u32 = EE_FIRST + 73;
 pub const EE_REG_QUERY_VALUE: u32 = EE_FIRST + 86; // 2134
 pub const EE_REG_SET_VALUE: u32 = EE_FIRST + 85;   // 2133
 
-// EEREG_EMEDITORPLUGIN from plugin.h
 pub const EEREG_EMEDITORPLUGIN: u32 = 0x7fffff30;
 
 pub const REG_SZ: u32 = 1;
@@ -60,6 +59,19 @@ pub struct CUSTOM_BAR_INFO {
     pub iPos: i32,
 }
 
+#[allow(dead_code)]
+pub fn output_string(hwnd: HWND, text: &str) {
+    let wide_text: Vec<u16> = text.encode_utf16().chain(std::iter::once(0)).collect();
+    unsafe {
+        let _ = SendMessageW(
+            hwnd,
+            EE_OUTPUT_STRING,
+            WPARAM(0),
+            LPARAM(wide_text.as_ptr() as isize),
+        );
+    }
+}
+
 pub fn reg_query_value(hwnd: HWND, info: &mut REG_QUERY_VALUE_INFO) -> i32 {
     unsafe {
         let result = SendMessageW(
@@ -69,8 +81,7 @@ pub fn reg_query_value(hwnd: HWND, info: &mut REG_QUERY_VALUE_INFO) -> i32 {
             LPARAM(info as *mut _ as isize),
         );
         let ret = result.0 as i32;
-        log::info!("reg_query_value: ret={}, cbSize={}, dwKey=0x{:X}, val_name={}", 
-            ret, info.cbSize, info.dwKey, info.pszValue.display());
+        log::debug!("reg_query_value: ret={}, value_name={}", ret, info.pszValue.display());
         ret
     }
 }
@@ -84,8 +95,7 @@ pub fn reg_set_value(hwnd: HWND, info: &REG_SET_VALUE_INFO) -> i32 {
             LPARAM(info as *const _ as isize),
         );
         let ret = result.0 as i32;
-        log::info!("reg_set_value: ret={}, cbSize={}, dwKey=0x{:X}, val_name={}", 
-            ret, info.cbSize, info.dwKey, info.pszValue.display());
+        log::debug!("reg_set_value: ret={}, value_name={}", ret, info.pszValue.display());
         ret
     }
 }

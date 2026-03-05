@@ -36,13 +36,9 @@ impl EmEditorConfigRepositoryImpl {
             dwFlags: 0,
         };
 
-        // Editor_RegQueryValue returns ERROR_SUCCESS (0) on success.
-        let ret = emeditor_io_driver::reg_query_value(self.hwnd.0, &mut info);
-
-        if ret == 0 {
-            // cb_data is bytes, convert to number of u16 units.
-            let len_with_null = (cb_data as usize / size_of::<u16>()).min(buffer.len());
-            let result = String::from_utf16_lossy(&buffer[..len_with_null]);
+        if emeditor_io_driver::reg_query_value(self.hwnd.0, &mut info) == 0 {
+            let len = (cb_data as usize / size_of::<u16>()).min(buffer.len());
+            let result = String::from_utf16_lossy(&buffer[..len]);
             let result = result.trim_matches('\0').to_string();
             if result.is_empty() {
                 default.to_string()
@@ -50,7 +46,6 @@ impl EmEditorConfigRepositoryImpl {
                 result
             }
         } else {
-            log::warn!("query_string: failed with ret={}, using default", ret);
             default.to_string()
         }
     }
@@ -74,12 +69,9 @@ impl EmEditorConfigRepositoryImpl {
             dwFlags: 0,
         };
 
-        let ret = emeditor_io_driver::reg_query_value(self.hwnd.0, &mut info);
-        if ret == 0 {
-            log::info!("query_dword: success, value={}", data);
+        if emeditor_io_driver::reg_query_value(self.hwnd.0, &mut info) == 0 {
             data as i32
         } else {
-            log::warn!("query_dword: failed with ret={}, using default={}", ret, default);
             default
         }
     }
@@ -106,10 +98,7 @@ impl EmEditorConfigRepositoryImpl {
             dwFlags: 0,
         };
 
-        let ret = emeditor_io_driver::reg_set_value(self.hwnd.0, &info);
-        if ret != 0 {
-            log::error!("set_string: failed with ret={}", ret);
-        }
+        emeditor_io_driver::reg_set_value(self.hwnd.0, &info);
     }
 
     fn set_dword(&self, value_name: &str, value: i32) {
@@ -130,10 +119,7 @@ impl EmEditorConfigRepositoryImpl {
             dwFlags: 0,
         };
 
-        let ret = emeditor_io_driver::reg_set_value(self.hwnd.0, &info);
-        if ret != 0 {
-            log::error!("set_dword: failed with ret={}", ret);
-        }
+        emeditor_io_driver::reg_set_value(self.hwnd.0, &info);
     }
 }
 
@@ -160,18 +146,15 @@ impl ConfigurationRepository for EmEditorConfigRepositoryImpl {
             }
         };
 
-        let config = TerminalConfig {
+        TerminalConfig {
             theme_type: default.theme_type,
             font_face,
             font_size,
             shell_path,
-        };
-        log::info!("EmEditorConfigRepositoryImpl::load: final face={}, size={}", config.font_face, config.font_size);
-        config
+        }
     }
 
     fn save(&self, config: &TerminalConfig) {
-        log::info!("EmEditorConfigRepositoryImpl::save: face={}, size={}", config.font_face, config.font_size);
         self.set_string("FontFaceName", &config.font_face);
         self.set_dword("FontSize", config.font_size);
         if !config.shell_path.is_empty() {

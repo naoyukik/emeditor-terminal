@@ -34,7 +34,6 @@ unsafe fn pixels_to_points(hwnd: HWND, lf_height: i32) -> i32 {
     ReleaseDC(hwnd, hdc);
     
     if dpi_y == 0 { return 10; }
-    // Points = pixels * 72 / DPI
     (lf_height.abs() * 72 + dpi_y / 2) / dpi_y
 }
 
@@ -45,7 +44,7 @@ unsafe fn points_to_pixels(hwnd: HWND, points: i32) -> i32 {
     let dpi_y = GetDeviceCaps(hdc, LOGPIXELSY);
     ReleaseDC(hwnd, hdc);
     
-    // Pixels = - (points * DPI / 72)
+    if dpi_y == 0 { return -13; }
     -(points * dpi_y / 72)
 }
 
@@ -121,7 +120,6 @@ unsafe extern "system" fn settings_dlg_proc(
                     let view_hwnd = VIEW_HWND.lock().ok().and_then(|lock| lock.clone());
 
                     if let (Some(config), Some(h_view)) = (config_to_save, view_hwnd) {
-                        log::info!("Saving config... face={}, size={}", config.font_face, config.font_size);
                         let repo = EmEditorConfigRepositoryImpl::new(h_view);
                         repo.save(&config);
                     }
@@ -135,15 +133,13 @@ unsafe extern "system" fn settings_dlg_proc(
                 }
                 IDC_BTN_CHANGE_FONT => {
                     let mut lf = LOGFONTW::default();
-                    let mut current_size = 10;
                     
                     if let Ok(lock) = TEMP_CONFIG.lock() {
                         if let Some(config) = &*lock {
                             let face_name_units: Vec<u16> = config.font_face.encode_utf16().collect();
                             let len = face_name_units.len().min(lf.lfFaceName.len() - 1);
                             lf.lfFaceName[..len].copy_from_slice(&face_name_units[..len]);
-                            current_size = config.font_size;
-                            lf.lfHeight = points_to_pixels(hwnd, current_size);
+                            lf.lfHeight = points_to_pixels(hwnd, config.font_size);
                         }
                     }
 
@@ -157,8 +153,6 @@ unsafe extern "system" fn settings_dlg_proc(
                         let selected_face = String::from_utf16_lossy(&lf.lfFaceName);
                         let selected_face = selected_face.trim_matches('\0').to_string();
                         let selected_size = pixels_to_points(hwnd, lf.lfHeight);
-                        
-                        log::info!("Font selected: {}, {}pt (lfHeight={})", selected_face, selected_size, lf.lfHeight);
                         
                         if let Ok(mut lock) = TEMP_CONFIG.lock() {
                             if let Some(config) = lock.as_mut() {
