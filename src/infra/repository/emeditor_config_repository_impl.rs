@@ -23,63 +23,35 @@ impl EmEditorConfigRepositoryImpl {
             .chain(std::iter::once(0))
             .collect();
 
-        let mut attempt = 0;
-        const MAX_ATTEMPTS: usize = 4;
+        let mut cb_data = (buffer.len() * size_of::<u16>()) as u32;
 
-        loop {
-            if attempt >= MAX_ATTEMPTS {
-                return default.to_string();
-            }
-            attempt += 1;
+        let mut info = REG_QUERY_VALUE_INFO {
+            cbSize: size_of::<REG_QUERY_VALUE_INFO>(),
+            dwKey: EEREG_EMEDITORPLUGIN,
+            pszConfig: w!("emeditor_terminal.dll"),
+            pszValue: windows::core::PCWSTR(value_name_wide.as_ptr()),
+            dwType: REG_SZ,
+            lpData: buffer.as_mut_ptr() as *mut u8,
+            lpcbData: &mut cb_data as *mut u32,
+            dwFlags: 0,
+        };
 
-            let mut cb_data = (buffer.len() * size_of::<u16>()) as u32;
+        // Editor_RegQueryValue returns ERROR_SUCCESS (0) on success.
+        let ret = emeditor_io_driver::reg_query_value(self.hwnd.0, &mut info);
 
-            let mut info = REG_QUERY_VALUE_INFO {
-                cbSize: size_of::<REG_QUERY_VALUE_INFO>(),
-                dwKey: EEREG_EMEDITORPLUGIN,
-                pszConfig: w!("Terminal"),
-                pszValue: windows::core::PCWSTR(value_name_wide.as_ptr()),
-                dwType: REG_SZ,
-                lpData: buffer.as_mut_ptr() as *mut u8,
-                lpcbData: &mut cb_data as *mut u32,
-                dwFlags: 0,
-            };
-
-            let ret = emeditor_io_driver::reg_query_value(self.hwnd.0, &mut info);
-
-            if ret == 0 {
-                // cb_data はバイト数なので UTF-16 コード単位数に変換
-                let max_u16_len = cb_data as usize / size_of::<u16>();
-                // バッファに書き込まれた実際の長さを超えないようにクランプ
-                let max_u16_len = max_u16_len.min(buffer.len());
-
-                // ヌル終端を探す
-                let len = buffer
-                    .iter()
-                    .take(max_u16_len)
-                    .position(|&c| c == 0)
-                    .unwrap_or(max_u16_len);
-
-                let result = String::from_utf16_lossy(&buffer[..len]);
-                if result.trim().is_empty() {
-                    return default.to_string();
-                } else {
-                    return result;
-                }
+        if ret == 0 {
+            // cb_data is bytes, convert to number of u16 units.
+            let len_with_null = (cb_data as usize / size_of::<u16>()).min(buffer.len());
+            let result = String::from_utf16_lossy(&buffer[..len_with_null]);
+            let result = result.trim_matches('\0').to_string();
+            if result.is_empty() {
+                default.to_string()
             } else {
-                // 失敗時に cb_data が現在のバッファより大きければ再確保してリトライ
-                let required_bytes = cb_data as usize;
-                let current_bytes = buffer.len() * size_of::<u16>();
-
-                if required_bytes > current_bytes && required_bytes > 0 {
-                    let required_u16 = (required_bytes + 1) / size_of::<u16>();
-                    let new_len = required_u16.max(buffer.len().saturating_mul(2));
-                    buffer = vec![0u16; new_len];
-                    continue;
-                } else {
-                    return default.to_string();
-                }
+                result
             }
+        } else {
+            log::warn!("query_string: failed with ret={}, using default", ret);
+            default.to_string()
         }
     }
 
@@ -94,7 +66,7 @@ impl EmEditorConfigRepositoryImpl {
         let mut info = REG_QUERY_VALUE_INFO {
             cbSize: size_of::<REG_QUERY_VALUE_INFO>(),
             dwKey: EEREG_EMEDITORPLUGIN,
-            pszConfig: w!("Terminal"),
+            pszConfig: w!("emeditor_terminal.dll"),
             pszValue: windows::core::PCWSTR(value_name_wide.as_ptr()),
             dwType: REG_DWORD,
             lpData: &mut data as *mut u32 as *mut u8,
@@ -102,14 +74,21 @@ impl EmEditorConfigRepositoryImpl {
             dwFlags: 0,
         };
 
-        if emeditor_io_driver::reg_query_value(self.hwnd.0, &mut info) == 0 {
+        let ret = emeditor_io_driver::reg_query_value(self.hwnd.0, &mut info);
+        if ret == 0 {
+            log::info!("query_dword: success, value={}", data);
             data as i32
         } else {
+            log::warn!("query_dword: failed with ret={}, using default={}", ret, default);
             default
         }
     }
 
     fn set_string(&self, value_name: &str, value: &str) {
+        if value.is_empty() && value_name == "ShellPath" {
+            return;
+        }
+        
         let value_wide: Vec<u16> = value.encode_utf16().chain(std::iter::once(0)).collect();
         let value_name_wide: Vec<u16> = value_name
             .encode_utf16()
@@ -119,7 +98,7 @@ impl EmEditorConfigRepositoryImpl {
         let info = emeditor_io_driver::REG_SET_VALUE_INFO {
             cbSize: size_of::<emeditor_io_driver::REG_SET_VALUE_INFO>(),
             dwKey: EEREG_EMEDITORPLUGIN,
-            pszConfig: w!("Terminal"),
+            pszConfig: w!("emeditor_terminal.dll"),
             pszValue: windows::core::PCWSTR(value_name_wide.as_ptr()),
             dwType: emeditor_io_driver::REG_SZ,
             lpData: value_wide.as_ptr() as *const u8,
@@ -127,7 +106,10 @@ impl EmEditorConfigRepositoryImpl {
             dwFlags: 0,
         };
 
-        emeditor_io_driver::reg_set_value(self.hwnd.0, &info);
+        let ret = emeditor_io_driver::reg_set_value(self.hwnd.0, &info);
+        if ret != 0 {
+            log::error!("set_string: failed with ret={}", ret);
+        }
     }
 
     fn set_dword(&self, value_name: &str, value: i32) {
@@ -140,15 +122,18 @@ impl EmEditorConfigRepositoryImpl {
         let info = emeditor_io_driver::REG_SET_VALUE_INFO {
             cbSize: size_of::<emeditor_io_driver::REG_SET_VALUE_INFO>(),
             dwKey: EEREG_EMEDITORPLUGIN,
-            pszConfig: w!("Terminal"),
+            pszConfig: w!("emeditor_terminal.dll"),
             pszValue: windows::core::PCWSTR(value_name_wide.as_ptr()),
             dwType: emeditor_io_driver::REG_DWORD,
-            lpData: std::ptr::addr_of!(data) as *const u8,
+            lpData: &data as *const u32 as *const u8,
             cbData: size_of::<u32>() as u32,
             dwFlags: 0,
         };
 
-        emeditor_io_driver::reg_set_value(self.hwnd.0, &info);
+        let ret = emeditor_io_driver::reg_set_value(self.hwnd.0, &info);
+        if ret != 0 {
+            log::error!("set_dword: failed with ret={}", ret);
+        }
     }
 }
 
@@ -156,7 +141,6 @@ impl ConfigurationRepository for EmEditorConfigRepositoryImpl {
     fn load(&self) -> TerminalConfig {
         let default = TerminalConfig::default();
 
-        // EmEditor本体のウィンドウハンドルが無効な場合はデフォルトを返す
         if self.hwnd.0 .0.is_null() {
             return default;
         }
@@ -165,7 +149,6 @@ impl ConfigurationRepository for EmEditorConfigRepositoryImpl {
         let font_size = self.query_dword("FontSize", default.font_size);
         let shell_path_raw = self.query_string("ShellPath", &default.shell_path);
 
-        // ロードされたパスが絶対パスかつ存在する場合のみ採用、それ以外は再解決を試みる
         let shell_path = {
             let path = std::path::Path::new(&shell_path_raw);
             if path.is_absolute() && path.exists() {
@@ -177,18 +160,23 @@ impl ConfigurationRepository for EmEditorConfigRepositoryImpl {
             }
         };
 
-        TerminalConfig {
+        let config = TerminalConfig {
             theme_type: default.theme_type,
             font_face,
             font_size,
             shell_path,
-        }
+        };
+        log::info!("EmEditorConfigRepositoryImpl::load: final face={}, size={}", config.font_face, config.font_size);
+        config
     }
 
     fn save(&self, config: &TerminalConfig) {
+        log::info!("EmEditorConfigRepositoryImpl::save: face={}, size={}", config.font_face, config.font_size);
         self.set_string("FontFaceName", &config.font_face);
         self.set_dword("FontSize", config.font_size);
-        self.set_string("ShellPath", &config.shell_path);
+        if !config.shell_path.is_empty() {
+            self.set_string("ShellPath", &config.shell_path);
+        }
     }
 
     fn get_terminal_config(&self) -> TerminalConfig {
