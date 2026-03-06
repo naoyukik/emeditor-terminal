@@ -45,7 +45,7 @@ unsafe fn points_to_pixels(hwnd: HWND, points: i32) -> i32 {
     ReleaseDC(hwnd, hdc);
     
     if dpi_y == 0 { return -13; }
-    -(points * dpi_y / 72)
+    -((points * dpi_y + 36) / 72)
 }
 
 /// 設定ダイアログを表示する
@@ -61,13 +61,18 @@ pub(crate) fn show_settings_dialog(view_hwnd: HWND, parent_hwnd: HWND) {
     }
 
     unsafe {
-        let _result = DialogBoxParamW(
+        // モーダルダイアログの表示
+        let result = DialogBoxParamW(
             instance,
             windows::core::PCWSTR(IDD_SET_PROPERTIES as usize as *const u16),
             if parent_hwnd.0.is_null() { view_hwnd } else { parent_hwnd },
             Some(settings_dlg_proc),
             LPARAM(0),
         );
+        
+        if result == -1 {
+            log::error!("DialogBoxParamW failed. Check resource ID and parent HWND.");
+        }
     }
 
     if let Ok(mut lock) = TEMP_CONFIG.lock() { *lock = None; }
@@ -98,7 +103,13 @@ unsafe extern "system" fn settings_dlg_proc(
 ) -> isize {
     match msg {
         windows::Win32::UI::WindowsAndMessaging::WM_INITDIALOG => {
-            let view_hwnd = VIEW_HWND.lock().ok().and_then(|lock| lock.clone());
+            log::info!("WM_INITDIALOG: Initializing settings dialog.");
+
+            let view_hwnd = if let Ok(lock) = VIEW_HWND.lock() {
+                lock.as_ref().cloned()
+            } else {
+                None
+            };
 
             if let Some(h) = view_hwnd {
                 let repo = EmEditorConfigRepositoryImpl::new(h);
@@ -116,26 +127,40 @@ unsafe extern "system" fn settings_dlg_proc(
             let control_id = (w_param.0 & 0xFFFF) as i32;
             match control_id {
                 id if id == IDOK.0 as i32 => {
-                    let config_to_save = TEMP_CONFIG.lock().ok().and_then(|lock| lock.clone());
-                    let view_hwnd = VIEW_HWND.lock().ok().and_then(|lock| lock.clone());
+                    log::info!("Settings dialog: OK clicked.");
+
+                    let config_to_save = if let Ok(lock) = TEMP_CONFIG.lock() {
+                        lock.as_ref().cloned()
+                    } else {
+                        None
+                    };
+                    let view_hwnd = if let Ok(lock) = VIEW_HWND.lock() {
+                        lock.as_ref().cloned()
+                    } else {
+                        None
+                    };
 
                     if let (Some(config), Some(h_view)) = (config_to_save, view_hwnd) {
                         let repo = EmEditorConfigRepositoryImpl::new(h_view);
                         repo.save(&config);
                     }
 
-                    EndDialog(hwnd, IDOK.0 as isize).expect("EndDialog failed");
+                    if let Err(e) = EndDialog(hwnd, IDOK.0 as isize) {
+                        log::error!("EndDialog(IDOK) failed: {:?}", e);
+                    }
                     1
                 }
                 id if id == IDCANCEL.0 as i32 => {
-                    EndDialog(hwnd, IDCANCEL.0 as isize).expect("EndDialog failed");
+                    if let Err(e) = EndDialog(hwnd, IDCANCEL.0 as isize) {
+                        log::error!("EndDialog(IDCANCEL) failed: {:?}", e);
+                    }
                     1
                 }
                 IDC_BTN_CHANGE_FONT => {
                     let mut lf = LOGFONTW::default();
                     
                     if let Ok(lock) = TEMP_CONFIG.lock() {
-                        if let Some(config) = &*lock {
+                        if let Some(config) = lock.as_ref() {
                             let face_name_units: Vec<u16> = config.font_face.encode_utf16().collect();
                             let len = face_name_units.len().min(lf.lfFaceName.len() - 1);
                             lf.lfFaceName[..len].copy_from_slice(&face_name_units[..len]);
@@ -150,8 +175,8 @@ unsafe extern "system" fn settings_dlg_proc(
                     cf.Flags = CF_SCREENFONTS | CF_INITTOLOGFONTSTRUCT;
 
                     if ChooseFontW(&mut cf).as_bool() {
-                        let selected_face = String::from_utf16_lossy(&lf.lfFaceName);
-                        let selected_face = selected_face.trim_matches('\0').to_string();
+                        let len = lf.lfFaceName.iter().position(|&c| c == 0).unwrap_or(lf.lfFaceName.len());
+                        let selected_face = String::from_utf16_lossy(&lf.lfFaceName[..len]);
                         let selected_size = pixels_to_points(hwnd, lf.lfHeight);
                         
                         if let Ok(mut lock) = TEMP_CONFIG.lock() {

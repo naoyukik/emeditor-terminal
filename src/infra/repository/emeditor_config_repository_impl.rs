@@ -23,30 +23,52 @@ impl EmEditorConfigRepositoryImpl {
             .chain(std::iter::once(0))
             .collect();
 
-        let mut cb_data = (buffer.len() * size_of::<u16>()) as u32;
+        let mut attempt = 0;
+        const MAX_ATTEMPTS: usize = 4;
 
-        let mut info = REG_QUERY_VALUE_INFO {
-            cbSize: size_of::<REG_QUERY_VALUE_INFO>(),
-            dwKey: EEREG_EMEDITORPLUGIN,
-            pszConfig: w!("Terminal"), // Changed from emeditor_terminal.dll to Terminal
-            pszValue: windows::core::PCWSTR(value_name_wide.as_ptr()),
-            dwType: REG_SZ,
-            lpData: buffer.as_mut_ptr() as *mut u8,
-            lpcbData: &mut cb_data as *mut u32,
-            dwFlags: 0,
-        };
-
-        if emeditor_io_driver::reg_query_value(self.hwnd.0, &mut info) == 0 {
-            let len = (cb_data as usize / size_of::<u16>()).min(buffer.len());
-            let result = String::from_utf16_lossy(&buffer[..len]);
-            let result = result.trim_matches('\0').to_string();
-            if result.is_empty() {
-                default.to_string()
-            } else {
-                result
+        loop {
+            if attempt >= MAX_ATTEMPTS {
+                return default.to_string();
             }
-        } else {
-            default.to_string()
+            attempt += 1;
+
+            let mut cb_data = (buffer.len() * size_of::<u16>()) as u32;
+
+            let mut info = REG_QUERY_VALUE_INFO {
+                cbSize: size_of::<REG_QUERY_VALUE_INFO>(),
+                dwKey: EEREG_EMEDITORPLUGIN,
+                pszConfig: w!("Terminal"),
+                pszValue: windows::core::PCWSTR(value_name_wide.as_ptr()),
+                dwType: REG_SZ,
+                lpData: buffer.as_mut_ptr() as *mut u8,
+                lpcbData: &mut cb_data as *mut u32,
+                dwFlags: 0,
+            };
+
+            let ret = emeditor_io_driver::reg_query_value(self.hwnd.0, &mut info);
+
+            if ret == 0 {
+                let len = (cb_data as usize / size_of::<u16>()).min(buffer.len());
+                let result = String::from_utf16_lossy(&buffer[..len]);
+                let result = result.trim_matches('\0').to_string();
+                if result.is_empty() {
+                    return default.to_string();
+                } else {
+                    return result;
+                }
+            } else {
+                let required_bytes = cb_data as usize;
+                let current_bytes = buffer.len() * size_of::<u16>();
+
+                if required_bytes > current_bytes && required_bytes > 0 {
+                    let required_u16 = (required_bytes + 1) / size_of::<u16>();
+                    let new_len = required_u16.max(buffer.len().saturating_mul(2));
+                    buffer = vec![0u16; new_len];
+                    continue;
+                } else {
+                    return default.to_string();
+                }
+            }
         }
     }
 
@@ -61,7 +83,7 @@ impl EmEditorConfigRepositoryImpl {
         let mut info = REG_QUERY_VALUE_INFO {
             cbSize: size_of::<REG_QUERY_VALUE_INFO>(),
             dwKey: EEREG_EMEDITORPLUGIN,
-            pszConfig: w!("Terminal"), // Changed to Terminal
+            pszConfig: w!("Terminal"),
             pszValue: windows::core::PCWSTR(value_name_wide.as_ptr()),
             dwType: REG_DWORD,
             lpData: &mut data as *mut u32 as *mut u8,
@@ -90,7 +112,7 @@ impl EmEditorConfigRepositoryImpl {
         let info = emeditor_io_driver::REG_SET_VALUE_INFO {
             cbSize: size_of::<emeditor_io_driver::REG_SET_VALUE_INFO>(),
             dwKey: EEREG_EMEDITORPLUGIN,
-            pszConfig: w!("Terminal"), // Changed to Terminal
+            pszConfig: w!("Terminal"),
             pszValue: windows::core::PCWSTR(value_name_wide.as_ptr()),
             dwType: emeditor_io_driver::REG_SZ,
             lpData: value_wide.as_ptr() as *const u8,
@@ -111,7 +133,7 @@ impl EmEditorConfigRepositoryImpl {
         let info = emeditor_io_driver::REG_SET_VALUE_INFO {
             cbSize: size_of::<emeditor_io_driver::REG_SET_VALUE_INFO>(),
             dwKey: EEREG_EMEDITORPLUGIN,
-            pszConfig: w!("Terminal"), // Changed to Terminal
+            pszConfig: w!("Terminal"),
             pszValue: windows::core::PCWSTR(value_name_wide.as_ptr()),
             dwType: emeditor_io_driver::REG_DWORD,
             lpData: &data as *const u32 as *const u8,
@@ -155,11 +177,11 @@ impl ConfigurationRepository for EmEditorConfigRepositoryImpl {
     }
 
     fn save(&self, config: &TerminalConfig) {
-        self.set_string("FontFaceName", &config.font_face);
-        self.set_dword("FontSize", config.font_size);
-        if !config.shell_path.is_empty() {
-            self.set_string("ShellPath", &config.shell_path);
+        if !config.font_face.is_empty() {
+            self.set_string("FontFaceName", &config.font_face);
         }
+        self.set_dword("FontSize", config.font_size);
+        self.set_string("ShellPath", &config.shell_path);
     }
 
     fn get_terminal_config(&self) -> TerminalConfig {

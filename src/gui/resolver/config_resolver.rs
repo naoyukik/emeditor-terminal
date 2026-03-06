@@ -14,10 +14,18 @@ pub(crate) fn handle_plugin_proc(
             LRESULT(1) // TRUE
         }
         crate::EP_SET_PROPERTIES => {
-            log::info!("EP_SET_PROPERTIES: Request to show settings dialog. hwnd={:?}, wParam={:?}, lParam={:?}", hwnd, w_param.0, l_param.0);
-            
-            // 親ウィンドウを取得 (wParam がダイアログの親 HWND)
-            let parent_hwnd = HWND(w_param.0 as *mut std::ffi::c_void);
+            // 親ウィンドウを取得
+            // 通常は wParam に親 HWND が入るが、環境によっては lParam に入るケースもある。
+            let raw_parent = if w_param.0 != 0 {
+                w_param.0
+            } else if l_param.0 != 0 {
+                l_param.0 as usize
+            } else {
+                hwnd.0 as usize
+            };
+            let parent_hwnd = HWND(raw_parent as *mut std::ffi::c_void);
+
+            log::info!("EP_SET_PROPERTIES: Request to show settings dialog. parent={:?}", parent_hwnd);
             
             // 設定の保存には View HWND (hwnd) が必要
             config_gui_driver::show_settings_dialog(hwnd, parent_hwnd);
