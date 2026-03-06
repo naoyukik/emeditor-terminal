@@ -18,7 +18,7 @@ GitHub MCP Serverの `pull_request_read` ツールを使用し、`method: "get_r
 `run_shell_command` ツールを使用すること。
 
 ```bash
-gh api graphql -f query='mutation($threadId: ID!, $body: String!) { addPullRequestReviewThreadReply(input: {pullRequestReviewThreadId: $threadId, body: $body}) { comment { url } } }' -F threadId="<THREAD_ID>" -F body="<BODY>\n\nCommented by Gemini CLI"
+gh api graphql -f query='mutation($threadId: ID!, $body: String!) { addPullRequestReviewThreadReply(input: {pullRequestReviewThreadId: $threadId, body: $body}) { comment { url } } }' -F threadId="<THREAD_ID>" -F body="<BODY> Commented by Gemini CLI"
 ```
 
 このコマンドは GraphQL API を使用してスレッドに返信を追加する。
