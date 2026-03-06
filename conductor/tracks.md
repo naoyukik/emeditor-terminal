@@ -11,3 +11,9 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 - [x] **Track: GitHub Issue #110: プラグイン設定ダイアログの実装**
 *Link: [./tracks/110_config_dialog_20260304/](./tracks/110_config_dialog_20260304/)*
+
+---
+
+- [ ] **Track: GitHub Issue #117: 設定ダイアログにおけるアーキテクチャ違反（レイヤー間直接依存）の修正**
+*Link: [./tracks/117_refactor_config_architecture_20260306/](./tracks/117_refactor_config_architecture_20260306/)*
+
