@@ -167,8 +167,10 @@ impl ConptyIoDriver {
             };
 
             // Convert cmd_line to wide string (null terminated)
-            let mut cmd_line_w: Vec<u16> =
-                cmd_line_final.encode_utf16().chain(std::iter::once(0)).collect();
+            let mut cmd_line_w: Vec<u16> = cmd_line_final
+                .encode_utf16()
+                .chain(std::iter::once(0))
+                .collect();
 
             log::debug!("Starting process with command line: {}", cmd_line_final);
 
@@ -224,7 +226,7 @@ impl ConptyIoDriver {
         self.input_write_pipe_handle
     }
 
-    pub fn resize(&self, width: i16, height: i16) -> Result<() , String> {
+    pub fn resize(&self, width: i16, height: i16) -> Result<(), String> {
         let size = COORD {
             X: width,
             Y: height,

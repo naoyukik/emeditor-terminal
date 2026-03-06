@@ -1,5 +1,5 @@
-use windows::Win32::Foundation::{HWND, LPARAM, LRESULT, WPARAM};
 use crate::gui::driver::config_gui_driver;
+use windows::Win32::Foundation::{HWND, LPARAM, LRESULT, WPARAM};
 
 /// EmEditor SDK からの PlugInProc メッセージを解釈し、適切な処理に振り分ける
 pub(crate) fn handle_plugin_proc(
@@ -10,7 +10,10 @@ pub(crate) fn handle_plugin_proc(
 ) -> LRESULT {
     match n_msg {
         crate::EP_QUERY_PROPERTIES => {
-            log::info!("EP_QUERY_PROPERTIES: Plugin has properties. hwnd={:?}", hwnd);
+            log::info!(
+                "EP_QUERY_PROPERTIES: Plugin has properties. hwnd={:?}",
+                hwnd
+            );
             LRESULT(1) // TRUE
         }
         crate::EP_SET_PROPERTIES => {
@@ -25,20 +28,17 @@ pub(crate) fn handle_plugin_proc(
             };
             let parent_hwnd = HWND(raw_parent as *mut std::ffi::c_void);
 
-            log::info!("EP_SET_PROPERTIES: Request to show settings dialog. parent={:?}", parent_hwnd);
-            
+            log::info!(
+                "EP_SET_PROPERTIES: Request to show settings dialog. parent={:?}",
+                parent_hwnd
+            );
+
             // 設定の保存には View HWND (hwnd) が必要
             config_gui_driver::show_settings_dialog(hwnd, parent_hwnd);
             LRESULT(1) // TRUE
         }
-        crate::EP_PRE_TRANSLATE_MSG => {
-            LRESULT(0)
-        }
-        crate::EP_GET_INFO => {
-            LRESULT(0)
-        }
-        _ => {
-            LRESULT(0)
-        }
+        crate::EP_PRE_TRANSLATE_MSG => LRESULT(0),
+        crate::EP_GET_INFO => LRESULT(0),
+        _ => LRESULT(0),
     }
 }

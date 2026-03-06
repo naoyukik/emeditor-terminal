@@ -14,7 +14,7 @@ pub const EE_EXEC_COMMAND: u32 = EE_FIRST + 22;
 pub const EE_CUSTOM_BAR_OPEN: u32 = EE_FIRST + 73;
 
 pub const EE_REG_QUERY_VALUE: u32 = EE_FIRST + 86; // 2134
-pub const EE_REG_SET_VALUE: u32 = EE_FIRST + 85;   // 2133
+pub const EE_REG_SET_VALUE: u32 = EE_FIRST + 85; // 2133
 
 pub const EEREG_EMEDITORPLUGIN: u32 = 0x7fffff30;
 
@@ -81,7 +81,11 @@ pub fn reg_query_value(hwnd: HWND, info: &mut REG_QUERY_VALUE_INFO) -> i32 {
             LPARAM(info as *mut _ as isize),
         );
         let ret = result.0 as i32;
-        log::debug!("reg_query_value: ret={}, value_name={}", ret, info.pszValue.display());
+        log::debug!(
+            "reg_query_value: ret={}, value_name={}",
+            ret,
+            info.pszValue.display()
+        );
         ret
     }
 }
@@ -95,7 +99,11 @@ pub fn reg_set_value(hwnd: HWND, info: &REG_SET_VALUE_INFO) -> i32 {
             LPARAM(info as *const _ as isize),
         );
         let ret = result.0 as i32;
-        log::debug!("reg_set_value: ret={}, value_name={}", ret, info.pszValue.display());
+        log::debug!(
+            "reg_set_value: ret={}, value_name={}",
+            ret,
+            info.pszValue.display()
+        );
         ret
     }
 }
