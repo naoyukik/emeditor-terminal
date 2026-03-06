@@ -1,7 +1,7 @@
 use std::collections::VecDeque;
-use vte::{Params, Perform};
-use unicode_width::UnicodeWidthStr;
 use unicode_segmentation::UnicodeSegmentation;
+use unicode_width::UnicodeWidthStr;
+use vte::{Params, Perform};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum TerminalColor {
@@ -274,7 +274,7 @@ impl TerminalBufferEntity {
         let empty_cell = self.get_empty_cell();
         if let Some(line) = self.lines.get_mut(y) {
             line.drain(x..(x + n));
-            line.extend(std::iter::repeat(empty_cell).take(n));
+            line.extend(std::iter::repeat_n(empty_cell, n));
         }
     }
 
@@ -351,7 +351,7 @@ impl TerminalBufferEntity {
     fn write_cluster_to_grid(&mut self, cluster: &str) {
         // unicode-width による過大な幅（Emoji ZWJ 等）を 1〜2 カラムに制限する
         let char_width = cluster.width();
-        let display_width = std::cmp::min(std::cmp::max(char_width, 1), 2);
+        let display_width = char_width.clamp(1, 2);
 
         if self.cursor.x + display_width > self.width {
             self.cursor.x = 0;
@@ -462,10 +462,6 @@ impl TerminalBufferEntity {
         }
     }
 
-    pub fn get_lines(&self) -> &VecDeque<Vec<Cell>> {
-        &self.lines
-    }
-
     pub fn get_width(&self) -> usize {
         self.width
     }
@@ -564,13 +560,7 @@ impl Perform for TerminalBufferEntity {
         self.flush_pending_cluster();
     }
 
-    fn csi_dispatch(
-        &mut self,
-        params: &Params,
-        intermediates: &[u8],
-        _ignore: bool,
-        action: char,
-    ) {
+    fn csi_dispatch(&mut self, params: &Params, intermediates: &[u8], _ignore: bool, action: char) {
         self.flush_pending_cluster();
         match action {
             'm' => self.handle_sgr(params),
@@ -580,7 +570,8 @@ impl Perform for TerminalBufferEntity {
             }
             'B' => {
                 let n = self.get_param(params, 0, 1);
-                self.cursor.y = std::cmp::min(self.height.saturating_sub(1), self.cursor.y + n as usize);
+                self.cursor.y =
+                    std::cmp::min(self.height.saturating_sub(1), self.cursor.y + n as usize);
             }
             '@' => {
                 let n = self.get_param(params, 0, 1);
@@ -741,16 +732,24 @@ impl Perform for TerminalBufferEntity {
                     self.scroll_top = 0;
                     self.scroll_bottom = self.height.saturating_sub(1);
                 }
-                self.cursor.y = if self.is_origin_mode { self.scroll_top } else { 0 };
+                self.cursor.y = if self.is_origin_mode {
+                    self.scroll_top
+                } else {
+                    0
+                };
                 self.cursor.x = 0;
             }
             'S' => {
                 let n = self.get_param(params, 0, 1) as usize;
-                for _ in 0..n { self.scroll_up(); }
+                for _ in 0..n {
+                    self.scroll_up();
+                }
             }
             'T' => {
                 let n = self.get_param(params, 0, 1) as usize;
-                for _ in 0..n { self.scroll_down(); }
+                for _ in 0..n {
+                    self.scroll_down();
+                }
             }
             'L' => {
                 let n = self.get_param(params, 0, 1) as usize;
@@ -783,11 +782,21 @@ impl Perform for TerminalBufferEntity {
 
 impl TerminalBufferEntity {
     fn get_param(&self, params: &Params, index: usize, default: u16) -> u16 {
-        params.iter().nth(index).and_then(|p| p.first()).copied().unwrap_or(default)
+        params
+            .iter()
+            .nth(index)
+            .and_then(|p| p.first())
+            .copied()
+            .unwrap_or(default)
     }
 
     fn handle_decscusr(&mut self, params: &Params) {
-        let n = params.iter().last().and_then(|subparams| subparams.first()).copied().unwrap_or(1);
+        let n = params
+            .iter()
+            .last()
+            .and_then(|subparams| subparams.first())
+            .copied()
+            .unwrap_or(1);
         self.cursor.style = match n {
             0 | 1 => CursorStyle::BlinkingBlock,
             2 => CursorStyle::SteadyBlock,
@@ -827,28 +836,41 @@ impl TerminalBufferEntity {
                 38 => {
                     if let Some(type_p) = subparams.get(1).copied() {
                         match type_p {
-                            5 => if let Some(color_idx) = subparams.get(2).copied() {
-                                self.current_attribute.fg = TerminalColor::Xterm(color_idx as u8);
-                            },
-                            2 => if subparams.len() >= 5 {
-                                self.current_attribute.fg = TerminalColor::Rgb(subparams[2] as u8, subparams[3] as u8, subparams[4] as u8);
-                            },
+                            5 => {
+                                if let Some(color_idx) = subparams.get(2).copied() {
+                                    self.current_attribute.fg =
+                                        TerminalColor::Xterm(color_idx as u8);
+                                }
+                            }
+                            2 => {
+                                if subparams.len() >= 5 {
+                                    self.current_attribute.fg = TerminalColor::Rgb(
+                                        subparams[2] as u8,
+                                        subparams[3] as u8,
+                                        subparams[4] as u8,
+                                    );
+                                }
+                            }
                             _ => {}
                         }
                     } else if let Some(next_subparams) = iter.next() {
                         let type_p = next_subparams.first().copied().unwrap_or(0);
                         match type_p {
-                            5 => if let Some(color_sub) = iter.next() {
-                                if let Some(color_idx) = color_sub.first().copied() {
-                                    self.current_attribute.fg = TerminalColor::Xterm(color_idx as u8);
+                            5 => {
+                                if let Some(color_sub) = iter.next() {
+                                    if let Some(color_idx) = color_sub.first().copied() {
+                                        self.current_attribute.fg =
+                                            TerminalColor::Xterm(color_idx as u8);
+                                    }
                                 }
-                            },
+                            }
                             2 => {
                                 let r = iter.next().and_then(|s| s.first()).copied();
                                 let g = iter.next().and_then(|s| s.first()).copied();
                                 let b = iter.next().and_then(|s| s.first()).copied();
                                 if let (Some(r), Some(g), Some(b)) = (r, g, b) {
-                                    self.current_attribute.fg = TerminalColor::Rgb(r as u8, g as u8, b as u8);
+                                    self.current_attribute.fg =
+                                        TerminalColor::Rgb(r as u8, g as u8, b as u8);
                                 }
                             }
                             _ => {}
@@ -860,28 +882,41 @@ impl TerminalBufferEntity {
                 48 => {
                     if let Some(type_p) = subparams.get(1).copied() {
                         match type_p {
-                            5 => if let Some(color_idx) = subparams.get(2).copied() {
-                                self.current_attribute.bg = TerminalColor::Xterm(color_idx as u8);
-                            },
-                            2 => if subparams.len() >= 5 {
-                                self.current_attribute.bg = TerminalColor::Rgb(subparams[2] as u8, subparams[3] as u8, subparams[4] as u8);
-                            },
+                            5 => {
+                                if let Some(color_idx) = subparams.get(2).copied() {
+                                    self.current_attribute.bg =
+                                        TerminalColor::Xterm(color_idx as u8);
+                                }
+                            }
+                            2 => {
+                                if subparams.len() >= 5 {
+                                    self.current_attribute.bg = TerminalColor::Rgb(
+                                        subparams[2] as u8,
+                                        subparams[3] as u8,
+                                        subparams[4] as u8,
+                                    );
+                                }
+                            }
                             _ => {}
                         }
                     } else if let Some(next_subparams) = iter.next() {
                         let type_p = next_subparams.first().copied().unwrap_or(0);
                         match type_p {
-                            5 => if let Some(color_sub) = iter.next() {
-                                if let Some(color_idx) = color_sub.first().copied() {
-                                    self.current_attribute.bg = TerminalColor::Xterm(color_idx as u8);
+                            5 => {
+                                if let Some(color_sub) = iter.next() {
+                                    if let Some(color_idx) = color_sub.first().copied() {
+                                        self.current_attribute.bg =
+                                            TerminalColor::Xterm(color_idx as u8);
+                                    }
                                 }
-                            },
+                            }
                             2 => {
                                 let r = iter.next().and_then(|s| s.first()).copied();
                                 let g = iter.next().and_then(|s| s.first()).copied();
                                 let b = iter.next().and_then(|s| s.first()).copied();
                                 if let (Some(r), Some(g), Some(b)) = (r, g, b) {
-                                    self.current_attribute.bg = TerminalColor::Rgb(r as u8, g as u8, b as u8);
+                                    self.current_attribute.bg =
+                                        TerminalColor::Rgb(r as u8, g as u8, b as u8);
                                 }
                             }
                             _ => {}
@@ -993,13 +1028,13 @@ mod tests {
         let mut parser = Parser::new();
         parser.advance(&mut buffer, "日本語".as_bytes());
         buffer.flush_pending_cluster();
-        
+
         buffer.cursor.x = 1;
         parser.advance(&mut buffer, b"A");
         buffer.flush_pending_cluster();
         assert_eq!(buffer.lines[0][0].text, " ");
         assert_eq!(buffer.lines[0][1].text, "A");
-        
+
         buffer.cursor.x = 2;
         parser.advance(&mut buffer, b"B");
         buffer.flush_pending_cluster();
@@ -1013,9 +1048,9 @@ mod tests {
         let mut parser = Parser::new();
         parser.advance(&mut buffer, "日本".as_bytes());
         buffer.flush_pending_cluster();
-        
-        buffer.cursor.x = 1; 
+
+        buffer.cursor.x = 1;
         parser.advance(&mut buffer, b"\x1b[1P");
-        assert_eq!(buffer.lines[0][0].text, " "); 
+        assert_eq!(buffer.lines[0][0].text, " ");
     }
 }

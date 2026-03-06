@@ -6,7 +6,7 @@ use crate::infra::repository::emeditor_config_repository_impl::EmEditorConfigRep
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
 use windows::Win32::Foundation::{HWND, LPARAM, WPARAM};
-use windows::Win32::Graphics::Gdi::{LOGFONTW, GetDC, ReleaseDC, GetDeviceCaps, LOGPIXELSY};
+use windows::Win32::Graphics::Gdi::{GetDC, GetDeviceCaps, ReleaseDC, LOGFONTW, LOGPIXELSY};
 use windows::Win32::UI::Controls::Dialogs::{
     ChooseFontW, CF_INITTOLOGFONTSTRUCT, CF_SCREENFONTS, CHOOSEFONTW,
 };
@@ -29,22 +29,30 @@ static VIEW_HWND: Mutex<Option<SendHWND>> = Mutex::new(None);
 /// ピクセル単位の高さからポイントサイズへ変換する
 unsafe fn pixels_to_points(hwnd: HWND, lf_height: i32) -> i32 {
     let hdc = GetDC(hwnd);
-    if hdc.is_invalid() { return 10; }
+    if hdc.is_invalid() {
+        return 10;
+    }
     let dpi_y = GetDeviceCaps(hdc, LOGPIXELSY);
     ReleaseDC(hwnd, hdc);
-    
-    if dpi_y == 0 { return 10; }
+
+    if dpi_y == 0 {
+        return 10;
+    }
     (lf_height.abs() * 72 + dpi_y / 2) / dpi_y
 }
 
 /// ポイントサイズからピクセル単位の高さへ変換する (LOGFONT用)
 unsafe fn points_to_pixels(hwnd: HWND, points: i32) -> i32 {
     let hdc = GetDC(hwnd);
-    if hdc.is_invalid() { return -13; }
+    if hdc.is_invalid() {
+        return -13;
+    }
     let dpi_y = GetDeviceCaps(hdc, LOGPIXELSY);
     ReleaseDC(hwnd, hdc);
-    
-    if dpi_y == 0 { return -13; }
+
+    if dpi_y == 0 {
+        return -13;
+    }
     -((points * dpi_y + 36) / 72)
 }
 
@@ -55,7 +63,7 @@ pub(crate) fn show_settings_dialog(view_hwnd: HWND, parent_hwnd: HWND) {
     }
 
     let instance = get_instance_handle();
-    
+
     if let Ok(mut lock) = VIEW_HWND.lock() {
         *lock = Some(SendHWND(view_hwnd));
     }
@@ -65,18 +73,26 @@ pub(crate) fn show_settings_dialog(view_hwnd: HWND, parent_hwnd: HWND) {
         let result = DialogBoxParamW(
             instance,
             windows::core::PCWSTR(IDD_SET_PROPERTIES as usize as *const u16),
-            if parent_hwnd.0.is_null() { view_hwnd } else { parent_hwnd },
+            if parent_hwnd.0.is_null() {
+                view_hwnd
+            } else {
+                parent_hwnd
+            },
             Some(settings_dlg_proc),
             LPARAM(0),
         );
-        
+
         if result == -1 {
             log::error!("DialogBoxParamW failed. Check resource ID and parent HWND.");
         }
     }
 
-    if let Ok(mut lock) = TEMP_CONFIG.lock() { *lock = None; }
-    if let Ok(mut lock) = VIEW_HWND.lock() { *lock = None; }
+    if let Ok(mut lock) = TEMP_CONFIG.lock() {
+        *lock = None;
+    }
+    if let Ok(mut lock) = VIEW_HWND.lock() {
+        *lock = None;
+    }
     IS_DIALOG_ACTIVE.store(false, Ordering::SeqCst);
 }
 
@@ -126,7 +142,7 @@ unsafe extern "system" fn settings_dlg_proc(
         windows::Win32::UI::WindowsAndMessaging::WM_COMMAND => {
             let control_id = (w_param.0 & 0xFFFF) as i32;
             match control_id {
-                id if id == IDOK.0 as i32 => {
+                id if id == IDOK.0 => {
                     log::info!("Settings dialog: OK clicked.");
 
                     let config_to_save = if let Ok(lock) = TEMP_CONFIG.lock() {
@@ -150,7 +166,7 @@ unsafe extern "system" fn settings_dlg_proc(
                     }
                     1
                 }
-                id if id == IDCANCEL.0 as i32 => {
+                id if id == IDCANCEL.0 => {
                     if let Err(e) = EndDialog(hwnd, IDCANCEL.0 as isize) {
                         log::error!("EndDialog(IDCANCEL) failed: {:?}", e);
                     }
@@ -158,27 +174,34 @@ unsafe extern "system" fn settings_dlg_proc(
                 }
                 IDC_BTN_CHANGE_FONT => {
                     let mut lf = LOGFONTW::default();
-                    
+
                     if let Ok(lock) = TEMP_CONFIG.lock() {
                         if let Some(config) = lock.as_ref() {
-                            let face_name_units: Vec<u16> = config.font_face.encode_utf16().collect();
+                            let face_name_units: Vec<u16> =
+                                config.font_face.encode_utf16().collect();
                             let len = face_name_units.len().min(lf.lfFaceName.len() - 1);
                             lf.lfFaceName[..len].copy_from_slice(&face_name_units[..len]);
                             lf.lfHeight = points_to_pixels(hwnd, config.font_size);
                         }
                     }
 
-                    let mut cf = CHOOSEFONTW::default();
-                    cf.lStructSize = std::mem::size_of::<CHOOSEFONTW>() as u32;
-                    cf.hwndOwner = hwnd;
-                    cf.lpLogFont = &mut lf;
-                    cf.Flags = CF_SCREENFONTS | CF_INITTOLOGFONTSTRUCT;
+                    let mut cf = CHOOSEFONTW {
+                        lStructSize: std::mem::size_of::<CHOOSEFONTW>() as u32,
+                        hwndOwner: hwnd,
+                        lpLogFont: &mut lf,
+                        Flags: CF_SCREENFONTS | CF_INITTOLOGFONTSTRUCT,
+                        ..Default::default()
+                    };
 
                     if ChooseFontW(&mut cf).as_bool() {
-                        let len = lf.lfFaceName.iter().position(|&c| c == 0).unwrap_or(lf.lfFaceName.len());
+                        let len = lf
+                            .lfFaceName
+                            .iter()
+                            .position(|&c| c == 0)
+                            .unwrap_or(lf.lfFaceName.len());
                         let selected_face = String::from_utf16_lossy(&lf.lfFaceName[..len]);
                         let selected_size = pixels_to_points(hwnd, lf.lfHeight);
-                        
+
                         if let Ok(mut lock) = TEMP_CONFIG.lock() {
                             if let Some(config) = lock.as_mut() {
                                 config.font_face = selected_face.clone();
