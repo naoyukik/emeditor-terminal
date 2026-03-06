@@ -99,10 +99,7 @@ impl EmEditorConfigRepositoryImpl {
     }
 
     fn set_string(&self, value_name: &str, value: &str) {
-        if value.is_empty() && value_name == "ShellPath" {
-            return;
-        }
-        
+        // Allowing empty string to enable "reset to default" behavior
         let value_wide: Vec<u16> = value.encode_utf16().chain(std::iter::once(0)).collect();
         let value_name_wide: Vec<u16> = value_name
             .encode_utf16()
@@ -177,9 +174,8 @@ impl ConfigurationRepository for EmEditorConfigRepositoryImpl {
     }
 
     fn save(&self, config: &TerminalConfig) {
-        if !config.font_face.is_empty() {
-            self.set_string("FontFaceName", &config.font_face);
-        }
+        // Always save to allow explicit clearing of settings
+        self.set_string("FontFaceName", &config.font_face);
         self.set_dword("FontSize", config.font_size);
         self.set_string("ShellPath", &config.shell_path);
     }

@@ -7,10 +7,10 @@ Issue #74 で実装された設定管理基盤 (`ConfigRepository`) を利用し
 - **EmEditor 連携**:
     - `EP_QUERY_PROPERTIES` メッセージに対して `TRUE` を返し、設定ボタンを有効化する。
     - `EP_SET_PROPERTIES` メッセージ受信時に、モーダルな設定ダイアログを表示する。
-- **設定項目 (Scope: Font Only)**:
+- **設定項目 (Scope: Font Name/Size)**:
     - **Font Name**: 現在使用中のフォント名を表示し、変更可能とする。
     - **Font Size**: フォントサイズを表示・変更可能とする。
-    - **Font Style**: 太字、斜体等のスタイル情報を保持・変更可能とする。
+    - *Note: Font Style (太字/斜体) は本トラックの対象外とし、Issue #77 にて対応する。*
 - **フォント選択 UI**:
     - Windows 標準の `ChooseFontW` ダイアログを呼び出し、ユーザーが視覚的にフォントを選択できるようにする。
 - **永続化**:
