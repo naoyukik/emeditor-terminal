@@ -15,8 +15,13 @@ use gui::window;
 
 // EmEditor SDK Constants
 pub const EVENT_CREATE: u32 = 0x00000400;
-#[allow(dead_code)]
 pub const EVENT_CLOSE: u32 = 0x00000800;
+
+pub const EP_FIRST: u32 = 2304; // WM_USER(1024) + 0x500(1280)
+pub const EP_QUERY_PROPERTIES: u32 = EP_FIRST;
+pub const EP_SET_PROPERTIES: u32 = EP_FIRST + 1;
+pub const EP_GET_INFO: u32 = EP_FIRST + 10;
+pub const EP_PRE_TRANSLATE_MSG: u32 = EP_FIRST + 11;
 
 static INSTANCE_HANDLE: OnceLock<usize> = OnceLock::new();
 
@@ -127,7 +132,7 @@ pub extern "system" fn PlugInProc(
     wParam: WPARAM,
     lParam: LPARAM,
 ) -> LRESULT {
-    LRESULT(0)
+    gui::resolver::config_resolver::handle_plugin_proc(hwnd, nMsg, wParam, lParam)
 }
 
 #[cfg(test)]

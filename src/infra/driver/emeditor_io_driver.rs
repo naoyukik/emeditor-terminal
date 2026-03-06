@@ -5,17 +5,18 @@ use windows::Win32::UI::WindowsAndMessaging::SendMessageW;
 #[allow(dead_code)]
 const WM_USER: u32 = 0x0400;
 #[allow(dead_code)]
-pub const EE_FIRST: u32 = WM_USER + 0x400;
+pub const EE_FIRST: u32 = WM_USER + 0x400; // 2048
 #[allow(dead_code)]
 pub const EE_OUTPUT_STRING: u32 = EE_FIRST + 90;
 #[allow(dead_code)]
 pub const EE_EXEC_COMMAND: u32 = EE_FIRST + 22;
 #[allow(dead_code)]
 pub const EE_CUSTOM_BAR_OPEN: u32 = EE_FIRST + 73;
-pub const EE_REG_QUERY_VALUE: u32 = EE_FIRST + 107;
-pub const EE_REG_SET_VALUE: u32 = EE_FIRST + 108;
 
-pub const EEREG_EMEDITORPLUGIN: u32 = 12;
+pub const EE_REG_QUERY_VALUE: u32 = EE_FIRST + 86; // 2134
+pub const EE_REG_SET_VALUE: u32 = EE_FIRST + 85; // 2133
+
+pub const EEREG_EMEDITORPLUGIN: u32 = 0x7fffff30;
 
 pub const REG_SZ: u32 = 1;
 pub const REG_DWORD: u32 = 4;
@@ -46,9 +47,6 @@ pub struct REG_SET_VALUE_INFO {
     pub dwFlags: u32,
 }
 
-#[allow(dead_code)]
-const EEID_VIEW_OUTPUT: u32 = 4420;
-
 pub const CUSTOM_BAR_BOTTOM: i32 = 3;
 
 #[repr(C)]
@@ -63,7 +61,6 @@ pub struct CUSTOM_BAR_INFO {
 
 #[allow(dead_code)]
 pub fn output_string(hwnd: HWND, text: &str) {
-    // Convert Rust String (UTF-8) to Windows Wide String (UTF-16)
     let wide_text: Vec<u16> = text.encode_utf16().chain(std::iter::once(0)).collect();
     unsafe {
         let _ = SendMessageW(
@@ -75,38 +72,38 @@ pub fn output_string(hwnd: HWND, text: &str) {
     }
 }
 
-#[allow(dead_code)]
-pub fn show_output_bar(hwnd: HWND) {
-    unsafe {
-        let _ = SendMessageW(
-            hwnd,
-            EE_EXEC_COMMAND,
-            WPARAM(EEID_VIEW_OUTPUT as usize),
-            LPARAM(0),
-        );
-    }
-}
-
 pub fn reg_query_value(hwnd: HWND, info: &mut REG_QUERY_VALUE_INFO) -> i32 {
     unsafe {
-        SendMessageW(
+        let result = SendMessageW(
             hwnd,
             EE_REG_QUERY_VALUE,
             WPARAM(0),
             LPARAM(info as *mut _ as isize),
-        )
-        .0 as i32
+        );
+        let ret = result.0 as i32;
+        log::debug!(
+            "reg_query_value: ret={}, value_name={}",
+            ret,
+            info.pszValue.display()
+        );
+        ret
     }
 }
 
 pub fn reg_set_value(hwnd: HWND, info: &REG_SET_VALUE_INFO) -> i32 {
     unsafe {
-        SendMessageW(
+        let result = SendMessageW(
             hwnd,
             EE_REG_SET_VALUE,
             WPARAM(0),
             LPARAM(info as *const _ as isize),
-        )
-        .0 as i32
+        );
+        let ret = result.0 as i32;
+        log::debug!(
+            "reg_set_value: ret={}, value_name={}",
+            ret,
+            info.pszValue.display()
+        );
+        ret
     }
 }

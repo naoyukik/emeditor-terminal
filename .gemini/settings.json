@@ -116,5 +116,8 @@
     "disabled": [
       "sequential-thinking"
     ]
+  },
+  "experimental": {
+    "enableAgents": true
   }
 }

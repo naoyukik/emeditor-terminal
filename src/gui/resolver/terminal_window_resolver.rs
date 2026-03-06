@@ -44,7 +44,8 @@ pub fn get_terminal_data() -> Arc<Mutex<TerminalWindowResolver>> {
     TERMINAL_DATA
         .get_or_init(|| {
             let output_repo = Box::new(DummyOutputRepository);
-            let config_repo = Box::new(EmEditorConfigRepositoryImpl::new(SendHWND(HWND::default())));
+            let config_repo =
+                Box::new(EmEditorConfigRepositoryImpl::new(SendHWND(HWND::default())));
 
             Arc::new(Mutex::new(TerminalWindowResolver {
                 service: TerminalWorkflow::new(80, 25, output_repo, config_repo),

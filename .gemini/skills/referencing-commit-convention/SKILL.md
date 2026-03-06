@@ -1,36 +1,40 @@
 ---
 name: referencing-commit-convention
-description: Standardizing project history through strict commit message conventions. This skill MANDATES the use of Japanese for the description part (e.g., 'type: 日本語での説明') and 'ref: IssueNumber'. It ensures every commit is atomic and follows the Conventional Commits specification, facilitating a transparent and navigable audit trail. NEVER use English for the description part.
+description: コミットメッセージの型 (type) 定義と具体例。基本フォーマットは AGENTS.md を参照せよ。
 ---
-このスキルはコミットメッセージの作成を支援する。
 
-## コミットメッセージ規約
+# Commit Convention - Type Definitions
 
-[Conventional Commits](https://www.conventionalcommits.org/en/) に基づき、以下の形式で記述する。
+本スキルは、コミットメッセージにおける `type` の適切な選択を支援する。
 
-### 形式
+## 1. Type の定義 (Taxonomy)
+
+| Type | 適用場面 |
+| :--- | :--- |
+| `feat` | 新機能の追加、または仕様変更を伴う機能拡張。 |
+| `fix` | バグ修正、または予期せぬ動作の修正。 |
+| `refactor` | 機能を変えずにコードの内部構造を改善する変更。 |
+| `style` | 動作に影響しない、フォーマットやタイポの修正（Clippy 指摘等）。 |
+| `docs` | ドキュメント（.md, .txt 等）のみの変更。 |
+| `test` | テストコードの追加、または既存テストの修正。 |
+| `chore` | ビルド設定、依存関係の更新、またはツールの設定変更。 |
+
+## 2. 具体例 (Examples)
+
+### 機能追加とIssue連携
+```text
+feat: 設定ダイアログにフォントスタイル選択を追加
+
+ref: 110
+
+Co-Authored-By: gemini-cli <218195315+gemini-cli@users.noreply.github.com>
 ```
-type: 日本語での説明（50文字以内）
 
-ref: チケット番号
-```
+### アーキテクチャ改善
+```text
+refactor: GUI Driver から Infrastructure への直接依存を排除
 
-- **1行目 (Header)**: 型 (type) と **日本語の説明** を記述する。
-- **2行目**: 空行。
-- **3行目 (Footer)**: `ref: ` に続けて Issue 番号（ブランチ名の先頭数値）を記述する。存在しない場合は省略すること。
+ref: 117
 
-### Type の種類
-- `feat`: 新機能
-- `fix`: バグ修正
-- `refactor`: リファクタリング
-- `docs`: ドキュメントのみの変更
-- `style`: コードの意味に影響しない変更（空白、フォーマットなど）
-- `test`: テストの追加・修正
-- `chore`: ビルドプロセスやツールの変更、依存関係の更新
-
-### サンプル
-```
-feat: スクロールバックバッファのinterfaceを追加
-
-ref: 23
+Co-Authored-By: gemini-cli <218195315+gemini-cli@users.noreply.github.com>
 ```

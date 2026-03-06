@@ -1,53 +1,43 @@
 ---
 name: operating-git
-description: Managing Git workflows with zero tolerance for 'git add .' or 'git add -A'. This skill enforces individual file staging and mandatory folder-level staging for the conductor/ directory. It MANDATES that commit messages MUST have a Japanese description part following the type (e.g., 'type: 日本語での説明'). Verify diffs before every commit to ensure atomicity and prevent accidental inclusion of untracked artifacts or secrets.
+description: Gitワークフローの詳細なコマンド実行とトラブルシューティング。ステージングの原則は AGENTS.md を参照せよ。
 ---
 
-# Git操作ガイドライン
+# Operating Git - Procedure & Examples
 
-## ステージング規則
+本スキルは、Git 操作の具体的な手順と、ミスを防ぐための確認フローを提供する。基本的な行動原則（git add . の禁止等）については `AGENTS.md` を最優先で遵守せよ。
 
-**重要**: `git add .` および `git add -A` の使用は厳禁。
+## 1. 推奨されるステージング手順
 
-- 原則として、ファイルは必ず個別に指定する。
-- **例外**: `conductor/` 配下のドキュメント類は、管理の整合性を保つため必ずフォルダごと追加すること。
-  - **Good**: `git add conductor/`
-- `git add` の前後に `git diff` または `git diff --staged` で差分を確認すること。
+意図しないファイルの混入を防ぐため、以下の手順を習慣化すること。
 
 ```bash
-# Good
-git add src/domain/terminal.rs src/application/service.rs
-git add conductor/
+# 1. 変更内容の確認
+git status
+git diff
 
-# Bad
-git add .
-git add -A
+# 2. ファイルを個別にステージング (AGENTS.md 遵守)
+git add path/to/file1 path/to/file2
+
+# 3. ステージングされた内容の最終監査
+git diff --staged
 ```
 
-## コミットの粒度
+## 2. コミットの作成
 
-- **原子的なコミット**: 1コミット = 1つの論理的な単位（機能追加、バグ修正、リファクタリング等）
-- **混合禁止**: リファクタリングと機能追加を同じコミットに含めない
+コミットメッセージの作成については `referencing-commit-convention` スキル、および `AGENTS.md` の規約に従うこと。
 
-## コミットメッセージの作成
+## 3. トラブルシューティング
 
-コミットメッセージの内容および形式については、**必ず `referencing-commit-convention` スキルを参照し、日本語での記述を徹底すること**。
-本スキルは Git 操作の手順とステージングの制約（git add . 禁止等）を司る。
-
-### co-authored-byトレーラー設定
-コミットするときは、コミットメッセージの末尾に次の`Co-authored-byトレーラー`を加えてあなたが作業したことを分かるようにしてください。
-
-- Gemini CLI: `Co-Authored-By: gemini-cli <218195315+gemini-cli@users.noreply.github.com>`
-
-### 例
-
-ブランチ名: `23-add-scrollback-buffer`
-
-```
-feat: スクロールバックバッファのinterfaceを追加
-
-ref: 23
-
-Co-Authored-By: gemini-cli <218195315+gemini-cli@users.noreply.github.com>
+### 誤って `git add .` してしまった場合
+直ちに以下のコマンドでステージングを解除せよ。
+```bash
+git reset
 ```
 
+### コミット後にミスに気づいた場合
+プッシュ前であれば、修正後に `amend` を検討せよ。
+```bash
+git add <forgotten_file>
+git commit --amend --no-edit
+```

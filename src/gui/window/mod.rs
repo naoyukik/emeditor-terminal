@@ -48,7 +48,9 @@ fn start_conpty_and_reader_thread(
     let config_repo = crate::infra::repository::emeditor_config_repository_impl::EmEditorConfigRepositoryImpl::new(
         SendHWND(hwnd_editor),
     );
-    let config = crate::domain::repository::configuration_repository::ConfigurationRepository::load(&config_repo);
+    let config = crate::domain::repository::configuration_repository::ConfigurationRepository::load(
+        &config_repo,
+    );
 
     let shell_path = if config.shell_path.trim().is_empty() {
         "pwsh.exe".to_string()

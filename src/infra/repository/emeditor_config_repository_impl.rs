@@ -48,26 +48,15 @@ impl EmEditorConfigRepositoryImpl {
             let ret = emeditor_io_driver::reg_query_value(self.hwnd.0, &mut info);
 
             if ret == 0 {
-                // cb_data はバイト数なので UTF-16 コード単位数に変換
-                let max_u16_len = cb_data as usize / size_of::<u16>();
-                // バッファに書き込まれた実際の長さを超えないようにクランプ
-                let max_u16_len = max_u16_len.min(buffer.len());
-
-                // ヌル終端を探す
-                let len = buffer
-                    .iter()
-                    .take(max_u16_len)
-                    .position(|&c| c == 0)
-                    .unwrap_or(max_u16_len);
-
+                let len = (cb_data as usize / size_of::<u16>()).min(buffer.len());
                 let result = String::from_utf16_lossy(&buffer[..len]);
-                if result.trim().is_empty() {
+                let result = result.trim_matches('\0').to_string();
+                if result.is_empty() {
                     return default.to_string();
                 } else {
                     return result;
                 }
             } else {
-                // 失敗時に cb_data が現在のバッファより大きければ再確保してリトライ
                 let required_bytes = cb_data as usize;
                 let current_bytes = buffer.len() * size_of::<u16>();
 
@@ -110,6 +99,7 @@ impl EmEditorConfigRepositoryImpl {
     }
 
     fn set_string(&self, value_name: &str, value: &str) {
+        // Allowing empty string to enable "reset to default" behavior
         let value_wide: Vec<u16> = value.encode_utf16().chain(std::iter::once(0)).collect();
         let value_name_wide: Vec<u16> = value_name
             .encode_utf16()
@@ -143,7 +133,7 @@ impl EmEditorConfigRepositoryImpl {
             pszConfig: w!("Terminal"),
             pszValue: windows::core::PCWSTR(value_name_wide.as_ptr()),
             dwType: emeditor_io_driver::REG_DWORD,
-            lpData: std::ptr::addr_of!(data) as *const u8,
+            lpData: &data as *const u32 as *const u8,
             cbData: size_of::<u32>() as u32,
             dwFlags: 0,
         };
@@ -156,7 +146,6 @@ impl ConfigurationRepository for EmEditorConfigRepositoryImpl {
     fn load(&self) -> TerminalConfig {
         let default = TerminalConfig::default();
 
-        // EmEditor本体のウィンドウハンドルが無効な場合はデフォルトを返す
         if self.hwnd.0 .0.is_null() {
             return default;
         }
@@ -165,7 +154,6 @@ impl ConfigurationRepository for EmEditorConfigRepositoryImpl {
         let font_size = self.query_dword("FontSize", default.font_size);
         let shell_path_raw = self.query_string("ShellPath", &default.shell_path);
 
-        // ロードされたパスが絶対パスかつ存在する場合のみ採用、それ以外は再解決を試みる
         let shell_path = {
             let path = std::path::Path::new(&shell_path_raw);
             if path.is_absolute() && path.exists() {
@@ -186,6 +174,7 @@ impl ConfigurationRepository for EmEditorConfigRepositoryImpl {
     }
 
     fn save(&self, config: &TerminalConfig) {
+        // Always save to allow explicit clearing of settings
         self.set_string("FontFaceName", &config.font_face);
         self.set_dword("FontSize", config.font_size);
         self.set_string("ShellPath", &config.shell_path);
