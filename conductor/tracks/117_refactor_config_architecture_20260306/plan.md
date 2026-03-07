@@ -12,16 +12,16 @@
     - [x] `chore(conductor): Complete Phase 1 - Preparation and Common Refactoring` でコミット。
 
 ## Phase 2: Application Layer (ConfigWorkflow) Implementation
-- [ ] Task: ConfigWorkflow の新設と TDD 開発
-    - [ ] `src/application/config_workflow.rs` を作成し、テストケースを記述する。
-    - [ ] 設定のロード・保存ロジック（ビジネスロジック）を実装する。
-    - [ ] `TerminalConfigRepository` トレイトとの DI 構成を確立する。
-- [ ] Task: Code Quality Checks
-    - [ ] `cargo fmt` を実行する。
-    - [ ] `cargo clippy --fix --allow-dirty` を実行する。
-- [ ] Task: Conductor - User Manual Verification 'Application Layer' (Protocol in workflow.md)
-- [ ] Task: **Commit Phase 2 Changes**
-    - [ ] `feat(application): Implement ConfigWorkflow and DI logic` でコミット。
+- [x] Task: ConfigWorkflow の新設と TDD 開発
+    - [x] `src/application/config_workflow.rs` を作成し、テストケースを記述する。
+    - [x] 設定のロード・保存ロジック（ビジネスロジック）を実装する。
+    - [x] `TerminalConfigRepository` トレイトとの DI 構成を確立する。
+- [x] Task: Code Quality Checks
+    - [x] `cargo fmt` を実行する。
+    - [x] `cargo clippy --fix --allow-dirty` を実行する。
+- [x] Task: Conductor - User Manual Verification 'Application Layer' (Protocol in workflow.md)
+- [x] Task: **Commit Phase 2 Changes**
+    - [x] `feat(application): Implement ConfigWorkflow and DI logic` でコミット。
 
 ## Phase 3: GUI Driver Refactoring
 - [ ] Task: ConfigGuiDriver のリファクタリング
