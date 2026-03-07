@@ -161,9 +161,8 @@ unsafe extern "system" fn settings_dlg_proc(
 
                     if let (Some(config), Some(vh)) = (config_to_save, view_hwnd) {
                         // この場限りの ConfigWorkflow を作成して保存
-                        let workflow = ConfigWorkflow::new(Box::new(
-                            EmEditorConfigRepositoryImpl::new(vh),
-                        ));
+                        let workflow =
+                            ConfigWorkflow::new(Box::new(EmEditorConfigRepositoryImpl::new(vh)));
                         workflow.save_config(config);
                     }
 

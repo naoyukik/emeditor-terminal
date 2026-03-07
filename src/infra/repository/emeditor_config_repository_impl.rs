@@ -184,7 +184,11 @@ impl ConfigurationRepository for EmEditorConfigRepositoryImpl {
             return;
         }
         // Always save to allow explicit clearing of settings
-        log::info!("EmEditorConfigRepositoryImpl: Saving config: font_face={}, font_size={}", config.font_face, config.font_size);
+        log::info!(
+            "EmEditorConfigRepositoryImpl: Saving config: font_face={}, font_size={}",
+            config.font_face,
+            config.font_size
+        );
         self.set_string("FontFaceName", &config.font_face);
         self.set_dword("FontSize", config.font_size);
         self.set_string("ShellPath", &config.shell_path);
