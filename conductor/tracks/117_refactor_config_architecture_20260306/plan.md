@@ -24,25 +24,25 @@
     - [x] `feat(application): Implement ConfigWorkflow and DI logic` でコミット。
 
 ## Phase 3: GUI Driver Refactoring
-- [ ] Task: ConfigGuiDriver のリファクタリング
-    - [ ] `config_gui_driver.rs` から具象クラスへの依存を完全に排除する。
-    - [ ] `ConfigWorkflow` をコンストラクタで受け取るように変更する。
-    - [ ] Driver は純粋な Win32 UI 操作（値のセット、コントロールからの値取得）のみを行う。
-- [ ] Task: Code Quality Checks
-    - [ ] `cargo fmt` を実行する。
-    - [ ] `cargo clippy --fix --allow-dirty` を実行する。
-- [ ] Task: Conductor - User Manual Verification 'GUI Driver' (Protocol in workflow.md)
-- [ ] Task: **Commit Phase 3 Changes**
-    - [ ] `refactor(gui): Decouple ConfigGuiDriver from Infrastructure layer` でコミット。
+- [x] Task: ConfigGuiDriver のリファクタリング
+    - [x] `config_gui_driver.rs` から具象クラスへの依存を完全に排除する。
+    - [x] `ConfigWorkflow` をコンストラクタで受け取るように変更する。
+    - [x] Driver は純粋な Win32 UI 操作（値のセット、コントロールからの値取得）のみを行う。
+- [x] Task: Code Quality Checks
+    - [x] `cargo fmt` を実行する。
+    - [x] `cargo clippy --fix --allow-dirty` を実行する。
+- [x] Task: Conductor - User Manual Verification 'GUI Driver' (Protocol in workflow.md)
+- [x] Task: **Commit Phase 3 Changes**
+    - [x] `refactor(gui): Decouple ConfigGuiDriver from Infrastructure layer` でコミット。
 
 ## Phase 4: Integration and Final Polish
-- [ ] Task: 全体の統合テスト
-    - [ ] 設定ダイアログを開き、値を変更して保存・ロードが正しく動作することを確認する。
-- [ ] Task: 自動建築フックの正式導入
-    - [ ] `validate_dependency_architecture.py` フックを Gemini CLI hooks として導入する。
-- [ ] Task: Code Quality Checks
-    - [ ] `cargo fmt` を実行する。
-    - [ ] `cargo clippy --fix --allow-dirty` を実行する。
-- [ ] Task: Conductor - User Manual Verification 'Integration' (Protocol in workflow.md)
-- [ ] Task: **Commit Phase 4 Changes**
-    - [ ] `chore(conductor): Add validate_dependency_architecture hook and final cleanup` でコミット。
+- [x] Task: 全体の統合テスト
+    - [x] 設定ダイアログを開き、値を変更して保存・ロードが正しく動作することを確認する。
+- [x] Task: 自動建築フックの正式導入
+    - [x] `validate_dependency_architecture.py` フックを Gemini CLI hooks として導入する。
+- [x] Task: Code Quality Checks
+    - [x] `cargo fmt` を実行する。
+    - [x] `cargo clippy --fix --allow-dirty` を実行する。
+- [x] Task: Conductor - User Manual Verification 'Integration' (Protocol in workflow.md)
+- [x] Task: **Commit Phase 4 Changes**
+    - [x] `chore(conductor): Add validate_dependency_architecture hook and final cleanup` でコミット。

@@ -533,8 +533,10 @@ impl TerminalGuiDriver {
             let text = c.to_string();
             let w = (text.width().clamp(1, 2) as i32) * ctx.base_width;
             comp_dx.push(w);
-            comp_dx
-                .extend(std::iter::repeat_n(0, text.encode_utf16().count().saturating_sub(1)));
+            comp_dx.extend(std::iter::repeat_n(
+                0,
+                text.encode_utf16().count().saturating_sub(1),
+            ));
             pixel_width += w;
         }
         let comp_rect = RECT {
