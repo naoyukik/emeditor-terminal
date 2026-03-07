@@ -12,7 +12,9 @@ use windows::Win32::UI::WindowsAndMessaging::{
     WS_CHILD, WS_CLIPCHILDREN, WS_CLIPSIBLINGS, WS_VISIBLE,
 };
 
-use crate::gui::resolver::terminal_window_resolver::{get_terminal_data, SendHWND};
+use crate::domain::model::window_id_value::WindowId;
+use crate::gui::common::SendHWND;
+use crate::gui::resolver::terminal_window_resolver::get_terminal_data;
 use crate::infra::driver::conpty_io_driver::{ConptyIoDriver, SendHandle};
 use crate::infra::driver::emeditor_io_driver::{
     CUSTOM_BAR_BOTTOM, CUSTOM_BAR_INFO, EE_CUSTOM_BAR_OPEN,
@@ -46,7 +48,7 @@ fn start_conpty_and_reader_thread(
     rows: i16,
 ) -> bool {
     let config_repo = crate::infra::repository::emeditor_config_repository_impl::EmEditorConfigRepositoryImpl::new(
-        SendHWND(hwnd_editor),
+        WindowId(hwnd_editor.0 as isize),
     );
     let config = crate::domain::repository::configuration_repository::ConfigurationRepository::load(
         &config_repo,

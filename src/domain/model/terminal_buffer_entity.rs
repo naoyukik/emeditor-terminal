@@ -478,6 +478,10 @@ impl TerminalBufferEntity {
         self.viewport_offset
     }
 
+    pub(crate) fn get_lines(&self) -> &VecDeque<Vec<Cell>> {
+        &self.lines
+    }
+
     pub fn is_cursor_visible(&self) -> bool {
         self.cursor.is_visible
     }

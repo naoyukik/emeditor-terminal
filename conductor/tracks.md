@@ -14,6 +14,6 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 ---
 
-- [ ] **Track: GitHub Issue #117: 設定ダイアログにおけるアーキテクチャ違反（レイヤー間直接依存）の修正**
+- [~] **Track: GitHub Issue #117: 設定ダイアログにおけるアーキテクチャ違反（レイヤー間直接依存）の修正**
 *Link: [./tracks/117_refactor_config_architecture_20260306/](./tracks/117_refactor_config_architecture_20260306/)*
 

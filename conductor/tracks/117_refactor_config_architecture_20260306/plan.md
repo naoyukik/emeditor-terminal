@@ -1,15 +1,15 @@
 # Implementation Plan - Track 117: 設定ダイアログにおけるアーキテクチャ違反の修正
 
 ## Phase 1: Preparation and Common Refactoring
-- [ ] Task: 型の整理と依存関係の解消
-    - [ ] `SendHWND` や設定値 DTO を `src/common/` または `src/domain/model/` に配置する。
-    - [ ] Presentation 層 (`resolver`) からの逆行参照を解消する。
-- [ ] Task: Code Quality Checks
-    - [ ] `cargo fmt` を実行する。
-    - [ ] `cargo clippy --fix --allow-dirty` を実行する。
-- [ ] Task: Conductor - User Manual Verification 'Preparation' (Protocol in workflow.md)
-- [ ] Task: **Commit Phase 1 Changes**
-    - [ ] `chore(conductor): Complete Phase 1 - Preparation and Common Refactoring` でコミット。
+- [x] Task: 型の整理と依存関係の解消
+    - [x] `SendHWND` や設定値 DTO を `src/common/` または `src/domain/model/` に配置する。
+    - [x] Presentation 層 (`resolver`) からの逆行参照を解消する。
+- [x] Task: Code Quality Checks
+    - [x] `cargo fmt` を実行する。
+    - [x] `cargo clippy --fix --allow-dirty` を実行する。
+- [x] Task: Conductor - User Manual Verification 'Preparation' (Protocol in workflow.md)
+- [x] Task: **Commit Phase 1 Changes**
+    - [x] `chore(conductor): Complete Phase 1 - Preparation and Common Refactoring` でコミット。
 
 ## Phase 2: Application Layer (ConfigWorkflow) Implementation
 - [ ] Task: ConfigWorkflow の新設と TDD 開発

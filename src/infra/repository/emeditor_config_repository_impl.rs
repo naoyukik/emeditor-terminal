@@ -1,19 +1,24 @@
 use crate::domain::model::terminal_config_value::TerminalConfig;
+use crate::domain::model::window_id_value::WindowId;
 use crate::domain::repository::configuration_repository::ConfigurationRepository;
-use crate::gui::resolver::terminal_window_resolver::SendHWND;
 use crate::infra::driver::emeditor_io_driver::{
     self, EEREG_EMEDITORPLUGIN, REG_DWORD, REG_QUERY_VALUE_INFO, REG_SZ,
 };
 use std::mem::size_of;
 use windows::core::w;
+use windows::Win32::Foundation::HWND;
 
 pub struct EmEditorConfigRepositoryImpl {
-    hwnd: SendHWND,
+    hwnd: WindowId,
 }
 
 impl EmEditorConfigRepositoryImpl {
-    pub fn new(hwnd: SendHWND) -> Self {
+    pub fn new(hwnd: WindowId) -> Self {
         Self { hwnd }
+    }
+
+    fn get_hwnd(&self) -> HWND {
+        HWND(self.hwnd.0 as _)
     }
 
     fn query_string(&self, value_name: &str, default: &str) -> String {
@@ -45,7 +50,7 @@ impl EmEditorConfigRepositoryImpl {
                 dwFlags: 0,
             };
 
-            let ret = emeditor_io_driver::reg_query_value(self.hwnd.0, &mut info);
+            let ret = emeditor_io_driver::reg_query_value(self.get_hwnd(), &mut info);
 
             if ret == 0 {
                 let len = (cb_data as usize / size_of::<u16>()).min(buffer.len());
@@ -91,7 +96,7 @@ impl EmEditorConfigRepositoryImpl {
             dwFlags: 0,
         };
 
-        if emeditor_io_driver::reg_query_value(self.hwnd.0, &mut info) == 0 {
+        if emeditor_io_driver::reg_query_value(self.get_hwnd(), &mut info) == 0 {
             data as i32
         } else {
             default
@@ -117,7 +122,7 @@ impl EmEditorConfigRepositoryImpl {
             dwFlags: 0,
         };
 
-        emeditor_io_driver::reg_set_value(self.hwnd.0, &info);
+        emeditor_io_driver::reg_set_value(self.get_hwnd(), &info);
     }
 
     fn set_dword(&self, value_name: &str, value: i32) {
@@ -138,7 +143,7 @@ impl EmEditorConfigRepositoryImpl {
             dwFlags: 0,
         };
 
-        emeditor_io_driver::reg_set_value(self.hwnd.0, &info);
+        emeditor_io_driver::reg_set_value(self.get_hwnd(), &info);
     }
 }
 
@@ -146,7 +151,7 @@ impl ConfigurationRepository for EmEditorConfigRepositoryImpl {
     fn load(&self) -> TerminalConfig {
         let default = TerminalConfig::default();
 
-        if self.hwnd.0 .0.is_null() {
+        if self.get_hwnd().0.is_null() {
             return default;
         }
 

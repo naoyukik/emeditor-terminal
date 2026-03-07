@@ -1,7 +1,8 @@
 use crate::domain::model::terminal_config_value::TerminalConfig;
+use crate::domain::model::window_id_value::WindowId;
 use crate::domain::repository::configuration_repository::ConfigurationRepository;
 use crate::get_instance_handle;
-use crate::gui::resolver::terminal_window_resolver::SendHWND;
+use crate::gui::common::SendHWND;
 use crate::infra::repository::emeditor_config_repository_impl::EmEditorConfigRepositoryImpl;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
@@ -128,7 +129,7 @@ unsafe extern "system" fn settings_dlg_proc(
             };
 
             if let Some(h) = view_hwnd {
-                let repo = EmEditorConfigRepositoryImpl::new(h);
+                let repo = EmEditorConfigRepositoryImpl::new(WindowId(h.0 .0 as isize));
                 let config = repo.get_terminal_config();
 
                 if let Ok(mut lock) = TEMP_CONFIG.lock() {
@@ -157,7 +158,8 @@ unsafe extern "system" fn settings_dlg_proc(
                     };
 
                     if let (Some(config), Some(h_view)) = (config_to_save, view_hwnd) {
-                        let repo = EmEditorConfigRepositoryImpl::new(h_view);
+                        let repo =
+                            EmEditorConfigRepositoryImpl::new(WindowId(h_view.0 .0 as isize));
                         repo.save(&config);
                     }
 
