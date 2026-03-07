@@ -32,12 +32,13 @@ The output will contain an `"id"` field with a large numeric value.
 Use the value `3971828927`.
 
 ### Method B: Using `gh api` (GitHub CLI)
-If you prefer the terminal, use the following command to get the numeric ID for a specific issue number:
-
-```bash
+Windows PowerShell 5.1 環境における文字化けとコンテキスト（トークン）効率の最適化のため、以下の手順を厳守すること。
+1. **コマンド実行**: `run_shell_command` 内で `cmd /c` を介して `gh api` を実行し、出力をファイルにリダイレクトする。
+```powershell
 # Get numeric ID for issue #74
-gh api repos/{owner}/{repo}/issues/74 --jq .id
+cmd /c "gh api repos/{owner}/{repo}/issues/74 --jq .id > temporary.local/gh_id.json"
 ```
+2. **内容取得**: 保存された `temporary.local/gh_id.json` を `get_file_text_by_path` で読み取り、IDを確認する。
 
 ### Method C: When Creating a New Issue
 If you just created the issue using `issue_write`, the output already contains the `id`.
@@ -74,17 +75,19 @@ Once you have the internal `id`, call the `sub_issue_write` tool.
 ## Step 3: Fallback Procedure (If `sub_issue_write` fails)
 
 If the `sub_issue_write` tool returns a 404 or 422 error, or fails for another reason, you can attempt to link the issues manually via the GitHub CLI as a fallback.
+Windows PowerShell 5.1 環境における文字化けとコンテキスト（トークン）効率の最適化のため、以下の手順を厳守すること。
 
 1. **Verify if the issue is already linked:**
    A 422 error often indicates that the issue is *already* a sub-issue. Verify this by checking the parent's sub-issues:
-   ```bash
-   gh api repos/{owner}/{repo}/issues/{issue_number}/sub_issues --jq ".[].number"
+   ```powershell
+   cmd /c "gh api repos/{owner}/{repo}/issues/{issue_number}/sub_issues --jq '.[].number' > temporary.local/sub_issues.json"
    ```
-   If the target issue number appears in the output, the operation was already successful.
+   実行後、`get_file_text_by_path(pathInProject="temporary.local/sub_issues.json")` で内容を確認する。ターゲットの issue number があれば成功済みである。
 
 2. **Add Sub-issue directly via GitHub REST API:**
    If the tool is broken, use `gh api` to make the POST request yourself:
-   ```bash
-   gh api -X POST repos/{owner}/{repo}/issues/{parent_issue_number}/sub_issues -F sub_issue_id={internal_id}
+   ```powershell
+   cmd /c "gh api -X POST repos/{owner}/{repo}/issues/{parent_issue_number}/sub_issues -F sub_issue_id={internal_id} > temporary.local/gh_res.json"
    ```
    *(Replace `{owner}`, `{repo}`, `{parent_issue_number}`, and `{internal_id}` with actual values).*
+   実行後、`get_file_text_by_path(pathInProject="temporary.local/gh_res.json")` で結果を確認する。
