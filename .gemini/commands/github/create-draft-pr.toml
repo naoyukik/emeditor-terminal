@@ -24,9 +24,10 @@ prompt = """
 
 2. Issueの確認 (GraphQL-Scalpel)
 チケット番号が存在する場合、Issueの内容を確認するため、必ず以下の **GraphQL-Scalpel** プロトコルを使用して情報を取得すること。
-- **クエリ作成**: `create_new_file` で `temporary.local/issue_query.json` を作成し、`query { repository(owner: \"naoyukik\", name: \"emeditor-terminal\") { issue(number: TICKET_NUMBER) { title body } } }` を書き込む。
-- **実行**: `run_shell_command` で `cmd /c \"gh api --method POST /graphql --input temporary.local/issue_query.json > temporary.local/issue_res.json\"` を実行。
-- **取得**: `get_file_text_by_path` で結果を読み取り、背景情報を抽出する。
+
+    - **クエリ作成**: `create_new_file` で `temporary.local/issue_query.json` を作成し、`query { repository(owner: \"naoyukik\", name: \"emeditor-terminal\") { issue(number: TICKET_NUMBER) { title body } } }` を書き込む。
+    - **実行**: `run_shell_command` で `cmd /c \"gh api --method POST /graphql --input temporary.local/issue_query.json > temporary.local/issue_res.json\"` を実行。
+    - **取得**: `get_file_text_by_path` で結果を読み取り、背景情報を抽出する。
 
 3. 推論と構築 (Reasoning)
 取得した情報を以下の優先順位で統合し、PRの内容を構築せよ。
@@ -60,6 +61,6 @@ Windows PowerShell 5.1 環境における文字化け回避と正確な実行結
     b. **いずれも使用できない場合**:
        - 生成した PR タイトルと PR 本文をテキストとして出力する。
 
-6. 結果報告
+4. 結果報告
     PRが正常に作成されたことをユーザーに報告する。
 """
