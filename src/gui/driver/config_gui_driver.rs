@@ -1,8 +1,7 @@
+use crate::application::ConfigWorkflow;
 use crate::domain::model::terminal_config_value::TerminalConfig;
 use crate::domain::model::window_id_value::WindowId;
-use crate::domain::repository::configuration_repository::ConfigurationRepository;
 use crate::get_instance_handle;
-use crate::gui::common::SendHWND;
 use crate::infra::repository::emeditor_config_repository_impl::EmEditorConfigRepositoryImpl;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
@@ -24,8 +23,8 @@ static IS_DIALOG_ACTIVE: AtomicBool = AtomicBool::new(false);
 
 // ダイアログ表示中のテンポラリな設定を保持するための Mutex
 static TEMP_CONFIG: Mutex<Option<TerminalConfig>> = Mutex::new(None);
-// EmEditor の View HWND を保持 (設定の保存に必要)
-static VIEW_HWND: Mutex<Option<SendHWND>> = Mutex::new(None);
+// View HWND を保持 (保存時に必要)
+static CURRENT_VIEW_HWND: Mutex<Option<WindowId>> = Mutex::new(None);
 
 /// ピクセル単位の高さからポイントサイズへ変換する
 unsafe fn pixels_to_points(hwnd: HWND, lf_height: i32) -> i32 {
@@ -65,12 +64,13 @@ pub(crate) fn show_settings_dialog(view_hwnd: HWND, parent_hwnd: HWND) {
 
     let instance = get_instance_handle();
 
-    if let Ok(mut lock) = VIEW_HWND.lock() {
-        *lock = Some(SendHWND(view_hwnd));
+    if let Ok(mut lock) = CURRENT_VIEW_HWND.lock() {
+        *lock = Some(WindowId(view_hwnd.0 as isize));
     }
 
     unsafe {
         // モーダルダイアログの表示
+        // view_hwnd を初期化パラメータとして渡す
         let result = DialogBoxParamW(
             instance,
             windows::core::PCWSTR(IDD_SET_PROPERTIES as usize as *const u16),
@@ -80,7 +80,7 @@ pub(crate) fn show_settings_dialog(view_hwnd: HWND, parent_hwnd: HWND) {
                 parent_hwnd
             },
             Some(settings_dlg_proc),
-            LPARAM(0),
+            LPARAM(view_hwnd.0 as isize),
         );
 
         if result == -1 {
@@ -91,7 +91,7 @@ pub(crate) fn show_settings_dialog(view_hwnd: HWND, parent_hwnd: HWND) {
     if let Ok(mut lock) = TEMP_CONFIG.lock() {
         *lock = None;
     }
-    if let Ok(mut lock) = VIEW_HWND.lock() {
+    if let Ok(mut lock) = CURRENT_VIEW_HWND.lock() {
         *lock = None;
     }
     IS_DIALOG_ACTIVE.store(false, Ordering::SeqCst);
@@ -116,28 +116,29 @@ unsafe extern "system" fn settings_dlg_proc(
     hwnd: HWND,
     msg: u32,
     w_param: WPARAM,
-    _l_param: LPARAM,
+    l_param: LPARAM,
 ) -> isize {
     match msg {
         windows::Win32::UI::WindowsAndMessaging::WM_INITDIALOG => {
             log::info!("WM_INITDIALOG: Initializing settings dialog.");
 
-            let view_hwnd = if let Ok(lock) = VIEW_HWND.lock() {
-                lock.as_ref().cloned()
-            } else {
-                None
-            };
-
-            if let Some(h) = view_hwnd {
-                let repo = EmEditorConfigRepositoryImpl::new(WindowId(h.0 .0 as isize));
-                let config = repo.get_terminal_config();
-
-                if let Ok(mut lock) = TEMP_CONFIG.lock() {
-                    *lock = Some(config.clone());
-                }
-
-                update_font_label(hwnd, &config.font_face, config.font_size);
+            let view_hwnd = HWND(l_param.0 as *mut _);
+            if view_hwnd.0.is_null() {
+                log::error!("WM_INITDIALOG: view_hwnd is NULL.");
+                return 0;
             }
+
+            // この場限りの ConfigWorkflow を作成してロード
+            let workflow = ConfigWorkflow::new(Box::new(EmEditorConfigRepositoryImpl::new(
+                WindowId(view_hwnd.0 as isize),
+            )));
+            let config = workflow.load_config();
+
+            if let Ok(mut lock) = TEMP_CONFIG.lock() {
+                *lock = Some(config.clone());
+            }
+
+            update_font_label(hwnd, &config.font_face, config.font_size);
             1 // TRUE
         }
         windows::Win32::UI::WindowsAndMessaging::WM_COMMAND => {
@@ -151,16 +152,19 @@ unsafe extern "system" fn settings_dlg_proc(
                     } else {
                         None
                     };
-                    let view_hwnd = if let Ok(lock) = VIEW_HWND.lock() {
+
+                    let view_hwnd = if let Ok(lock) = CURRENT_VIEW_HWND.lock() {
                         lock.as_ref().cloned()
                     } else {
                         None
                     };
 
-                    if let (Some(config), Some(h_view)) = (config_to_save, view_hwnd) {
-                        let repo =
-                            EmEditorConfigRepositoryImpl::new(WindowId(h_view.0 .0 as isize));
-                        repo.save(&config);
+                    if let (Some(config), Some(vh)) = (config_to_save, view_hwnd) {
+                        // この場限りの ConfigWorkflow を作成して保存
+                        let workflow = ConfigWorkflow::new(Box::new(
+                            EmEditorConfigRepositoryImpl::new(vh),
+                        ));
+                        workflow.save_config(config);
                     }
 
                     if let Err(e) = EndDialog(hwnd, IDOK.0 as isize) {
