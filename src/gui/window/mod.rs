@@ -81,13 +81,6 @@ fn start_conpty_and_reader_thread(
                     ),
                 );
 
-                // ConfigWorkflow も正しい HWND で再構築する
-                window_data.config_service = crate::application::ConfigWorkflow::new(Box::new(
-                    crate::infra::repository::emeditor_config_repository_impl::EmEditorConfigRepositoryImpl::new(
-                        WindowId(hwnd_editor.0 as isize),
-                    ),
-                ));
-
                 // 新しいリポジトリでサービスを再構築する（DI）
                 window_data.service = crate::application::TerminalWorkflow::new(
                     cols as usize,

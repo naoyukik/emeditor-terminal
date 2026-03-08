@@ -1,4 +1,7 @@
+use crate::application::ConfigWorkflow;
+use crate::domain::model::window_id_value::WindowId;
 use crate::gui::driver::config_gui_driver;
+use crate::infra::repository::emeditor_config_repository_impl::EmEditorConfigRepositoryImpl;
 use windows::Win32::Foundation::{HWND, LPARAM, LRESULT, WPARAM};
 
 /// EmEditor SDK からの PlugInProc メッセージを解釈し、適切な処理に振り分ける
@@ -33,8 +36,22 @@ pub(crate) fn handle_plugin_proc(
                 parent_hwnd
             );
 
-            // 設定の保存には View HWND (hwnd) が必要
-            config_gui_driver::show_settings_dialog(hwnd, parent_hwnd);
+            // 1. Workflow を構築 (DI)
+            let config_repo =
+                Box::new(EmEditorConfigRepositoryImpl::new(WindowId(hwnd.0 as isize)));
+            let workflow = ConfigWorkflow::new(config_repo);
+
+            // 2. 現行設定をロード
+            let current_config = workflow.load_config();
+
+            // 3. 設定ダイアログを表示し、更新後の設定を受け取る
+            if let Some(new_config) =
+                config_gui_driver::show_settings_dialog(hwnd, parent_hwnd, current_config)
+            {
+                // 4. 更新があれば保存
+                workflow.save_config(new_config);
+            }
+
             LRESULT(1) // TRUE
         }
         crate::EP_PRE_TRANSLATE_MSG => LRESULT(0),

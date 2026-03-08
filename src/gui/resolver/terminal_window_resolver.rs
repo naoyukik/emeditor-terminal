@@ -1,4 +1,3 @@
-use crate::application::ConfigWorkflow;
 use crate::application::TerminalWorkflow;
 use crate::domain::model::window_id_value::WindowId;
 use crate::gui::common::SendHWND;
@@ -17,21 +16,16 @@ pub struct TerminalWindowResolver {
     pub window_handle: Option<SendHWND>,
     pub composition: Option<CompositionInfo>,
     pub scroll_manager: ScrollGuiDriver,
-    pub config_service: ConfigWorkflow,
 }
 
 impl TerminalWindowResolver {
     /// TerminalServiceをダミー実装でリセットし、ConPTY等のリソースを解放する
     pub fn reset_service(&mut self) {
         let output_repo = Box::new(DummyOutputRepository);
-        let config_repo_for_workflow = Box::new(EmEditorConfigRepositoryImpl::new(WindowId(
-            HWND::default().0 as isize,
-        )));
         let config_repo_for_service = Box::new(EmEditorConfigRepositoryImpl::new(WindowId(
             HWND::default().0 as isize,
         )));
         self.service = TerminalWorkflow::new(80, 25, output_repo, config_repo_for_service);
-        self.config_service = ConfigWorkflow::new(config_repo_for_workflow);
     }
 }
 
@@ -39,9 +33,6 @@ pub fn get_terminal_data() -> Arc<Mutex<TerminalWindowResolver>> {
     TERMINAL_DATA
         .get_or_init(|| {
             let output_repo = Box::new(DummyOutputRepository);
-            let config_repo_for_workflow = Box::new(EmEditorConfigRepositoryImpl::new(WindowId(
-                HWND::default().0 as isize,
-            )));
             let config_repo_for_service = Box::new(EmEditorConfigRepositoryImpl::new(WindowId(
                 HWND::default().0 as isize,
             )));
@@ -52,7 +43,6 @@ pub fn get_terminal_data() -> Arc<Mutex<TerminalWindowResolver>> {
                 window_handle: None,
                 composition: None,
                 scroll_manager: ScrollGuiDriver::new(),
-                config_service: ConfigWorkflow::new(config_repo_for_workflow),
             }))
         })
         .clone()
