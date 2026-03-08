@@ -1,6 +1,6 @@
 ---
 name: autonomous-researcher
-description: 自律的な技術調査と証拠に基づく実装を強制する。Win32 API、Rustクレート、TUI仕様等の最新ドキュメントを検索・取得し、プロジェクト規約との整合性を検証した上で実装を提案する際に使用する。
+description: Enforce autonomous technical research and evidence-based implementation. Search for and obtain the latest documentation for Win32 API, Rust crates, TUI specifications, etc., verify consistency with project conventions, and use it when proposing implementations.
 ---
 
 # Autonomous Researcher

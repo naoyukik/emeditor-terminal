@@ -1,3 +1,5 @@
+use crate::application::ConfigWorkflow;
+use crate::domain::model::window_id_value::WindowId;
 use crate::gui::driver::config_gui_driver;
 use windows::Win32::Foundation::{HWND, LPARAM, LRESULT, WPARAM};
 
@@ -7,6 +9,7 @@ pub(crate) fn handle_plugin_proc(
     n_msg: u32,
     w_param: WPARAM,
     l_param: LPARAM,
+    config_workflow_factory: impl FnOnce(WindowId) -> ConfigWorkflow,
 ) -> LRESULT {
     match n_msg {
         crate::EP_QUERY_PROPERTIES => {
@@ -33,8 +36,20 @@ pub(crate) fn handle_plugin_proc(
                 parent_hwnd
             );
 
-            // 設定の保存には View HWND (hwnd) が必要
-            config_gui_driver::show_settings_dialog(hwnd, parent_hwnd);
+            // 1. Workflow を構築 (注入されたファクトリを使用)
+            let workflow = config_workflow_factory(WindowId(hwnd.0 as isize));
+
+            // 2. 現行設定をロード
+            let current_config = workflow.load_config();
+
+            // 3. 設定ダイアログを表示し、更新後の設定を受け取る
+            if let Some(new_config) =
+                config_gui_driver::show_settings_dialog(hwnd, parent_hwnd, current_config)
+            {
+                // 4. 更新があれば保存
+                workflow.save_config(new_config);
+            }
+
             LRESULT(1) // TRUE
         }
         crate::EP_PRE_TRANSLATE_MSG => LRESULT(0),

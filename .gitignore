@@ -58,5 +58,11 @@
 # IDE settings
 .idea/
 
+# local files
+# A folder for storing files you want to manage but not commit
+*.local
 
 /emeditor-terminal.eeWorkspace
+/sandbox/
+/emeditor-terminal.eesln
+

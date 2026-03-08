@@ -132,7 +132,14 @@ pub extern "system" fn PlugInProc(
     wParam: WPARAM,
     lParam: LPARAM,
 ) -> LRESULT {
-    gui::resolver::config_resolver::handle_plugin_proc(hwnd, nMsg, wParam, lParam)
+    gui::resolver::config_resolver::handle_plugin_proc(hwnd, nMsg, wParam, lParam, |window_id| {
+        let config_repo = Box::new(
+            infra::repository::emeditor_config_repository_impl::EmEditorConfigRepositoryImpl::new(
+                window_id,
+            ),
+        );
+        application::ConfigWorkflow::new(config_repo)
+    })
 }
 
 #[cfg(test)]

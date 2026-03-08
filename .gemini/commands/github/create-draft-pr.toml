@@ -22,8 +22,12 @@ prompt = """
     !{echo "=== Actual Code Changes (Diff) ロックファイルなどのノイズを除外し、本質的な変更差分のみを取得する ==="}
     !{git diff main..HEAD -- . ':(exclude)package-lock.json' ':(exclude)yarn.lock' ':(exclude)*.lock'}
 
-2. Issueの確認
-チケット番号が存在する場合、Issueを確認するため必ず **GitHub MCP Server** の **issue_read** コマンドを使用してissueの内容を取得すること。
+2. Issueの確認 (GraphQL-Scalpel)
+チケット番号が存在する場合、Issueの内容を確認するため、必ず以下の **GraphQL-Scalpel** プロトコルを使用して情報を取得すること。
+
+    - **クエリ作成**: `create_new_file` で `temporary.local/issue_query.json` を作成し、`query { repository(owner: \"naoyukik\", name: \"emeditor-terminal\") { issue(number: TICKET_NUMBER) { title body } } }` を書き込む。
+    - **実行**: `run_shell_command` で `cmd /c \"gh api --method POST /graphql --input temporary.local/issue_query.json > temporary.local/issue_res.json\"` を実行。
+    - **取得**: `get_file_text_by_path` で結果を読み取り、背景情報を抽出する。
 
 3. 推論と構築 (Reasoning)
 取得した情報を以下の優先順位で統合し、PRの内容を構築せよ。
@@ -37,27 +41,25 @@ prompt = """
 
     * **PRタイトル**: 変更内容の要点を的確に表現したタイトルを生成する。
     * **PR本文**: 読み込んだテンプレートに基づき、変更の概要、背景、詳細などを具体的に記述する。テンプレートがない場合は適当に作る。
-    * **Issue連携**: 関連するIssueを自動的に閉じるため、本文内に必ず `Closes #チケット番号` (または `Fixes`, `Resolves`) の形式で記述を含めること。
+    * **Issue連携**: 関連するIssueを自動的に閉じるため、本文内に必ず `Closes #チケット番号` の形式で記述を含めること。
     * チケット番号の頭には `#` を付与する。
 
 5. コマンド生成と実行
-以下の仕様に基づき、Draft PRを作成する。記載の無いオプションは指定しないこと。
+   GitHub CLI (`gh`) を使用して Draft PR を作成する。
 
     * `--draft`: Draft PRとして作成する。
     * `--title`: 生成したPRタイトルを設定する。
     * `--body`: 生成したPR本文を設定する。
     * `--base`: ベースブランチは常に`main`とする。
     * `--head`: 自動取得した現在のブランチ名を設定する。
-    * `--assignee`: `"@me"` を設定する。
+    * `--assignee`: "@me" を設定する。
 
-    a. **GitHub MCP を最優先で使用する**:
-       - `create_pull_request` ツールを用いて Draft PR を作成する。
-       - その後、作成された PR 番号に対して `issue_write` ツールを用いて `@me` を担当者（assignees）に設定する。
-    b. **GitHub MCP が使用できない場合**:
-       - 使用可能なら GitHub CLI (`gh`) を使用し、上記の仕様で Create Draft PR のコマンドを生成・実行する。
-    c. **いずれも使用できない場合**:
-       - 生成した PR タイトルと PR 本文をテキストとして出力する。
+    a. **GitHub CLI (gh) を使用する**:
+       - `run_shell_command` を使用し、上記の仕様で `gh pr create` を実行する。
+       - **注意**: 引数のパース精度を優先するため、`cmd /c` を介さず直接実行すること。
+    b. **いずれも使用できない場合**:
+       - 実行すべき `gh pr create` コマンドとその引数をテキストとして出力する。
 
-6. 結果報告
+4. 結果報告
     PRが正常に作成されたことをユーザーに報告する。
 """

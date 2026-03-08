@@ -1,8 +1,5 @@
 use crate::domain::model::terminal_config_value::TerminalConfig;
-use crate::domain::repository::configuration_repository::ConfigurationRepository;
 use crate::get_instance_handle;
-use crate::gui::resolver::terminal_window_resolver::SendHWND;
-use crate::infra::repository::emeditor_config_repository_impl::EmEditorConfigRepositoryImpl;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
 use windows::Win32::Foundation::{HWND, LPARAM, WPARAM};
@@ -23,8 +20,6 @@ static IS_DIALOG_ACTIVE: AtomicBool = AtomicBool::new(false);
 
 // ダイアログ表示中のテンポラリな設定を保持するための Mutex
 static TEMP_CONFIG: Mutex<Option<TerminalConfig>> = Mutex::new(None);
-// EmEditor の View HWND を保持 (設定の保存に必要)
-static VIEW_HWND: Mutex<Option<SendHWND>> = Mutex::new(None);
 
 /// ピクセル単位の高さからポイントサイズへ変換する
 unsafe fn pixels_to_points(hwnd: HWND, lf_height: i32) -> i32 {
@@ -57,16 +52,26 @@ unsafe fn points_to_pixels(hwnd: HWND, points: i32) -> i32 {
 }
 
 /// 設定ダイアログを表示する
-pub(crate) fn show_settings_dialog(view_hwnd: HWND, parent_hwnd: HWND) {
+///
+/// ユーザーが OK をクリックした場合は更新後の TerminalConfig を返し、
+/// キャンセルした場合は None を返す。
+pub(crate) fn show_settings_dialog(
+    view_hwnd: HWND,
+    parent_hwnd: HWND,
+    initial_config: TerminalConfig,
+) -> Option<TerminalConfig> {
     if IS_DIALOG_ACTIVE.swap(true, Ordering::SeqCst) {
-        return;
+        return None;
     }
 
     let instance = get_instance_handle();
 
-    if let Ok(mut lock) = VIEW_HWND.lock() {
-        *lock = Some(SendHWND(view_hwnd));
+    // 初期設定をセット
+    if let Ok(mut lock) = TEMP_CONFIG.lock() {
+        *lock = Some(initial_config);
     }
+
+    let mut result_config = None;
 
     unsafe {
         // モーダルダイアログの表示
@@ -82,18 +87,24 @@ pub(crate) fn show_settings_dialog(view_hwnd: HWND, parent_hwnd: HWND) {
             LPARAM(0),
         );
 
-        if result == -1 {
-            log::error!("DialogBoxParamW failed. Check resource ID and parent HWND.");
+        if result == IDOK.0 as isize {
+            if let Ok(lock) = TEMP_CONFIG.lock() {
+                result_config = lock.clone();
+            }
+        } else if result == -1 {
+            log::error!(
+                "DialogBoxParamW failed. GetLastError={:?}",
+                windows::Win32::Foundation::GetLastError()
+            );
         }
     }
 
     if let Ok(mut lock) = TEMP_CONFIG.lock() {
         *lock = None;
     }
-    if let Ok(mut lock) = VIEW_HWND.lock() {
-        *lock = None;
-    }
     IS_DIALOG_ACTIVE.store(false, Ordering::SeqCst);
+
+    result_config
 }
 
 /// ダイアログ内のフォント表示を更新する
@@ -121,21 +132,10 @@ unsafe extern "system" fn settings_dlg_proc(
         windows::Win32::UI::WindowsAndMessaging::WM_INITDIALOG => {
             log::info!("WM_INITDIALOG: Initializing settings dialog.");
 
-            let view_hwnd = if let Ok(lock) = VIEW_HWND.lock() {
-                lock.as_ref().cloned()
-            } else {
-                None
-            };
-
-            if let Some(h) = view_hwnd {
-                let repo = EmEditorConfigRepositoryImpl::new(h);
-                let config = repo.get_terminal_config();
-
-                if let Ok(mut lock) = TEMP_CONFIG.lock() {
-                    *lock = Some(config.clone());
+            if let Ok(lock) = TEMP_CONFIG.lock() {
+                if let Some(config) = lock.as_ref() {
+                    update_font_label(hwnd, &config.font_face, config.font_size);
                 }
-
-                update_font_label(hwnd, &config.font_face, config.font_size);
             }
             1 // TRUE
         }
@@ -144,23 +144,6 @@ unsafe extern "system" fn settings_dlg_proc(
             match control_id {
                 id if id == IDOK.0 => {
                     log::info!("Settings dialog: OK clicked.");
-
-                    let config_to_save = if let Ok(lock) = TEMP_CONFIG.lock() {
-                        lock.as_ref().cloned()
-                    } else {
-                        None
-                    };
-                    let view_hwnd = if let Ok(lock) = VIEW_HWND.lock() {
-                        lock.as_ref().cloned()
-                    } else {
-                        None
-                    };
-
-                    if let (Some(config), Some(h_view)) = (config_to_save, view_hwnd) {
-                        let repo = EmEditorConfigRepositoryImpl::new(h_view);
-                        repo.save(&config);
-                    }
-
                     if let Err(e) = EndDialog(hwnd, IDOK.0 as isize) {
                         log::error!("EndDialog(IDOK) failed: {:?}", e);
                     }

@@ -74,13 +74,13 @@
         ]
       },
       {
-        "matcher": "run_shell_command|write_file|create_new_file",
+        "matcher": "run_shell_command|write_file|create_new_file|replace_text_in_file",
         "hooks": [
           {
             "name": "architecture-guard",
             "type": "command",
             "command": "$PYTHON_COMMAND $GEMINI_PROJECT_DIR/.gemini/hooks/validate_architecture.py",
-            "description": "バイブコーディング時の厳格なファイル命名規則を強制する"
+            "description": "レイヤー間の依存方向と命名規則（Suffix Rule）を強制する"
           }
         ]
       }

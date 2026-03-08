@@ -42,6 +42,12 @@
 - **手動検証の義務**: 「ユーザー手動検証」タスクは、必ずユーザーによる実機確認と明示的な承認を得ること。
 - **実機優先**: 開発中は `install.ps1` を活用し、常に EmEditor 実機での動作を優先して確認すること。
 
+## **6. Temporaryファイル**
+
+Gitのコミットメッセージ等、一時的に使用されるファイルを管理するためのルール。
+
+- **保存フォルダ**: `./temporary.local` に保存すること。このフォルダは.gitignoreによって除外されているのでGit環境を汚さない。内部に作成するファイルは、いつ消されても良い内容とすること。
+
 ---
 
 ## **開発参考資料**
@@ -55,5 +61,6 @@
 
 ## **プロジェクト情報**
 - **リポジトリ**: https://github.com/naoyukik/emeditor-terminal
+- **リモート(origin)**: https://github.com/naoyukik/emeditor-terminal.git
 - **主要言語**: Rust (Win32 API)
 - **ログ位置**: `$env:TEMP\emeditor_terminal.log`
