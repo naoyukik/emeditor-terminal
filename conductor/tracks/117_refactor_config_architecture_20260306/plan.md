@@ -46,3 +46,15 @@
 - [x] Task: Conductor - User Manual Verification 'Integration' (Protocol in workflow.md)
 - [x] Task: **Commit Phase 4 Changes**
     - [x] `chore(conductor): Add validate_dependency_architecture hook and final cleanup` でコミット。
+
+## Phase 5: PR Review Fixes
+- [x] Task: PRレビュー指摘の修正
+    - [x] `config_resolver.rs` から具象依存を排除し、真の DI へ移行する。
+    - [x] `validate_architecture.py` を強化し、完全修飾パスによる回避を阻止する。
+    - [x] `DialogBoxParamW` の失敗検知ログを復活させる。
+    - [x] `WindowId` 等の冗長な `unsafe impl Send/Sync` を削除し、`Default` 実装を整理する。
+- [x] Task: Conductor - User Manual Verification 'PR Fixes' (Protocol in workflow.md)
+- [x] Task: Final Verification & Commit
+    - [x] `cargo build` / `cargo test` / `cargo clippy` の確認。
+    - [x] 実機での再検証。
+    - [x] `fix(conductor): Apply PR review suggestions for issue #117` でコミット。
