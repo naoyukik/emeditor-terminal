@@ -44,22 +44,21 @@ prompt = """
     * **Issue連携**: 関連するIssueを自動的に閉じるため、本文内に必ず `Closes #チケット番号` の形式で記述を含めること。
     * チケット番号の頭には `#` を付与する。
 
-5. コマンド生成と実行 (Silent-gh Protocol)
-Windows PowerShell 5.1 環境における文字化け回避と正確な実行結果確認のため、以下の **Silent-gh Protocol** に基づき Draft PR を作成する。記載の無いオプションは指定しないこと。
+5. コマンド生成と実行
+   GitHub CLI (`gh`) を使用して Draft PR を作成する。
 
     * `--draft`: Draft PRとして作成する。
     * `--title`: 生成したPRタイトルを設定する。
     * `--body`: 生成したPR本文を設定する。
     * `--base`: ベースブランチは常に`main`とする。
     * `--head`: 自動取得した現在のブランチ名を設定する。
-    * `--assignee`: `"@me"` を設定する。
+    * `--assignee`: "@me" を設定する。
 
-    a. **GitHub CLI (gh) を唯一の標準として使用する**:
+    a. **GitHub CLI (gh) を使用する**:
        - `run_shell_command` を使用し、上記の仕様で `gh pr create` を実行する。
-       - 実行結果（作成されたPRのURL等）を確実にキャプチャするため、出力を一時ファイルにリダイレクトし、`get_file_text_by_path` で読み取ること。
-       - 例: `cmd /c \"gh pr create --draft ... > temporary.local/gh_pr_res.txt\"`
+       - **注意**: 引数のパース精度を優先するため、`cmd /c` を介さず直接実行すること。
     b. **いずれも使用できない場合**:
-       - 生成した PR タイトルと PR 本文をテキストとして出力する。
+       - 実行すべき `gh pr create` コマンドとその引数をテキストとして出力する。
 
 4. 結果報告
     PRが正常に作成されたことをユーザーに報告する。
