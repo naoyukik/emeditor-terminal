@@ -99,25 +99,29 @@ def validate_dependence(file_path, content):
         return None
 
     allowed_targets = DEPENDENCY_RULES.get(current_layer, [])
-    imports = re.findall(r'\buse\s+crate::([^\s;:]+)', content)
+    
+    # use crate::... または完全修飾パス crate::... を検出
+    all_refs = re.findall(r'\bcrate::([^\s;:(]+)', content)
 
-    for imp in imports:
+    for ref in all_refs:
         # 具象実装への直接依存チェック
-        if "infra" in imp and "impl" in imp:
-            return f"🚫 DIの掟違反: 具象実装 '{imp}' を直接 use することは禁じられています。Repository Trait を使用せよ。"
+        if "infra" in ref and "impl" in ref:
+            # mod.rs 等の WHITELIST は既に除外されているが、
+            # resolver からの具象依存も原則禁止（Composition Root は lib.rs 等に寄せる）
+            return f"🚫 DIの掟違反: 具象実装 '{ref}' を直接参照することは禁じられています。Repository Trait を使用せよ。"
 
         # 許可レイヤーチェック
         is_allowed = False
         for allowed in allowed_targets:
-            if imp.startswith(allowed.replace("/", "::")):
+            if ref.startswith(allowed.replace("/", "::")):
                 is_allowed = True
                 break
 
-        if imp.startswith(current_layer.replace("/", "::")) or imp.startswith("common") or imp.startswith("get_instance_handle"):
+        if ref.startswith(current_layer.replace("/", "::")) or ref.startswith("common") or ref.startswith("get_instance_handle"):
             is_allowed = True
 
         if not is_allowed:
-            return f"🚫 依存の掟違反: レイヤー '{current_layer}' から '{imp}' への依存は許可されていません。"
+            return f"🚫 依存の掟違反: レイヤー '{current_layer}' から '{ref}' への依存は許可されていません。"
 
     return None
 

@@ -43,9 +43,6 @@ mod tests {
         }
     }
 
-    unsafe impl Send for MockConfigRepository {}
-    unsafe impl Sync for MockConfigRepository {}
-
     #[test]
     fn test_load_and_save_config() {
         let initial_config = TerminalConfig::default();

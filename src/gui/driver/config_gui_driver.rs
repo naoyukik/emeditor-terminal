@@ -91,6 +91,11 @@ pub(crate) fn show_settings_dialog(
             if let Ok(lock) = TEMP_CONFIG.lock() {
                 result_config = lock.clone();
             }
+        } else if result == -1 {
+            log::error!(
+                "DialogBoxParamW failed. GetLastError={:?}",
+                windows::Win32::Foundation::GetLastError()
+            );
         }
     }
 

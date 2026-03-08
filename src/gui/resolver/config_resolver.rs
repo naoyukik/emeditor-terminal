@@ -1,7 +1,6 @@
 use crate::application::ConfigWorkflow;
 use crate::domain::model::window_id_value::WindowId;
 use crate::gui::driver::config_gui_driver;
-use crate::infra::repository::emeditor_config_repository_impl::EmEditorConfigRepositoryImpl;
 use windows::Win32::Foundation::{HWND, LPARAM, LRESULT, WPARAM};
 
 /// EmEditor SDK からの PlugInProc メッセージを解釈し、適切な処理に振り分ける
@@ -10,6 +9,7 @@ pub(crate) fn handle_plugin_proc(
     n_msg: u32,
     w_param: WPARAM,
     l_param: LPARAM,
+    config_workflow_factory: impl FnOnce(WindowId) -> ConfigWorkflow,
 ) -> LRESULT {
     match n_msg {
         crate::EP_QUERY_PROPERTIES => {
@@ -36,10 +36,8 @@ pub(crate) fn handle_plugin_proc(
                 parent_hwnd
             );
 
-            // 1. Workflow を構築 (DI)
-            let config_repo =
-                Box::new(EmEditorConfigRepositoryImpl::new(WindowId(hwnd.0 as isize)));
-            let workflow = ConfigWorkflow::new(config_repo);
+            // 1. Workflow を構築 (注入されたファクトリを使用)
+            let workflow = config_workflow_factory(WindowId(hwnd.0 as isize));
 
             // 2. 現行設定をロード
             let current_config = workflow.load_config();
