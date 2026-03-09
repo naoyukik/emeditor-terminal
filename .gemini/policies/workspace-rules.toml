@@ -44,7 +44,7 @@ priority = 50
 # 4. Automatically allow safe git commands
 [[rule]]
 toolName = "run_shell_command"
-commandPrefix = ["git status", "git diff", "git log", "git rev-parse", "git config --get"]
+commandPrefix = ["git status", "git diff", "git log", "git rev-parse", "git config --get", "git branch --show-current"]
 decision = "allow"
 priority = 100
 
