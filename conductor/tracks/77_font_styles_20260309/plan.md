@@ -30,12 +30,14 @@
 
 #### フェーズ 3: コア描画処理の実装と反映
 - [ ] Task: `TerminalGuiDriver` のフォント生成ロジックの刷新
-    - [ ] `get_font_for_style` が `TerminalConfig` のグローバル設定値を参照するように更新
+    - [ ] 初期化時または描画時に `TerminalConfig` を受け取るようにインターフェースを変更
+    - [ ] `get_font_for_style` でハードコードされている `Consolas` と `lfHeight: 16` を `TerminalConfig` の値に置き換える
+    - [ ] `TerminalConfig` の `font_weight` と `font_italic` を `HFONT` 生成ロジックに適用する
 - [ ] Task: 描画ロジックの目視検証 (EmEditor 実機)
 - [ ] Task: Conductor - ユーザー手動検証 'Phase 3' (Protocol in workflow.md)
 - [ ] Task: `style`, `fmt`, `feat`: フェーズ完了の整合性確認とコミット
     - [ ] `cargo fmt` および `cargo clippy` の実行
-    - [ ] `feat: ターミナル描画へのフォントスタイル反映`
+    - [ ] `feat: ターミナル描画へのフォントスタイルおよび書体・サイズの完全反映`
 
 #### フェーズ 4: 最終検証とドキュメント更新
 - [ ] Task: エンドツーエンド (E2E) テストによる永続化の確認
