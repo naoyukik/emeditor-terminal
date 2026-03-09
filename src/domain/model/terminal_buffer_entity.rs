@@ -478,6 +478,7 @@ impl TerminalBufferEntity {
         self.viewport_offset
     }
 
+    #[allow(dead_code)]
     pub(crate) fn get_lines(&self) -> &VecDeque<Vec<Cell>> {
         &self.lines
     }
