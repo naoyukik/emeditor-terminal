@@ -108,8 +108,24 @@ pub(crate) fn show_settings_dialog(
 }
 
 /// ダイアログ内のフォント表示を更新する
-unsafe fn update_font_label(hwnd: HWND, font_face: &str, font_size: i32) {
-    let font_display = format!("Current Font: {}, {}pt", font_face, font_size);
+unsafe fn update_font_label(hwnd: HWND, config: &TerminalConfig) {
+    let mut style_parts = Vec::new();
+    if config.font_weight >= 700 {
+        style_parts.push("Bold");
+    }
+    if config.font_italic {
+        style_parts.push("Italic");
+    }
+    let style_str = if style_parts.is_empty() {
+        "".to_string()
+    } else {
+        format!(" ({})", style_parts.join("/"))
+    };
+
+    let font_display = format!(
+        "Current Font: {}, {}pt{}",
+        config.font_face, config.font_size, style_str
+    );
     let wide_text: Vec<u16> = font_display
         .encode_utf16()
         .chain(std::iter::once(0))
@@ -134,7 +150,7 @@ unsafe extern "system" fn settings_dlg_proc(
 
             if let Ok(lock) = TEMP_CONFIG.lock() {
                 if let Some(config) = lock.as_ref() {
-                    update_font_label(hwnd, &config.font_face, config.font_size);
+                    update_font_label(hwnd, config);
                 }
             }
             1 // TRUE
@@ -165,6 +181,8 @@ unsafe extern "system" fn settings_dlg_proc(
                             let len = face_name_units.len().min(lf.lfFaceName.len() - 1);
                             lf.lfFaceName[..len].copy_from_slice(&face_name_units[..len]);
                             lf.lfHeight = points_to_pixels(hwnd, config.font_size);
+                            lf.lfWeight = config.font_weight;
+                            lf.lfItalic = if config.font_italic { 1 } else { 0 };
                         }
                     }
 
@@ -184,14 +202,19 @@ unsafe extern "system" fn settings_dlg_proc(
                             .unwrap_or(lf.lfFaceName.len());
                         let selected_face = String::from_utf16_lossy(&lf.lfFaceName[..len]);
                         let selected_size = pixels_to_points(hwnd, lf.lfHeight);
+                        let selected_weight = lf.lfWeight;
+                        let selected_italic = lf.lfItalic != 0;
 
                         if let Ok(mut lock) = TEMP_CONFIG.lock() {
                             if let Some(config) = lock.as_mut() {
-                                config.font_face = selected_face.clone();
+                                config.font_face = selected_face;
                                 config.font_size = selected_size;
+                                config.font_weight = selected_weight;
+                                config.font_italic = selected_italic;
+
+                                update_font_label(hwnd, config);
                             }
                         }
-                        update_font_label(hwnd, &selected_face, selected_size);
                     }
                     1
                 }
