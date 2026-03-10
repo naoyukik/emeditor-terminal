@@ -9,14 +9,14 @@ pub struct TerminalWorkflow {
     buffer: TerminalBufferEntity,
     parser: AnsiParserDomainService,
     output_repo: Box<dyn TerminalOutputRepository>,
-    #[allow(dead_code)] // TODO: フォント設定UI実装時に使用予定
     config_repo: Box<dyn ConfigurationRepository>,
     // キャッシュされた設定情報
-    #[allow(dead_code)] // TODO: フォント設定UI実装時に使用予定
     font_face: String,
-    #[allow(dead_code)] // TODO: フォント設定UI実装時に使用予定
     font_size: i32,
     #[allow(dead_code)]
+    font_weight: i32,
+    #[allow(dead_code)]
+    font_italic: bool,
     pub(crate) config: TerminalConfig,
     pub(crate) color_theme: ColorTheme,
 }
@@ -30,13 +30,17 @@ impl TerminalWorkflow {
     ) -> Self {
         let config = config_repo.load();
         log::info!(
-            "Loaded terminal config: font_face='{}', font_size={}",
+            "Loaded terminal config: font_face='{}', font_size={}, weight={}, italic={}",
             config.font_face,
-            config.font_size
+            config.font_size,
+            config.font_weight,
+            config.font_italic
         );
         log::debug!("Loaded terminal shell_path='{}'", config.shell_path);
         let font_face = config.font_face.clone();
         let font_size = config.font_size;
+        let font_weight = config.font_weight;
+        let font_italic = config.font_italic;
         let color_theme = config.get_color_theme();
 
         Self {
@@ -46,6 +50,8 @@ impl TerminalWorkflow {
             config_repo,
             font_face,
             font_size,
+            font_weight,
+            font_italic,
             config,
             color_theme,
         }

@@ -19,6 +19,8 @@ pub struct TerminalConfig {
     pub theme_type: ThemeType,
     pub font_face: String,
     pub font_size: i32,
+    pub font_weight: i32,
+    pub font_italic: bool,
     pub shell_path: String,
 }
 
@@ -35,6 +37,8 @@ impl Default for TerminalConfig {
             theme_type: ThemeType::OneHalfDark,
             font_face: "Consolas".to_string(),
             font_size: 10,
+            font_weight: 400, // FW_NORMAL
+            font_italic: false,
             shell_path,
         }
     }
@@ -58,6 +62,8 @@ mod tests {
     fn test_terminal_config_default_theme() {
         let config = TerminalConfig::default();
         assert_eq!(config.theme_type, ThemeType::OneHalfDark);
+        assert_eq!(config.font_weight, 400);
+        assert!(!config.font_italic);
         let theme = config.get_color_theme();
         assert_eq!(theme, ColorTheme::one_half_dark());
     }
@@ -66,8 +72,12 @@ mod tests {
     fn test_terminal_config_one_half_dark() {
         let config = TerminalConfig {
             theme_type: ThemeType::OneHalfDark,
+            font_weight: 700,
+            font_italic: true,
             ..TerminalConfig::default()
         };
+        assert_eq!(config.font_weight, 700);
+        assert!(config.font_italic);
         let theme = config.get_color_theme();
         assert_eq!(theme, ColorTheme::one_half_dark());
     }
