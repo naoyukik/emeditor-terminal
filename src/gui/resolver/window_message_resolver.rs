@@ -2,7 +2,9 @@ use crate::gui::driver::scroll_gui_driver::{update_window_scroll_info, ScrollAct
 use crate::gui::resolver::terminal_window_resolver::{get_terminal_data, TerminalWindowResolver};
 use crate::infra::driver::keyboard_io_driver::KeyboardIoDriver;
 use windows::Win32::Foundation::{BOOL, HWND, LPARAM, LRESULT, WPARAM};
-use windows::Win32::Graphics::Gdi::{BeginPaint, EndPaint, InvalidateRect, PAINTSTRUCT};
+use windows::Win32::Graphics::Gdi::{
+    BeginPaint, EndPaint, GetDC, InvalidateRect, ReleaseDC, PAINTSTRUCT,
+};
 use windows::Win32::UI::Input::KeyboardAndMouse::{SetFocus, VK_MENU};
 use windows::Win32::UI::WindowsAndMessaging::{
     CreateCaret, DefWindowProcW, DestroyCaret, DLGC_WANTALLKEYS,
@@ -88,6 +90,7 @@ pub fn on_paint(hwnd: HWND) -> LRESULT {
             service.get_buffer(),
             composition.as_ref(),
             &service.color_theme,
+            &service.config,
         );
 
         let _ = EndPaint(hwnd, &ps);
@@ -114,12 +117,23 @@ pub fn on_set_focus(hwnd: HWND) -> LRESULT {
     // For caret creation:
 
     let data_arc = get_terminal_data();
-    let window_data = data_arc.lock().unwrap();
-    let char_height = window_data
-        .renderer
-        .get_metrics()
-        .map(|m| m.char_height)
-        .unwrap_or(16);
+    let mut window_data = data_arc.lock().unwrap();
+    let char_height = if let Some(metrics) = window_data.renderer.get_metrics() {
+        metrics.char_height
+    } else {
+        unsafe {
+            let hdc = GetDC(hwnd);
+            let config = window_data.service.config.clone();
+            let _font = window_data.renderer.get_font_for_style(hdc, 0, &config);
+            // get_font_for_style internally updates metrics if they are None
+            ReleaseDC(hwnd, hdc);
+            window_data
+                .renderer
+                .get_metrics()
+                .map(|m| m.char_height)
+                .unwrap_or(16)
+        }
+    };
     unsafe {
         let _ = CreateCaret(
             hwnd,

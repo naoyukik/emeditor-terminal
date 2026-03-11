@@ -1,17 +1,18 @@
 use crate::domain::model::terminal_buffer_entity::{
     CursorStyle, TerminalBufferEntity, TerminalColor,
 };
+use crate::gui::common::points_to_pixels;
 use std::collections::HashMap;
 use unicode_width::UnicodeWidthStr;
-use windows::core::{w, PCWSTR};
-use windows::Win32::Foundation::{COLORREF, RECT, SIZE};
+use windows::core::PCWSTR;
+use windows::Win32::Foundation::{COLORREF, HWND, RECT, SIZE};
 use windows::Win32::Graphics::Gdi::{
     BitBlt, CreateCompatibleBitmap, CreateCompatibleDC, CreateFontIndirectW, CreateSolidBrush,
     DeleteDC, DeleteObject, ExtTextOutW, FillRect, GetTextExtentPoint32W, GetTextMetricsW,
     InvertRect, SelectObject, SetBkColor, SetTextColor, CLIP_DEFAULT_PRECIS, DEFAULT_CHARSET,
     DEFAULT_QUALITY, ETO_OPAQUE, ETO_OPTIONS, FF_MODERN, FIXED_PITCH, FONT_CHARSET,
-    FONT_CLIP_PRECISION, FONT_OUTPUT_PRECISION, FONT_QUALITY, FW_BOLD, FW_NORMAL, HDC, HFONT,
-    HGDIOBJ, LOGFONTW, OUT_DEFAULT_PRECIS, SRCCOPY, TEXTMETRICW,
+    FONT_CLIP_PRECISION, FONT_OUTPUT_PRECISION, FONT_QUALITY, HDC, HFONT, HGDIOBJ, LOGFONTW,
+    OUT_DEFAULT_PRECIS, SRCCOPY, TEXTMETRICW,
 };
 
 #[derive(Clone, Debug)]
@@ -141,20 +142,25 @@ impl TerminalGuiDriver {
         COLORREF(((r / 2) as u32) | (((g / 2) as u32) << 8) | (((b / 2) as u32) << 16))
     }
 
-    fn get_font_for_style(&mut self, hdc: HDC, style_mask: u32) -> HFONT {
+    pub(crate) fn get_font_for_style(
+        &mut self,
+        hdc: HDC,
+        style_mask: u32,
+        config: &crate::domain::model::terminal_config_value::TerminalConfig,
+    ) -> HFONT {
         if let Some(font) = self.fonts.get(&style_mask) {
             return font.0;
         }
 
         unsafe {
             let mut lf = LOGFONTW {
-                lfHeight: 16,
+                lfHeight: points_to_pixels(HWND::default(), config.font_size),
                 lfWeight: if (style_mask & STYLE_BOLD) != 0 {
-                    FW_BOLD.0 as i32
+                    700 // FW_BOLD
                 } else {
-                    FW_NORMAL.0 as i32
+                    config.font_weight
                 },
-                lfItalic: if (style_mask & STYLE_ITALIC) != 0 {
+                lfItalic: if (style_mask & STYLE_ITALIC) != 0 || config.font_italic {
                     1
                 } else {
                     0
@@ -177,21 +183,20 @@ impl TerminalGuiDriver {
                 ..Default::default()
             };
 
-            let face_name = w!("Consolas");
-            let len = std::cmp::min(face_name.len(), lf.lfFaceName.len() - 1);
-            for i in 0..len {
-                lf.lfFaceName[i] = face_name.as_wide()[i];
-            }
+            let face_name_wide: Vec<u16> = config.font_face.encode_utf16().collect();
+            let len = std::cmp::min(face_name_wide.len(), lf.lfFaceName.len() - 1);
+            lf.lfFaceName[..len].copy_from_slice(&face_name_wide[..len]);
             lf.lfFaceName[len] = 0;
 
             let h_font = CreateFontIndirectW(&lf);
             if h_font.0.is_null() {
                 log::error!(
-                    "CreateFontIndirectW failed for style_mask={:#x}",
-                    style_mask
+                    "CreateFontIndirectW failed for style_mask={:#x}, face={}",
+                    style_mask,
+                    config.font_face
                 );
                 if style_mask != 0 {
-                    return self.get_font_for_style(hdc, 0);
+                    return self.get_font_for_style(hdc, 0, config);
                 }
                 return HFONT::default();
             }
@@ -273,6 +278,7 @@ impl TerminalGuiDriver {
         buffer: &TerminalBufferEntity,
         composition: Option<&CompositionInfo>,
         theme: &crate::domain::model::color_theme_value::ColorTheme,
+        config: &crate::domain::model::terminal_config_value::TerminalConfig,
     ) {
         let width = client_rect.right - client_rect.left;
         let height = client_rect.bottom - client_rect.top;
@@ -294,7 +300,7 @@ impl TerminalGuiDriver {
             let h_old_bm = SelectObject(h_mem_dc, HGDIOBJ(h_bm.0));
             let _bm_select_guard = SelectedObjectGuard::new(h_mem_dc, h_old_bm);
 
-            self.render_internal(h_mem_dc, client_rect, buffer, composition, theme);
+            self.render_internal(h_mem_dc, client_rect, buffer, composition, theme, config);
 
             let _ = BitBlt(
                 hdc,
@@ -317,6 +323,7 @@ impl TerminalGuiDriver {
         buffer: &TerminalBufferEntity,
         composition: Option<&CompositionInfo>,
         theme: &crate::domain::model::color_theme_value::ColorTheme,
+        config: &crate::domain::model::terminal_config_value::TerminalConfig,
     ) {
         let width = client_rect.right - client_rect.left;
         let height = client_rect.bottom - client_rect.top;
@@ -336,7 +343,7 @@ impl TerminalGuiDriver {
             }
         }
 
-        let _ = self.get_font_for_style(hdc, 0);
+        let _ = self.get_font_for_style(hdc, 0, config);
         let metrics = match &self.metrics {
             Some(m) => m,
             None => return,
@@ -411,7 +418,7 @@ impl TerminalGuiDriver {
                                 style_mask |= STYLE_STRIKEOUT;
                             }
 
-                            let h_font = self.get_font_for_style(hdc, style_mask);
+                            let h_font = self.get_font_for_style(hdc, style_mask, config);
                             let old_font = SelectObject(hdc, HGDIOBJ(h_font.0));
                             let _font_guard = SelectedObjectGuard::new(hdc, old_font);
 
@@ -474,7 +481,7 @@ impl TerminalGuiDriver {
                             char_height,
                             base_width,
                         };
-                        self.render_composition(hdc, &ctx, comp, theme);
+                        self.render_composition(hdc, &ctx, comp, theme, config);
                     } else if buffer.is_cursor_visible() {
                         let style = buffer.get_cursor_style();
                         let display_width =
@@ -520,11 +527,12 @@ impl TerminalGuiDriver {
     }
 
     fn render_composition(
-        &self,
+        &mut self,
         hdc: HDC,
         ctx: &RenderContext,
         comp: &CompositionInfo,
         theme: &crate::domain::model::color_theme_value::ColorTheme,
+        config: &crate::domain::model::terminal_config_value::TerminalConfig,
     ) {
         let comp_wide: Vec<u16> = comp.text.encode_utf16().collect();
         let mut comp_dx = Vec::with_capacity(comp_wide.len());
@@ -546,6 +554,10 @@ impl TerminalGuiDriver {
             bottom: ctx.y + ctx.char_height,
         };
         unsafe {
+            let h_font = self.get_font_for_style(hdc, 0, config);
+            let old_font = SelectObject(hdc, HGDIOBJ(h_font.0));
+            let _font_guard = SelectedObjectGuard::new(hdc, old_font);
+
             SetBkColor(hdc, Self::rgb_to_colorref(&theme.default_bg));
             SetTextColor(hdc, Self::rgb_to_colorref(&theme.default_fg));
             let _ = ExtTextOutW(

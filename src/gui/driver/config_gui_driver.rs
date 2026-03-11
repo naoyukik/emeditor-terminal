@@ -1,9 +1,10 @@
 use crate::domain::model::terminal_config_value::TerminalConfig;
 use crate::get_instance_handle;
+use crate::gui::common::{pixels_to_points, points_to_pixels};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
 use windows::Win32::Foundation::{HWND, LPARAM, WPARAM};
-use windows::Win32::Graphics::Gdi::{GetDC, GetDeviceCaps, ReleaseDC, LOGFONTW, LOGPIXELSY};
+use windows::Win32::Graphics::Gdi::LOGFONTW;
 use windows::Win32::UI::Controls::Dialogs::{
     ChooseFontW, CF_INITTOLOGFONTSTRUCT, CF_SCREENFONTS, CHOOSEFONTW,
 };
@@ -20,36 +21,6 @@ static IS_DIALOG_ACTIVE: AtomicBool = AtomicBool::new(false);
 
 // ダイアログ表示中のテンポラリな設定を保持するための Mutex
 static TEMP_CONFIG: Mutex<Option<TerminalConfig>> = Mutex::new(None);
-
-/// ピクセル単位の高さからポイントサイズへ変換する
-unsafe fn pixels_to_points(hwnd: HWND, lf_height: i32) -> i32 {
-    let hdc = GetDC(hwnd);
-    if hdc.is_invalid() {
-        return 10;
-    }
-    let dpi_y = GetDeviceCaps(hdc, LOGPIXELSY);
-    ReleaseDC(hwnd, hdc);
-
-    if dpi_y == 0 {
-        return 10;
-    }
-    (lf_height.abs() * 72 + dpi_y / 2) / dpi_y
-}
-
-/// ポイントサイズからピクセル単位の高さへ変換する (LOGFONT用)
-unsafe fn points_to_pixels(hwnd: HWND, points: i32) -> i32 {
-    let hdc = GetDC(hwnd);
-    if hdc.is_invalid() {
-        return -13;
-    }
-    let dpi_y = GetDeviceCaps(hdc, LOGPIXELSY);
-    ReleaseDC(hwnd, hdc);
-
-    if dpi_y == 0 {
-        return -13;
-    }
-    -((points * dpi_y + 36) / 72)
-}
 
 /// 設定ダイアログを表示する
 ///
