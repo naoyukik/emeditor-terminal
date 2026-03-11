@@ -25,9 +25,7 @@ prompt = """
 2. Issueの確認 (GraphQL-Scalpel)
 チケット番号が存在する場合、Issueの内容を確認するため、必ず以下の **GraphQL-Scalpel** プロトコルを使用して情報を取得すること。
 
-    - **クエリ作成**: `create_new_file` で `temporary.local/issue_query.json` を作成し、`query { repository(owner: \"naoyukik\", name: \"emeditor-terminal\") { issue(number: TICKET_NUMBER) { title body } } }` を書き込む。
-    - **実行**: `run_shell_command` で `cmd /c \"gh api --method POST /graphql --input temporary.local/issue_query.json > temporary.local/issue_res.json\"` を実行。
-    - **取得**: `get_file_text_by_path` で結果を読み取り、背景情報を抽出する。
+    - **情報取得**: `gh api graphql -f query='query($owner: String!, $name: String!, $num: Int!) { repository(owner: $owner, name: $name) { issue(number: $num) { title body } } }' -f owner='naoyukik' -f name='emeditor-terminal' -F num=TICKET_NUMBER` を実行し、背景情報を抽出する。
 
 3. 推論と構築 (Reasoning)
 取得した情報を以下の優先順位で統合し、PRの内容を構築せよ。
