@@ -31,21 +31,20 @@ The output will contain an `"id"` field with a large numeric value.
 ```
 Use the value `3971828927`.
 
-### Method B: Using GitHub GraphQL API (GraphQL-Scalpel)
-Windows PowerShell 5.1 環境における文字化けとコンテキスト（トークン）効率の最適化のため、以下の手順を厳守すること。
+### Method B: Using GitHub GraphQL API (GitHub-Efficiency)
+情報の正確な取得とトークン効率を最大化するため、以下の手順で GraphQL を使用して ID を取得する。
 
-1. **JSONボディ作成**: `create_new_file` で `temporary.local/query_id.json` を作成し、以下を書き込む。
-```json
-{
-  "query": "query($owner: String!, $repo: String!, $number: Int!) { repository(owner: $owner, name: $repo) { issue(number: $number) { id } } }",
-  "variables": { "owner": "{owner}", "repo": "{repo}", "number": {issue_number} }
-}
-```
-2. **コマンド実行**: `run_shell_command` で、`cmd /c` を介して実行し、出力をファイルに保存。
+1. **コマンド実行**: `run_shell_command` を使用し、直接 `gh api graphql` を実行して ID を取得する。
+
 ```powershell
-cmd /c "gh api --method POST /graphql --input temporary.local/query_id.json > temporary.local/gh_id.json"
+gh api graphql -f query='
+  query($owner: String!, $repo: String!, $number: Int!) {
+    repository(owner: $owner, name: $repo) {
+      issue(number: $number) { id }
+    }
+  }' -f owner='naoyukik' -f repo='emeditor-terminal' -F number=ISSUE_NUMBER
 ```
-3. **内容取得**: `get_file_text_by_path` で結果（例: `{"data":{"repository":{"issue":{"id":"I_..."}}}}`）を読み取り、IDを取得する。
+2. **内容取得**: `run_shell_command` の実行結果（例: `{"data":{"repository":{"issue":{"id":"I_..."}}}}`）から ID を取得する。
 
 ### Method C: When Creating a New Issue
 If you just created the issue using `issue_write`, the output already contains the `id`.
@@ -81,25 +80,29 @@ Once you have the internal `id`, call the `sub_issue_write` tool.
 
 ## Step 3: Fallback Procedure (If `sub_issue_write` fails)
 
-If the `sub_issue_write` tool returns a 404 or 422 error, or fails for another reason, you can attempt to link the issues manually via the GitHub GraphQL API as a fallback.
-Windows PowerShell 5.1 環境における文字化けとコンテキスト（トークン）効率の最適化のため、以下の手順を厳守すること。
+もし `sub_issue_write` ツールが 404 や 422 エラーで失敗した場合、以下の **GitHub-Efficiency** プロトコルに従い、GitHub GraphQL API を直接使用して確認またはリンクを試みる。
 
-1. **Verify if the issue is already linked:**
-   A 422 error often indicates that the issue is *already* a sub-issue. Verify this by checking the parent's sub-issues:
-   ```json
-   {
-     "query": "query($owner: String!, $repo: String!, $number: Int!) { repository(owner: $owner, name: $repo) { issue(number: $number) { subIssues(first: 10) { nodes { number } } } } }",
-     "variables": { "owner": "{owner}", "repo": "{repo}", "number": {parent_number} }
-   }
+1. **既にリンクされているか確認する**:
+   422 エラーは「既にサブイシューである」ことを示す場合がある。以下のコマンドで確認せよ。
+   ```powershell
+   gh api graphql -f query='
+     query($owner: String!, $repo: String!, $number: Int!) {
+       repository(owner: $owner, name: $repo) {
+         issue(number: $number) {
+           subIssues(first: 10) { nodes { number } }
+         }
+       }
+     }' -f owner='naoyukik' -f repo='emeditor-terminal' -F number=PARENT_NUMBER
    ```
-   上記 JSON を `create_new_file` で作成し、`gh api --input` で実行後、`get_file_text_by_path` で内容を確認する。ターゲットの issue number があれば成功済みである。
 
-2. **Add Sub-issue directly via GitHub GraphQL API:**
-   If the tool is broken, use GraphQL mutation (`addSubIssue`) to link the issues:
-   ```json
-   {
-     "query": "mutation($parentId: ID!, $subIssueId: ID!) { addSubIssue(input: { parentIssueId: $parentId, subIssueId: $subIssueId }) { subIssue { id } } }",
-     "variables": { "parentId": "{parentId}", "subIssueId": "{subIssueId}" }
-   }
+2. **GitHub GraphQL API でサブイシューを追加する**:
+   ツールが正常に動作しない場合は、`mutation (addSubIssue)` を直接実行してリンクする。
+   ```powershell
+   gh api graphql -f query='
+     mutation($parentId: ID!, $subIssueId: ID!) {
+       addSubIssue(input: { parentIssueId: $parentId, subIssueId: $subIssueId }) {
+         subIssue { id }
+       }
+     }' -f parentId='PARENT_NODE_ID' -f subIssueId='CHILD_NODE_ID'
    ```
-   上記 JSON を `create_new_file` で作成し、`gh api --method POST /graphql --input temporary.local/sub_issue_mutation.json > temporary.local/gh_res.json` を実行して、結果を確認する。
+   実行結果の JSON を確認し、エラーがなければ成功である。
