@@ -29,6 +29,15 @@ toolName = [
 decision = "allow"
 priority = 50
 
+# 2. Automatically allow read-only tools from Learn Microsoft MCP
+[[rule]]
+mcpName = "learn-microsoft"
+toolName = [
+    "microsoft_docs_search",
+]
+decision = "allow"
+priority = 50
+
 # 2.1 Automatically allow built-in read-only tools
 [[rule]]
 toolName = ["read_file", "list_directory", "glob", "grep_search"]
