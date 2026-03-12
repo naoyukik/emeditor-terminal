@@ -1,11 +1,11 @@
 use crate::domain::model::terminal_buffer_entity::{
     CursorStyle, TerminalBufferEntity, TerminalColor,
 };
-use crate::gui::common::points_to_pixels;
+use crate::gui::common::points_to_pixels_from_hdc;
 use std::collections::HashMap;
 use unicode_width::UnicodeWidthStr;
 use windows::core::PCWSTR;
-use windows::Win32::Foundation::{COLORREF, HWND, RECT, SIZE};
+use windows::Win32::Foundation::{COLORREF, RECT, SIZE};
 use windows::Win32::Graphics::Gdi::{
     BitBlt, CreateCompatibleBitmap, CreateCompatibleDC, CreateFontIndirectW, CreateSolidBrush,
     DeleteDC, DeleteObject, ExtTextOutW, FillRect, GetTextExtentPoint32W, GetTextMetricsW,
@@ -154,9 +154,9 @@ impl TerminalGuiDriver {
 
         unsafe {
             let mut lf = LOGFONTW {
-                lfHeight: points_to_pixels(HWND::default(), config.font_size),
+                lfHeight: points_to_pixels_from_hdc(hdc, config.font_size),
                 lfWeight: if (style_mask & STYLE_BOLD) != 0 {
-                    700 // FW_BOLD
+                    std::cmp::max(config.font_weight, 700)
                 } else {
                     config.font_weight
                 },
@@ -198,6 +198,7 @@ impl TerminalGuiDriver {
                 if style_mask != 0 {
                     return self.get_font_for_style(hdc, 0, config);
                 }
+                // デフォルトフォント作成失敗時の無限再帰を防止
                 return HFONT::default();
             }
 

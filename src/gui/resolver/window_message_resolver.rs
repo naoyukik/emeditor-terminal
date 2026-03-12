@@ -123,15 +123,20 @@ pub fn on_set_focus(hwnd: HWND) -> LRESULT {
     } else {
         unsafe {
             let hdc = GetDC(hwnd);
-            let config = window_data.service.config.clone();
-            let _font = window_data.renderer.get_font_for_style(hdc, 0, &config);
-            // get_font_for_style internally updates metrics if they are None
-            ReleaseDC(hwnd, hdc);
-            window_data
-                .renderer
-                .get_metrics()
-                .map(|m| m.char_height)
-                .unwrap_or(16)
+            if hdc.is_invalid() {
+                // GetDC が失敗した場合はフォールバック値を用いる
+                16
+            } else {
+                let config = window_data.service.config.clone();
+                let _font = window_data.renderer.get_font_for_style(hdc, 0, &config);
+                // get_font_for_style internally updates metrics if they are None
+                ReleaseDC(hwnd, hdc);
+                window_data
+                    .renderer
+                    .get_metrics()
+                    .map(|m| m.char_height)
+                    .unwrap_or(16)
+            }
         }
     };
     unsafe {
