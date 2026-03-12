@@ -52,3 +52,16 @@
 - [x] Task: `style`, `fmt`, `docs`: 最終クリーンアップとコミット
     - [x] `cargo fmt` および `cargo clippy` の実行
     - [x] `docs: Issue #77 の完了とドキュメント更新`
+
+#### フェーズ 5: PRレビュー指摘への対応 (Critical/Bug Fix)
+- [x] Task: 安全性とバグ修正の実施
+    - [x] `GetDC` の NULL チェックとエラーハンドリングの追加 (`window_message_resolver.rs`)
+    - [x] `get_font_for_style` の無限再帰防止 (`terminal_gui_driver.rs`)
+    - [x] 描画時の DPI 計算を `hdc` ベースに修正 (`points_to_pixels` のオーバーロードまたは変更)
+    - [x] 太字ウェイトの合成ロジック改善 (`max(config.font_weight, 700)`)
+- [x] Task: Conductor - ユーザー手動検証 'Phase 5'
+- [x] Task: `style`, `fmt`, `fix`: 指摘対応の完了とコミット
+
+**Future Tickets (PRレビューより):**
+- **Issue #123**: `TerminalWorkflow` の冗長なフォントキャッシュフィールドを削除。
+- **Issue #124**: 設定変更時の描画エンジンキャッシュクリア（Live Reload 準備）。
