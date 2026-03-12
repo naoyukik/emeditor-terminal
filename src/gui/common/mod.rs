@@ -18,3 +18,56 @@ pub struct SendHWND(pub HWND);
 //   Rust の意味でのデータ競合や未定義動作は発生しないものとみなせる。
 unsafe impl Send for SendHWND {}
 unsafe impl Sync for SendHWND {}
+
+/// ピクセル単位の高さからポイントサイズへ変換する
+pub(crate) unsafe fn pixels_to_points(
+    hwnd: windows::Win32::Foundation::HWND,
+    lf_height: i32,
+) -> i32 {
+    use windows::Win32::Graphics::Gdi::{GetDC, ReleaseDC};
+    let hdc = GetDC(hwnd);
+    if hdc.is_invalid() {
+        return 10;
+    }
+    let pts = pixels_to_points_from_hdc(hdc, lf_height);
+    ReleaseDC(hwnd, hdc);
+    pts
+}
+
+/// HDC からピクセル単位の高さからポイントサイズへ変換する
+pub(crate) unsafe fn pixels_to_points_from_hdc(
+    hdc: windows::Win32::Graphics::Gdi::HDC,
+    lf_height: i32,
+) -> i32 {
+    use windows::Win32::Graphics::Gdi::{GetDeviceCaps, LOGPIXELSY};
+    let dpi_y = GetDeviceCaps(hdc, LOGPIXELSY);
+    if dpi_y == 0 {
+        return 10;
+    }
+    (lf_height.abs() * 72 + dpi_y / 2) / dpi_y
+}
+
+/// ポイントサイズからピクセル単位の高さへ変換する (LOGFONT用)
+pub(crate) unsafe fn points_to_pixels(hwnd: windows::Win32::Foundation::HWND, points: i32) -> i32 {
+    use windows::Win32::Graphics::Gdi::{GetDC, ReleaseDC};
+    let hdc = GetDC(hwnd);
+    if hdc.is_invalid() {
+        return -13;
+    }
+    let px = points_to_pixels_from_hdc(hdc, points);
+    ReleaseDC(hwnd, hdc);
+    px
+}
+
+/// HDC からポイントサイズからピクセル単位の高さへ変換する (LOGFONT用)
+pub(crate) unsafe fn points_to_pixels_from_hdc(
+    hdc: windows::Win32::Graphics::Gdi::HDC,
+    points: i32,
+) -> i32 {
+    use windows::Win32::Graphics::Gdi::{GetDeviceCaps, LOGPIXELSY};
+    let dpi_y = GetDeviceCaps(hdc, LOGPIXELSY);
+    if dpi_y == 0 {
+        return -13;
+    }
+    -((points * dpi_y + 36) / 72)
+}

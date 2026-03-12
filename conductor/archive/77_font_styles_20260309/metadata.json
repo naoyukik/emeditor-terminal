@@ -1,0 +1,8 @@
+{
+  "track_id": "77_font_styles_20260309",
+  "type": "feature",
+  "status": "in_progress",
+  "created_at": "2026-03-09T00:00:00Z",
+  "updated_at": "2026-03-09T00:00:00Z",
+  "description": "GitHub Issue #77: フォントスタイルの外部化と描画への反映（太字・斜体対応）"
+}

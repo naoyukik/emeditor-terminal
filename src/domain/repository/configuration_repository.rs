@@ -7,5 +7,6 @@ pub trait ConfigurationRepository: Send + Sync {
     fn save(&self, config: &TerminalConfig);
 
     /// ターミナル構成情報を取得する（キャッシュされた値を返すことが想定される）
+    #[allow(dead_code)]
     fn get_terminal_config(&self) -> TerminalConfig;
 }

@@ -8,25 +8,29 @@ prompt = """
 - name: Document Changes
   description: 変更内容をドキュメント化し、将来の参考のために記録します。
 
-# レビューコメントの取得方法 (GraphQL-Scalpel)
-Windows PowerShell 5.1 環境における文字化けとエスケープ、およびコンテキスト（トークン）効率の最適化のため、以下の手順を厳守してください。
+# レビューコメントの取得方法 (GitHub-Efficiency)
+情報の正確な取得とコンテキスト（トークン）効率を最大化するため、以下の手順で GraphQL を使用してください。
 
-1. **クエリ作成**: `create_new_file` で `temporary.local/pr_query.json` を作成し、以下の内容を書き込みます。
-```json
-{
-  "query": "query($owner: String!, $name: String!, $pr: Int!) { repository(owner: $owner, name: $name) { pullRequest(number: $pr) { reviews(last: 1) { nodes { comments(last: 100) { nodes { path line body } } } } } } }",
-  "variables": {
-    "owner": "naoyukik",
-    "name": "emeditor-terminal",
-    "pr": PULL_NUMBER
-  }
-}
-```
-2. **コマンド実行**: `run_shell_command` で、`cmd /c` を介して `gh api` を実行し、出力をファイルにリダイレクトします。
+1. **コマンド実行**: `run_shell_command` を使用し、直接 `gh api graphql` を実行して情報を取得します。
+   - 以前のように JSON ファイルを作成したり、`cmd /c` を介したりする必要はありません。
+
 ```powershell
-cmd /c "gh api --method POST /graphql --input temporary.local/pr_query.json > temporary.local/pr_comments.json"
+gh api graphql -f query='
+  query($owner: String!, $name: String!, $pr: Int!) {
+    repository(owner: $owner, name: $name) {
+      pullRequest(number: $pr) {
+        reviews(last: 1) {
+          nodes {
+            comments(last: 100) {
+              nodes { path line body }
+            }
+          }
+        }
+      }
+    }
+  }' -f owner='naoyukik' -f name='emeditor-terminal' -F pr=PULL_NUMBER
 ```
-3. **内容取得**: 保存された `temporary.local/pr_comments.json` を `get_file_text_by_path` で読み取り、内容を確認します。
+2. **内容確認**: `run_shell_command` の実行結果から、レビュー内容を直接確認してください。
 
 # レビューコメントの報告
 レビューコメントを取得したら、ユーザーに以下のフォーマットで報告してください。

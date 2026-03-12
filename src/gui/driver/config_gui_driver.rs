@@ -1,9 +1,10 @@
 use crate::domain::model::terminal_config_value::TerminalConfig;
 use crate::get_instance_handle;
+use crate::gui::common::{pixels_to_points, points_to_pixels};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
 use windows::Win32::Foundation::{HWND, LPARAM, WPARAM};
-use windows::Win32::Graphics::Gdi::{GetDC, GetDeviceCaps, ReleaseDC, LOGFONTW, LOGPIXELSY};
+use windows::Win32::Graphics::Gdi::LOGFONTW;
 use windows::Win32::UI::Controls::Dialogs::{
     ChooseFontW, CF_INITTOLOGFONTSTRUCT, CF_SCREENFONTS, CHOOSEFONTW,
 };
@@ -20,36 +21,6 @@ static IS_DIALOG_ACTIVE: AtomicBool = AtomicBool::new(false);
 
 // ダイアログ表示中のテンポラリな設定を保持するための Mutex
 static TEMP_CONFIG: Mutex<Option<TerminalConfig>> = Mutex::new(None);
-
-/// ピクセル単位の高さからポイントサイズへ変換する
-unsafe fn pixels_to_points(hwnd: HWND, lf_height: i32) -> i32 {
-    let hdc = GetDC(hwnd);
-    if hdc.is_invalid() {
-        return 10;
-    }
-    let dpi_y = GetDeviceCaps(hdc, LOGPIXELSY);
-    ReleaseDC(hwnd, hdc);
-
-    if dpi_y == 0 {
-        return 10;
-    }
-    (lf_height.abs() * 72 + dpi_y / 2) / dpi_y
-}
-
-/// ポイントサイズからピクセル単位の高さへ変換する (LOGFONT用)
-unsafe fn points_to_pixels(hwnd: HWND, points: i32) -> i32 {
-    let hdc = GetDC(hwnd);
-    if hdc.is_invalid() {
-        return -13;
-    }
-    let dpi_y = GetDeviceCaps(hdc, LOGPIXELSY);
-    ReleaseDC(hwnd, hdc);
-
-    if dpi_y == 0 {
-        return -13;
-    }
-    -((points * dpi_y + 36) / 72)
-}
 
 /// 設定ダイアログを表示する
 ///
@@ -108,8 +79,24 @@ pub(crate) fn show_settings_dialog(
 }
 
 /// ダイアログ内のフォント表示を更新する
-unsafe fn update_font_label(hwnd: HWND, font_face: &str, font_size: i32) {
-    let font_display = format!("Current Font: {}, {}pt", font_face, font_size);
+unsafe fn update_font_label(hwnd: HWND, config: &TerminalConfig) {
+    let mut style_parts = Vec::new();
+    if config.font_weight >= 700 {
+        style_parts.push("Bold");
+    }
+    if config.font_italic {
+        style_parts.push("Italic");
+    }
+    let style_str = if style_parts.is_empty() {
+        "".to_string()
+    } else {
+        format!(" ({})", style_parts.join("/"))
+    };
+
+    let font_display = format!(
+        "Current Font: {}, {}pt{}",
+        config.font_face, config.font_size, style_str
+    );
     let wide_text: Vec<u16> = font_display
         .encode_utf16()
         .chain(std::iter::once(0))
@@ -134,7 +121,7 @@ unsafe extern "system" fn settings_dlg_proc(
 
             if let Ok(lock) = TEMP_CONFIG.lock() {
                 if let Some(config) = lock.as_ref() {
-                    update_font_label(hwnd, &config.font_face, config.font_size);
+                    update_font_label(hwnd, config);
                 }
             }
             1 // TRUE
@@ -165,6 +152,8 @@ unsafe extern "system" fn settings_dlg_proc(
                             let len = face_name_units.len().min(lf.lfFaceName.len() - 1);
                             lf.lfFaceName[..len].copy_from_slice(&face_name_units[..len]);
                             lf.lfHeight = points_to_pixels(hwnd, config.font_size);
+                            lf.lfWeight = config.font_weight;
+                            lf.lfItalic = if config.font_italic { 1 } else { 0 };
                         }
                     }
 
@@ -184,14 +173,19 @@ unsafe extern "system" fn settings_dlg_proc(
                             .unwrap_or(lf.lfFaceName.len());
                         let selected_face = String::from_utf16_lossy(&lf.lfFaceName[..len]);
                         let selected_size = pixels_to_points(hwnd, lf.lfHeight);
+                        let selected_weight = lf.lfWeight;
+                        let selected_italic = lf.lfItalic != 0;
 
                         if let Ok(mut lock) = TEMP_CONFIG.lock() {
                             if let Some(config) = lock.as_mut() {
-                                config.font_face = selected_face.clone();
+                                config.font_face = selected_face;
                                 config.font_size = selected_size;
+                                config.font_weight = selected_weight;
+                                config.font_italic = selected_italic;
+
+                                update_font_label(hwnd, config);
                             }
                         }
-                        update_font_label(hwnd, &selected_face, selected_size);
                     }
                     1
                 }

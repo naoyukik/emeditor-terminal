@@ -13,14 +13,12 @@ prompt = """
 1.  **GitHub PRコメント**: GitHub MCP Server または GitHub CLI を使用して取得。
 2.  **ユーザー提供のレビュー**: ユーザーがチャットで提示した内容や、指定したファイル（例: `second-opinion.md`）の内容。
 
-# レビューコメントの取得方法 (GitHub)
-Windows PowerShell 5.1 環境における文字化けとコンテキスト（トークン）効率の最適化のため、以下の手順を厳守すること。
+# レビューコメントの取得方法 (GitHub-Efficiency)
+情報の正確な取得とコンテキスト（トークン）効率を最大化するため、以下の手順を推奨する。
 
-1. **コマンド実行**: `run_shell_command` 内で `cmd /c` を介して `gh api` を実行し、出力をファイルにリダイレクトする。
-```powershell
-cmd /c "gh api /repos/naoyukik/emeditor-terminal/pulls/PULL_NUMBER/comments > temporary.local/pr_comments.json"
-```
-2. **内容取得**: 保存された `temporary.local/pr_comments.json` を `get_file_text_by_path` で読み取り、内容を確認する。
+1. **GitHub CLI の活用**: `gh pr view PULL_NUMBER --json reviews` を実行し、PRのレビューコメントを取得する。
+   - `run_shell_command(command="gh pr view PULL_NUMBER --json reviews")`
+2. **詳細情報の取得**: 必要に応じて `gh api` を使用し、直接出力を取得して良い。以前のような JSON ファイルを介した複雑な手順は不要である。
 
 # レビューコメントの報告
 特定した全てのレビュー内容を統合し、ユーザーに以下のフォーマットで報告してください。

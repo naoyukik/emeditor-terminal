@@ -4,6 +4,7 @@ pub struct WindowId(pub isize);
 
 impl WindowId {
     /// 0 を示すデフォルトの ID
+    #[allow(dead_code)]
     pub fn new(hwnd: isize) -> Self {
         Self(hwnd)
     }
