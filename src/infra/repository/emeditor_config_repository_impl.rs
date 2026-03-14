@@ -1,4 +1,4 @@
-use crate::domain::model::terminal_config_value::TerminalConfig;
+use crate::domain::model::terminal_config_value::{TerminalConfig, ThemeType};
 use crate::domain::model::window_id_value::WindowId;
 use crate::domain::repository::configuration_repository::ConfigurationRepository;
 use crate::infra::driver::emeditor_io_driver::{
@@ -155,6 +155,14 @@ impl ConfigurationRepository for EmEditorConfigRepositoryImpl {
             return default;
         }
 
+        let theme_type_val = self.query_dword("ColorTheme", 0); // Default: SystemDefault
+        let theme_type = match theme_type_val {
+            1 => ThemeType::Campbell,
+            2 => ThemeType::OneHalfDark,
+            3 => ThemeType::OneHalfLight,
+            _ => ThemeType::SystemDefault,
+        };
+
         let font_face = self.query_string("FontFaceName", &default.font_face);
         let font_size = self.query_dword("FontSize", default.font_size);
         let font_weight = self.query_dword("FontWeight", default.font_weight);
@@ -174,7 +182,7 @@ impl ConfigurationRepository for EmEditorConfigRepositoryImpl {
         };
 
         TerminalConfig {
-            theme_type: default.theme_type,
+            theme_type,
             font_face,
             font_size,
             font_weight,
@@ -190,12 +198,20 @@ impl ConfigurationRepository for EmEditorConfigRepositoryImpl {
         }
         // Always save to allow explicit clearing of settings
         log::info!(
-            "EmEditorConfigRepositoryImpl: Saving config: font_face={}, font_size={}, weight={}, italic={}",
+            "EmEditorConfigRepositoryImpl: Saving config: theme={:?}, font_face={}, font_size={}, weight={}, italic={}",
+            config.theme_type,
             config.font_face,
             config.font_size,
             config.font_weight,
             config.font_italic
         );
+        let theme_type_val = match config.theme_type {
+            ThemeType::SystemDefault => 0,
+            ThemeType::Campbell => 1,
+            ThemeType::OneHalfDark => 2,
+            ThemeType::OneHalfLight => 3,
+        };
+        self.set_dword("ColorTheme", theme_type_val);
         self.set_string("FontFaceName", &config.font_face);
         self.set_dword("FontSize", config.font_size);
         self.set_dword("FontWeight", config.font_weight);

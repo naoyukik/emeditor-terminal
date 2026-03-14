@@ -1,8 +1,9 @@
 use super::color_theme_value::ColorTheme;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[allow(dead_code)]
 pub enum ThemeType {
+    SystemDefault,
     Campbell,
     OneHalfDark,
     OneHalfLight,
@@ -10,7 +11,7 @@ pub enum ThemeType {
 
 impl Default for ThemeType {
     fn default() -> Self {
-        Self::OneHalfDark
+        Self::SystemDefault
     }
 }
 
@@ -34,7 +35,7 @@ impl Default for TerminalConfig {
             .unwrap_or_else(|_| "cmd.exe".to_string());
 
         Self {
-            theme_type: ThemeType::OneHalfDark,
+            theme_type: ThemeType::default(),
             font_face: "Consolas".to_string(),
             font_size: 10,
             font_weight: 400, // FW_NORMAL
@@ -47,6 +48,7 @@ impl Default for TerminalConfig {
 impl TerminalConfig {
     pub fn get_color_theme(&self) -> ColorTheme {
         match self.theme_type {
+            ThemeType::SystemDefault => ColorTheme::one_half_dark(), // TODO: 動的解決
             ThemeType::Campbell => ColorTheme::campbell(),
             ThemeType::OneHalfDark => ColorTheme::one_half_dark(),
             ThemeType::OneHalfLight => ColorTheme::one_half_light(),
@@ -61,7 +63,7 @@ mod tests {
     #[test]
     fn test_terminal_config_default_theme() {
         let config = TerminalConfig::default();
-        assert_eq!(config.theme_type, ThemeType::OneHalfDark);
+        assert_eq!(config.theme_type, ThemeType::SystemDefault);
         assert_eq!(config.font_weight, 400);
         assert!(!config.font_italic);
         let theme = config.get_color_theme();
