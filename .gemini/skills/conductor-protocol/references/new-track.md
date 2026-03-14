@@ -31,7 +31,9 @@
 
 1.  **プラン生成**: `spec.md` と `workflow.md` の手法（例：TDD）に基づき、フェーズ・タスク・サブタスクの階層リストを作成せよ。
 2.  **完了メタタスクの注入**: 各フェーズの最後に必ず以下のタスクを挿入せよ。
-    - `- [ ] Task: Conductor - User Manual Verification '<Phase Name>' (Protocol in workflow.md)`
+    - [ ] Task: Conductor - Clippy & fmt Check。Clippyは自動フォーマットを使用すること。
+    - [ ] Task: Conductor - User Manual Verification '<Phase Name>' (Protocol in workflow.md)`
+    - [ ] Task: Conductor - '<Phase Name>' の成果をコミット`
 3.  **承認**: ユーザーの承認を得よ。
 
 ## **5. アーティファクトの生成とレジストリ更新**
