@@ -18,7 +18,7 @@
 [Conventional Commits](https://www.conventionalcommits.org/en/) を採用し、以下の形式を維持すること。
 
 - **形式**: `<type>: 日本語での説明（50文字以内）`
-- **言語**: **説明部分は必ず日本語で記述すること。**
+- **言語**: **説明部分は必ず日本語で記述すること。** 自明な説明はせずに、なぜその変更が必要なのか、もしくは何を達成するための実装なのかを完結に記述すること。
 - **参照**: 3行目に `ref: IssueNumber` を記述すること。
 - **署名**: メッセージ末尾に `Co-Authored-By: gemini-cli <218195315+gemini-cli@users.noreply.github.com>` を付与すること。
 
