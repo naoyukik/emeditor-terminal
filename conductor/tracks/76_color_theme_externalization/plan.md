@@ -37,11 +37,14 @@
 - [ ] Task: Conductor - User Manual Verification 'Phase 3: System Default (Auto) テーマの解決と反映' (Protocol in workflow.md)
 
 ## Phase 4: 総合テストと最終検証
-- [ ] Task: ビルドと手動機能テスト
-    - [ ] プロジェクト全体をビルド (`cargo build`) し、エラー・警告がないことを確認。
-    - [ ] EmEditor上で設定ダイアログを開き、テーマを切り替えてOKを押す。
-    - [ ] 再起動後、ターミナルの背景色・文字色が選択したテーマに沿って描画されることを目視確認。
-    - [ ] `System Default` 選択時、OSまたはEmEditorのダークモード/ライトモード設定に応じたテーマが適用されることを確認。
-- [ ] Task: Conductor - Clippy & fmt Check (Clippyは自動フォーマットを使用すること)
-- [ ] Task: Conductor - 'Phase 4: 総合テストと最終検証' の成果をコミット
-- [ ] Task: Conductor - User Manual Verification 'Phase 4: 総合テストと最終検証' (Protocol in workflow.md)
+- [x] Task: ビルドと手動機能テスト
+    - [x] プロジェクト全体をビルド (`cargo build`) し、エラー・警告がないことを確認。
+    - [x] EmEditor上で設定ダイアログを開き、テーマを切り替えてOKを押す。
+    - [x] 再起動後、ターミナルの背景色・文字色が選択したテーマに沿って描画されることを目視確認。
+    - [x] `System Default` 選択時、OSまたはEmEditorのダークモード/ライトモード設定に応じたテーマが適用されることを確認。
+- [x] Task: Conductor - Clippy & fmt Check (Clippyは自動フォーマットを使用すること)
+- [x] Task: Conductor - 'Phase 4: 総合テストと最終検証' の成果をコミット
+- [x] Task: Conductor - User Manual Verification 'Phase 4: 総合テストと最終検証' (Protocol in workflow.md)
+
+## Phase: Review Fixes
+- [x] Task: Apply review suggestions (sha: 7a1411a)
