@@ -1,12 +1,5 @@
 #include <windows.h>
-
-#ifndef IDC_STATIC
-#define IDC_STATIC -1
-#endif
-
-#define IDD_SET_PROPERTIES 101
-#define IDC_STATIC_FONT_NAME 1001
-#define IDC_BTN_CHANGE_FONT 1002
+#include "resource.h"
 
 IDD_SET_PROPERTIES DIALOGEX 0, 0, 240, 160
 STYLE DS_SETFONT | DS_MODALFRAME | DS_FIXEDSYS | WS_POPUP | WS_CAPTION | WS_SYSMENU
@@ -19,4 +12,7 @@ BEGIN
     LTEXT           "Current Font: Loading...",IDC_STATIC_FONT_NAME,15,22,150,8
     PUSHBUTTON      "Change Font...",IDC_BTN_CHANGE_FONT,170,20,55,14
     LTEXT           "Note: Changes will take effect after restart.",IDC_STATIC,15,35,150,8
+    GROUPBOX        "Appearance Settings",IDC_STATIC,7,65,226,50
+    LTEXT           "Color Theme:",IDC_STATIC_THEME,15,80,50,8
+    COMBOBOX        IDC_COMBO_THEME,70,78,100,100,CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
 END

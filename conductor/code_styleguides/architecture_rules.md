@@ -20,6 +20,9 @@ AIエージェントに「ノリ」でコードを書かせず、物理的なフ
 | **4. Infrastructure** | `_repository_impl.rs` | Repository Traitの具象実装。IO Driverを使用する。 |
 | **4.1. IO Driver** | `_io_driver.rs` | **ConptyIoDriver・Editor SDK等の外部操作**。最外周の「手足」。 |
 
+**例外規定**: 
+* `resource.rs`: `resource.h` から `build.rs` によって自動生成される Win32 リソース定数定義ファイル。ホワイトリストとして許可される。
+
 ## **2. Windows API (windows-rs) の隔離命令**
 
 Windows APIの型は汚染力が強いため、以下の隔離を徹底せよ。

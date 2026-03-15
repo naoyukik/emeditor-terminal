@@ -9,6 +9,25 @@ pub enum ThemeType {
     OneHalfLight,
 }
 
+impl ThemeType {
+    pub fn from_index(index: i32) -> Self {
+        match index {
+            1 => Self::OneHalfDark,
+            2 => Self::OneHalfLight,
+            _ => Self::SystemDefault,
+        }
+    }
+
+    pub fn to_index(&self) -> i32 {
+        match self {
+            Self::SystemDefault => 0,
+            Self::OneHalfDark => 1,
+            Self::OneHalfLight => 2,
+            Self::Campbell => 0, // 暫定的に SystemDefault と同じ
+        }
+    }
+}
+
 impl Default for ThemeType {
     fn default() -> Self {
         Self::SystemDefault
@@ -92,5 +111,17 @@ mod tests {
         };
         let theme = config.get_color_theme();
         assert_eq!(theme, ColorTheme::one_half_light());
+    }
+
+    #[test]
+    fn test_theme_type_index_mapping() {
+        assert_eq!(ThemeType::from_index(0), ThemeType::SystemDefault);
+        assert_eq!(ThemeType::from_index(1), ThemeType::OneHalfDark);
+        assert_eq!(ThemeType::from_index(2), ThemeType::OneHalfLight);
+        assert_eq!(ThemeType::from_index(99), ThemeType::SystemDefault);
+
+        assert_eq!(ThemeType::SystemDefault.to_index(), 0);
+        assert_eq!(ThemeType::OneHalfDark.to_index(), 1);
+        assert_eq!(ThemeType::OneHalfLight.to_index(), 2);
     }
 }

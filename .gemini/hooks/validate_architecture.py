@@ -32,7 +32,7 @@ DEPENDENCY_RULES = {
     "infra/driver": ["domain"],
 }
 
-WHITELIST_FILES = ["mod.rs", "lib.rs", "main.rs", "build.rs"]
+WHITELIST_FILES = ["mod.rs", "lib.rs", "main.rs", "build.rs", "resource.rs"]
 
 def send_response(decision, reason=None, system_message=None):
     # decision は "allow" または "deny"
@@ -155,6 +155,10 @@ def main():
         errors = []
         for path, text in targets:
             if not path.endswith(".rs"):
+                continue
+
+            filename = os.path.basename(path)
+            if filename in WHITELIST_FILES:
                 continue
 
             err_naming = check_naming_and_location(path)
