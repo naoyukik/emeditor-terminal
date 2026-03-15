@@ -15,9 +15,6 @@ pub const EE_CUSTOM_BAR_OPEN: u32 = EE_FIRST + 73;
 
 pub const EE_REG_QUERY_VALUE: u32 = EE_FIRST + 86; // 2134
 pub const EE_REG_SET_VALUE: u32 = EE_FIRST + 85; // 2133
-pub const EE_INFO: u32 = EE_FIRST + 16; // 2064
-
-pub const EI_IS_VERY_DARK: usize = 276;
 
 pub const EEREG_EMEDITORPLUGIN: u32 = 0x7fffff30;
 
@@ -93,11 +90,40 @@ pub fn reg_query_value(hwnd: HWND, info: &mut REG_QUERY_VALUE_INFO) -> i32 {
     }
 }
 
-pub fn is_very_dark(hwnd: HWND) -> bool {
+pub fn is_very_dark(_hwnd: HWND) -> bool {
+    use windows::Win32::System::Registry::{
+        RegCloseKey, RegOpenKeyExW, RegQueryValueExW, HKEY_CURRENT_USER, KEY_READ,
+    };
+
+    let mut h_key = windows::Win32::System::Registry::HKEY::default();
+    let sub_key =
+        windows::core::w!("Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize");
+
     unsafe {
-        let result = SendMessageW(hwnd, EE_INFO, WPARAM(EI_IS_VERY_DARK), LPARAM(0));
-        result.0 != 0
+        if RegOpenKeyExW(HKEY_CURRENT_USER, sub_key, 0, KEY_READ, &mut h_key).is_ok() {
+            let mut data: u32 = 0;
+            let mut cb_data = std::mem::size_of::<u32>() as u32;
+            let value_name = windows::core::w!("AppsUseLightTheme");
+
+            let result = RegQueryValueExW(
+                h_key,
+                value_name,
+                None,
+                None,
+                Some(&mut data as *mut u32 as *mut u8),
+                Some(&mut cb_data),
+            );
+
+            let _ = RegCloseKey(h_key);
+
+            if result.is_ok() {
+                return data == 0; // 0 means Dark Mode
+            }
+        }
     }
+
+    // Default to Dark if detection fails (project preference)
+    true
 }
 
 pub fn reg_set_value(hwnd: HWND, info: &REG_SET_VALUE_INFO) -> i32 {

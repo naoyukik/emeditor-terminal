@@ -31,6 +31,7 @@ windows = { version = "0.58", features = [
     "Win32_UI_Input_Ime",
     "Win32_UI_Controls",
     "Win32_UI_Controls_Dialogs",
+    "Win32_System_Registry",
 ] }
 
 [build-dependencies]

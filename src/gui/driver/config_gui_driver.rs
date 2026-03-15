@@ -137,9 +137,14 @@ unsafe extern "system" fn settings_dlg_proc(
 
                     if let Ok(lock) = TEMP_CONFIG.lock() {
                         if let Some(config) = lock.as_ref() {
-                        let sel_idx = config.theme_type.to_index();
-                        SendMessageW(combo_hwnd, CB_SETCURSEL, WPARAM(sel_idx as usize), LPARAM(0));
-                        update_font_label(hwnd, config);
+                            let sel_idx = config.theme_type.to_index();
+                            SendMessageW(
+                                combo_hwnd,
+                                CB_SETCURSEL,
+                                WPARAM(sel_idx as usize),
+                                LPARAM(0),
+                            );
+                            update_font_label(hwnd, config);
                         }
                     }
                 }
@@ -158,7 +163,8 @@ unsafe extern "system" fn settings_dlg_proc(
                     {
                         if !combo_hwnd.0.is_null() {
                             let sel_idx =
-                                SendMessageW(combo_hwnd, CB_GETCURSEL, WPARAM(0), LPARAM(0)).0 as i32;
+                                SendMessageW(combo_hwnd, CB_GETCURSEL, WPARAM(0), LPARAM(0)).0
+                                    as i32;
                             if let Ok(mut lock) = TEMP_CONFIG.lock() {
                                 if let Some(config) = lock.as_mut() {
                                     config.theme_type = ThemeType::from_index(sel_idx);
