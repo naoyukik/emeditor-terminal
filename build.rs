@@ -34,7 +34,10 @@ fn generate_resource_rs(manifest_path: &std::path::Path) {
                     && (value.chars().all(|c| c.is_numeric() || c == '-')
                         || value.starts_with("0x"))
                 {
-                    rust_code.push_str(&format!("pub const {}: i32 = {};\n", name, value));
+                    rust_code.push_str(&format!(
+                        "#[allow(dead_code)]\npub const {}: i32 = {};\n",
+                        name, value
+                    ));
                 }
             }
         }

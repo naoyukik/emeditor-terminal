@@ -18,7 +18,7 @@ impl ThemeType {
         }
     }
 
-    pub fn to_index(&self) -> i32 {
+    pub fn to_index(self) -> i32 {
         match self {
             Self::SystemDefault => 0,
             Self::OneHalfDark => 1,
