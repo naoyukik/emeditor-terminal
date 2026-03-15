@@ -15,6 +15,9 @@ pub const EE_CUSTOM_BAR_OPEN: u32 = EE_FIRST + 73;
 
 pub const EE_REG_QUERY_VALUE: u32 = EE_FIRST + 86; // 2134
 pub const EE_REG_SET_VALUE: u32 = EE_FIRST + 85; // 2133
+pub const EE_INFO: u32 = EE_FIRST + 16; // 2064
+
+pub const EI_IS_VERY_DARK: usize = 276;
 
 pub const EEREG_EMEDITORPLUGIN: u32 = 0x7fffff30;
 
@@ -87,6 +90,13 @@ pub fn reg_query_value(hwnd: HWND, info: &mut REG_QUERY_VALUE_INFO) -> i32 {
             info.pszValue.display()
         );
         ret
+    }
+}
+
+pub fn is_very_dark(hwnd: HWND) -> bool {
+    unsafe {
+        let result = SendMessageW(hwnd, EE_INFO, WPARAM(EI_IS_VERY_DARK), LPARAM(0));
+        result.0 != 0
     }
 }
 

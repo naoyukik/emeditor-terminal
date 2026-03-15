@@ -65,9 +65,15 @@ impl Default for TerminalConfig {
 }
 
 impl TerminalConfig {
-    pub fn get_color_theme(&self) -> ColorTheme {
+    pub fn get_color_theme(&self, is_dark: bool) -> ColorTheme {
         match self.theme_type {
-            ThemeType::SystemDefault => ColorTheme::one_half_dark(), // TODO: 動的解決
+            ThemeType::SystemDefault => {
+                if is_dark {
+                    ColorTheme::one_half_dark()
+                } else {
+                    ColorTheme::one_half_light()
+                }
+            }
             ThemeType::Campbell => ColorTheme::campbell(),
             ThemeType::OneHalfDark => ColorTheme::one_half_dark(),
             ThemeType::OneHalfLight => ColorTheme::one_half_light(),
@@ -85,8 +91,8 @@ mod tests {
         assert_eq!(config.theme_type, ThemeType::SystemDefault);
         assert_eq!(config.font_weight, 400);
         assert!(!config.font_italic);
-        let theme = config.get_color_theme();
-        assert_eq!(theme, ColorTheme::one_half_dark());
+        assert_eq!(config.get_color_theme(true), ColorTheme::one_half_dark());
+        assert_eq!(config.get_color_theme(false), ColorTheme::one_half_light());
     }
 
     #[test]
@@ -99,7 +105,7 @@ mod tests {
         };
         assert_eq!(config.font_weight, 700);
         assert!(config.font_italic);
-        let theme = config.get_color_theme();
+        let theme = config.get_color_theme(true);
         assert_eq!(theme, ColorTheme::one_half_dark());
     }
 
@@ -109,7 +115,7 @@ mod tests {
             theme_type: ThemeType::OneHalfLight,
             ..TerminalConfig::default()
         };
-        let theme = config.get_color_theme();
+        let theme = config.get_color_theme(true);
         assert_eq!(theme, ColorTheme::one_half_light());
     }
 

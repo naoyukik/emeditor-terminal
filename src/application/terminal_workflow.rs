@@ -19,6 +19,7 @@ pub struct TerminalWorkflow {
     font_italic: bool,
     pub(crate) config: TerminalConfig,
     pub(crate) color_theme: ColorTheme,
+    is_dark: bool,
 }
 
 impl TerminalWorkflow {
@@ -27,10 +28,12 @@ impl TerminalWorkflow {
         rows: usize,
         output_repo: Box<dyn TerminalOutputRepository>,
         config_repo: Box<dyn ConfigurationRepository>,
+        is_dark: bool,
     ) -> Self {
         let config = config_repo.load();
         log::info!(
-            "Loaded terminal config: font_face='{}', font_size={}, weight={}, italic={}",
+            "Loaded terminal config: theme={:?}, font_face='{}', font_size={}, weight={}, italic={}",
+            config.theme_type,
             config.font_face,
             config.font_size,
             config.font_weight,
@@ -41,7 +44,7 @@ impl TerminalWorkflow {
         let font_size = config.font_size;
         let font_weight = config.font_weight;
         let font_italic = config.font_italic;
-        let color_theme = config.get_color_theme();
+        let color_theme = config.get_color_theme(is_dark);
 
         Self {
             buffer: TerminalBufferEntity::new(cols, rows),
@@ -54,6 +57,7 @@ impl TerminalWorkflow {
             font_italic,
             config,
             color_theme,
+            is_dark,
         }
     }
 
@@ -83,6 +87,7 @@ impl TerminalWorkflow {
         let config = self.config_repo.load();
         self.font_face = config.font_face.clone();
         self.font_size = config.font_size;
+        self.color_theme = config.get_color_theme(self.is_dark);
         self.config = config;
     }
 

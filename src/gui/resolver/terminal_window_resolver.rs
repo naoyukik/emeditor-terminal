@@ -25,7 +25,7 @@ impl TerminalWindowResolver {
         let config_repo_for_service = Box::new(EmEditorConfigRepositoryImpl::new(WindowId(
             HWND::default().0 as isize,
         )));
-        self.service = TerminalWorkflow::new(80, 25, output_repo, config_repo_for_service);
+        self.service = TerminalWorkflow::new(80, 25, output_repo, config_repo_for_service, true);
     }
 }
 
@@ -38,7 +38,7 @@ pub fn get_terminal_data() -> Arc<Mutex<TerminalWindowResolver>> {
             )));
 
             Arc::new(Mutex::new(TerminalWindowResolver {
-                service: TerminalWorkflow::new(80, 25, output_repo, config_repo_for_service),
+                service: TerminalWorkflow::new(80, 25, output_repo, config_repo_for_service, true),
                 renderer: TerminalGuiDriver::new(),
                 window_handle: None,
                 composition: None,
