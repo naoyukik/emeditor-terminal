@@ -157,9 +157,8 @@ impl ConfigurationRepository for EmEditorConfigRepositoryImpl {
 
         let theme_type_val = self.query_dword("ColorTheme", 0); // Default: SystemDefault
         let theme_type = match theme_type_val {
-            1 => ThemeType::Campbell,
-            2 => ThemeType::OneHalfDark,
-            3 => ThemeType::OneHalfLight,
+            1 => ThemeType::OneHalfDark,
+            2 => ThemeType::OneHalfLight,
             _ => ThemeType::SystemDefault,
         };
 
@@ -207,9 +206,8 @@ impl ConfigurationRepository for EmEditorConfigRepositoryImpl {
         );
         let theme_type_val = match config.theme_type {
             ThemeType::SystemDefault => 0,
-            ThemeType::Campbell => 1,
-            ThemeType::OneHalfDark => 2,
-            ThemeType::OneHalfLight => 3,
+            ThemeType::OneHalfDark => 1,
+            ThemeType::OneHalfLight => 2,
         };
         self.set_dword("ColorTheme", theme_type_val);
         self.set_string("FontFaceName", &config.font_face);

@@ -4,7 +4,6 @@ use super::color_theme_value::ColorTheme;
 #[allow(dead_code)]
 pub enum ThemeType {
     SystemDefault,
-    Campbell,
     OneHalfDark,
     OneHalfLight,
 }
@@ -23,7 +22,6 @@ impl ThemeType {
             Self::SystemDefault => 0,
             Self::OneHalfDark => 1,
             Self::OneHalfLight => 2,
-            Self::Campbell => 0, // 暫定的に SystemDefault と同じ
         }
     }
 }
@@ -74,7 +72,6 @@ impl TerminalConfig {
                     ColorTheme::one_half_light()
                 }
             }
-            ThemeType::Campbell => ColorTheme::campbell(),
             ThemeType::OneHalfDark => ColorTheme::one_half_dark(),
             ThemeType::OneHalfLight => ColorTheme::one_half_light(),
         }

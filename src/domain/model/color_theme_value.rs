@@ -84,7 +84,7 @@ impl ColorTheme {
                 RgbColor::new(1, 132, 188),   // Blue #0184bc
                 RgbColor::new(166, 38, 164),  // Magenta #a626a4
                 RgbColor::new(9, 151, 179),   // Cyan #0997b3
-                RgbColor::new(250, 250, 250), // White #fafafa
+                RgbColor::new(56, 58, 66),    // White (Adjusted to match default_fg for visibility)
                 RgbColor::new(160, 161, 167), // Bright Black #a0a1a7
                 RgbColor::new(228, 86, 73),   // Bright Red #e45649
                 RgbColor::new(80, 161, 79),   // Bright Green #50a14f
@@ -92,7 +92,7 @@ impl ColorTheme {
                 RgbColor::new(1, 132, 188),   // Bright Blue #0184bc
                 RgbColor::new(166, 38, 164),  // Bright Purple #a626a4
                 RgbColor::new(9, 151, 179),   // Bright Cyan #0997b3
-                RgbColor::new(250, 250, 250), // Bright White #fafafa
+                RgbColor::new(56, 58, 66),    // Bright White (Adjusted to match default_fg for visibility)
             ],
         }
     }

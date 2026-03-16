@@ -90,7 +90,7 @@ pub fn reg_query_value(hwnd: HWND, info: &mut REG_QUERY_VALUE_INFO) -> i32 {
     }
 }
 
-pub fn is_very_dark(_hwnd: HWND) -> bool {
+pub fn is_system_dark_mode() -> bool {
     use windows::Win32::System::Registry::{
         RegCloseKey, RegOpenKeyExW, RegQueryValueExW, HKEY_CURRENT_USER, KEY_READ,
     };
@@ -122,8 +122,8 @@ pub fn is_very_dark(_hwnd: HWND) -> bool {
         }
     }
 
-    // Default to Dark if detection fails (project preference)
-    true
+    // Default to Light if detection fails
+    false
 }
 
 pub fn reg_set_value(hwnd: HWND, info: &REG_SET_VALUE_INFO) -> i32 {

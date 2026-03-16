@@ -17,7 +17,7 @@ use crate::gui::common::SendHWND;
 use crate::gui::resolver::terminal_window_resolver::get_terminal_data;
 use crate::infra::driver::conpty_io_driver::{ConptyIoDriver, SendHandle};
 use crate::infra::driver::emeditor_io_driver::{
-    is_very_dark, CUSTOM_BAR_BOTTOM, CUSTOM_BAR_INFO, EE_CUSTOM_BAR_OPEN,
+    is_system_dark_mode, CUSTOM_BAR_BOTTOM, CUSTOM_BAR_INFO, EE_CUSTOM_BAR_OPEN,
 };
 use std::ffi::c_void;
 use std::mem::size_of;
@@ -81,7 +81,7 @@ fn start_conpty_and_reader_thread(
                     ),
                 );
 
-                let is_dark = is_very_dark(hwnd_editor);
+                let is_dark = is_system_dark_mode();
 
                 // 新しいリポジトリでサービスを再構築する（DI）
                 window_data.service = crate::application::TerminalWorkflow::new(
