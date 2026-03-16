@@ -99,10 +99,10 @@ Once you have the internal `id`, call the `sub_issue_write` tool.
    ツールが正常に動作しない場合は、`mutation (addSubIssue)` を直接実行してリンクする。
    ```powershell
    gh api graphql -f query='
-     mutation($parentId: ID!, $subIssueId: ID!) {
-       addSubIssue(input: { parentIssueId: $parentId, subIssueId: $subIssueId }) {
+     mutation($issueId: ID!, $subIssueId: ID!) {
+       addSubIssue(input: { issueId: $issueId, subIssueId: $subIssueId }) {
          subIssue { id }
        }
-     }' -f parentId='PARENT_NODE_ID' -f subIssueId='CHILD_NODE_ID'
+     }' -f issueId='PARENT_NODE_ID' -f subIssueId='CHILD_NODE_ID'
    ```
    実行結果の JSON を確認し、エラーがなければ成功である。
