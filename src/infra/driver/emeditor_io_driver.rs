@@ -90,6 +90,42 @@ pub fn reg_query_value(hwnd: HWND, info: &mut REG_QUERY_VALUE_INFO) -> i32 {
     }
 }
 
+pub fn is_system_dark_mode() -> bool {
+    use windows::Win32::System::Registry::{
+        RegCloseKey, RegOpenKeyExW, RegQueryValueExW, HKEY_CURRENT_USER, KEY_READ,
+    };
+
+    let mut h_key = windows::Win32::System::Registry::HKEY::default();
+    let sub_key =
+        windows::core::w!("Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize");
+
+    unsafe {
+        if RegOpenKeyExW(HKEY_CURRENT_USER, sub_key, 0, KEY_READ, &mut h_key).is_ok() {
+            let mut data: u32 = 0;
+            let mut cb_data = std::mem::size_of::<u32>() as u32;
+            let value_name = windows::core::w!("AppsUseLightTheme");
+
+            let result = RegQueryValueExW(
+                h_key,
+                value_name,
+                None,
+                None,
+                Some(&mut data as *mut u32 as *mut u8),
+                Some(&mut cb_data),
+            );
+
+            let _ = RegCloseKey(h_key);
+
+            if result.is_ok() {
+                return data == 0; // 0 means Dark Mode
+            }
+        }
+    }
+
+    // Default to Light if detection fails
+    false
+}
+
 pub fn reg_set_value(hwnd: HWND, info: &REG_SET_VALUE_INFO) -> i32 {
     unsafe {
         let result = SendMessageW(

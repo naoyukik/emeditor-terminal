@@ -15,6 +15,7 @@
   - `Win32_Globalization`: 文字コード変換 (CP932 <-> UTF-8)。
   - `Win32_UI_Input_Ime`: IME制御 (Composition String, Candidate Window)。
   - `Win32_UI_Controls`, `Win32_UI_Controls_Dialogs`: リソースベースのダイアログ、および標準フォント選択ダイアログの制御。
+  - `Win32_System_Registry`: OS のダークモード設定の検出、およびプラグイン設定の永続化（INI/レジストリ）に使用。
 - **simplelog / log**: デバッグログ出力。
 - **vte**: ANSI/VT エスケープシーケンスのパース。業界標準のステートマシン実装により、高信頼・高性能なパースを実現。
 - **unicode-width / unicode-segmentation**: 高精度なテキスト測定と書記素クラスター境界判定に使用。
@@ -25,6 +26,7 @@
 ## Build Tools & Environment
 - **Cargo**: Rust のビルドおよび依存関係管理。
 - **embed-resource**: Win32 リソーススクリプト (`.rc`) をビルドプロセスに統合し、バイナリにリソースを埋め込むために使用。
+- **Resource ID Sync**: `resource.h` と `build.rs` を連携させ、C 形式のリソースヘッダーから Rust の定数ファイルを自動生成。GUI とロジック間の ID 不整合を防止。
 - **MSVC Toolchain**: Windows ネイティブ DLL の生成に使用。
 - **Clippy**: Rust の静的解析ツール（リンター）。
 - **rustfmt**: Rust のコードフォーマッタ。
@@ -46,3 +48,4 @@
     - **Resolver**: `_resolver.rs` (OSメッセージ解釈・変換)
     - **GUI Driver**: `_gui_driver.rs` (描画・IME・Win32操作を封印)
 - **FFI 境界 (`src/lib.rs`)**: EmEditor SDK と Rust の仲介役。
+

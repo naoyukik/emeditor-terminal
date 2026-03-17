@@ -1,6 +1,7 @@
-use crate::domain::model::terminal_config_value::TerminalConfig;
+use crate::domain::model::terminal_config_value::{TerminalConfig, ThemeType};
 use crate::get_instance_handle;
 use crate::gui::common::{pixels_to_points, points_to_pixels};
+use crate::gui::driver::resource::*;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
 use windows::Win32::Foundation::{HWND, LPARAM, WPARAM};
@@ -9,13 +10,9 @@ use windows::Win32::UI::Controls::Dialogs::{
     ChooseFontW, CF_INITTOLOGFONTSTRUCT, CF_SCREENFONTS, CHOOSEFONTW,
 };
 use windows::Win32::UI::WindowsAndMessaging::{
-    DialogBoxParamW, EndDialog, SetDlgItemTextW, IDCANCEL, IDOK,
+    DialogBoxParamW, EndDialog, SendMessageW, SetDlgItemTextW, CB_ADDSTRING, CB_GETCURSEL,
+    CB_SETCURSEL, IDCANCEL, IDOK,
 };
-
-// リソース ID (emeditor-terminal.rc と合わせる)
-const IDD_SET_PROPERTIES: u16 = 101;
-const IDC_STATIC_FONT_NAME: i32 = 1001;
-const IDC_BTN_CHANGE_FONT: i32 = 1002;
 
 static IS_DIALOG_ACTIVE: AtomicBool = AtomicBool::new(false);
 
@@ -119,9 +116,37 @@ unsafe extern "system" fn settings_dlg_proc(
         windows::Win32::UI::WindowsAndMessaging::WM_INITDIALOG => {
             log::info!("WM_INITDIALOG: Initializing settings dialog.");
 
-            if let Ok(lock) = TEMP_CONFIG.lock() {
-                if let Some(config) = lock.as_ref() {
-                    update_font_label(hwnd, config);
+            // テーマコンボボックスの初期化
+            if let Ok(combo_hwnd) =
+                windows::Win32::UI::WindowsAndMessaging::GetDlgItem(hwnd, IDC_COMBO_THEME)
+            {
+                if !combo_hwnd.0.is_null() {
+                    let themes = [
+                        windows::core::w!("System Default (Auto)"),
+                        windows::core::w!("One Half Dark"),
+                        windows::core::w!("One Half Light"),
+                    ];
+                    for &theme in &themes {
+                        SendMessageW(
+                            combo_hwnd,
+                            CB_ADDSTRING,
+                            WPARAM(0),
+                            LPARAM(theme.as_ptr() as isize),
+                        );
+                    }
+
+                    if let Ok(lock) = TEMP_CONFIG.lock() {
+                        if let Some(config) = lock.as_ref() {
+                            let sel_idx = config.theme_type.to_index();
+                            SendMessageW(
+                                combo_hwnd,
+                                CB_SETCURSEL,
+                                WPARAM(sel_idx as usize),
+                                LPARAM(0),
+                            );
+                            update_font_label(hwnd, config);
+                        }
+                    }
                 }
             }
             1 // TRUE
@@ -131,6 +156,23 @@ unsafe extern "system" fn settings_dlg_proc(
             match control_id {
                 id if id == IDOK.0 => {
                     log::info!("Settings dialog: OK clicked.");
+
+                    // コンボボックスからテーマを取得
+                    if let Ok(combo_hwnd) =
+                        windows::Win32::UI::WindowsAndMessaging::GetDlgItem(hwnd, IDC_COMBO_THEME)
+                    {
+                        if !combo_hwnd.0.is_null() {
+                            let sel_idx =
+                                SendMessageW(combo_hwnd, CB_GETCURSEL, WPARAM(0), LPARAM(0)).0
+                                    as i32;
+                            if let Ok(mut lock) = TEMP_CONFIG.lock() {
+                                if let Some(config) = lock.as_mut() {
+                                    config.theme_type = ThemeType::from_index(sel_idx);
+                                }
+                            }
+                        }
+                    }
+
                     if let Err(e) = EndDialog(hwnd, IDOK.0 as isize) {
                         log::error!("EndDialog(IDOK) failed: {:?}", e);
                     }

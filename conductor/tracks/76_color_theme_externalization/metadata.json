@@ -1,0 +1,8 @@
+{
+  "track_id": "76_color_theme_externalization",
+  "type": "feature",
+  "status": "completed",
+  "created_at": "2026-03-14T18:04:00Z",
+  "updated_at": "2026-03-14T18:04:00Z",
+  "description": "feat: カラーテーマ設定の外部化と永続化 (Issue #76)"
+}

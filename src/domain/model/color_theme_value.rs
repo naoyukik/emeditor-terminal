@@ -19,32 +19,6 @@ pub struct ColorTheme {
 }
 
 impl ColorTheme {
-    /// Campbell (Windows Terminal Default)
-    pub const fn campbell() -> Self {
-        Self {
-            default_fg: RgbColor::new(204, 204, 204),
-            default_bg: RgbColor::new(12, 12, 12),
-            ansi_palette: [
-                RgbColor::new(12, 12, 12),    // Black
-                RgbColor::new(197, 15, 31),   // Red
-                RgbColor::new(19, 161, 14),   // Green
-                RgbColor::new(193, 156, 0),   // Yellow
-                RgbColor::new(0, 55, 218),    // Blue
-                RgbColor::new(136, 23, 152),  // Magenta
-                RgbColor::new(58, 150, 221),  // Cyan
-                RgbColor::new(204, 204, 204), // White
-                RgbColor::new(118, 118, 118), // Bright Black
-                RgbColor::new(231, 72, 86),   // Bright Red
-                RgbColor::new(22, 198, 12),   // Bright Green
-                RgbColor::new(249, 241, 165), // Bright Yellow
-                RgbColor::new(59, 120, 255),  // Bright Blue
-                RgbColor::new(180, 0, 158),   // Bright Magenta
-                RgbColor::new(97, 214, 214),  // Bright Cyan
-                RgbColor::new(242, 242, 242), // Bright White
-            ],
-        }
-    }
-
     /// One Half Dark
     pub const fn one_half_dark() -> Self {
         Self {
@@ -84,7 +58,7 @@ impl ColorTheme {
                 RgbColor::new(1, 132, 188),   // Blue #0184bc
                 RgbColor::new(166, 38, 164),  // Magenta #a626a4
                 RgbColor::new(9, 151, 179),   // Cyan #0997b3
-                RgbColor::new(250, 250, 250), // White #fafafa
+                RgbColor::new(56, 58, 66),    // White (Adjusted to match default_fg for visibility)
                 RgbColor::new(160, 161, 167), // Bright Black #a0a1a7
                 RgbColor::new(228, 86, 73),   // Bright Red #e45649
                 RgbColor::new(80, 161, 79),   // Bright Green #50a14f
@@ -92,7 +66,7 @@ impl ColorTheme {
                 RgbColor::new(1, 132, 188),   // Bright Blue #0184bc
                 RgbColor::new(166, 38, 164),  // Bright Purple #a626a4
                 RgbColor::new(9, 151, 179),   // Bright Cyan #0997b3
-                RgbColor::new(250, 250, 250), // Bright White #fafafa
+                RgbColor::new(56, 58, 66),    // Bright White (Adjusted to match default_fg for visibility)
             ],
         }
     }
@@ -100,7 +74,7 @@ impl ColorTheme {
 
 impl Default for ColorTheme {
     fn default() -> Self {
-        Self::campbell()
+        Self::one_half_dark()
     }
 }
 

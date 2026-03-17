@@ -49,3 +49,18 @@ type: 日本語での簡潔な説明
 - **適切な粒度**: 1つのIssueで扱う範囲を大きくしすぎない。多岐にわたる場合は分割を検討
 - **リファクタリングの根拠**: `refactor` Issueでは、どのコード規約やアーキテクチャ方針に基づいた変更なのかを明示
 - **透明性**: 思考過程や途中の気付きはIssueのコメント欄に随時記録
+
+## GitHub CLI (gh) による Issue 作成時の注意点
+
+PowerShell 環境から `gh issue create` や `gh issue edit` を使用して Issue の本文を作成・更新する場合、ヒアドキュメントを利用することが推奨される。
+その際、Markdown内のインラインコード（バッククォート `` ` ``）がPowerShellのエスケープ文字として解釈され消失してしまうのを防ぐため、**必ずシングルクォートのヒアドキュメント（`@' ... '@`）を使用すること。**
+
+**正しい例:**
+```powershell
+$body = @'
+## ゴール (Goal)
+- `vte::Perform` の `osc_dispatch` を実装すること
+'@
+$body | Out-File -Encoding UTF8 temporary.local\issue_body.md
+gh issue create --title "feat: xxx" --body-file temporary.local\issue_body.md
+```

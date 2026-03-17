@@ -30,9 +30,13 @@
 ## **4. 計画策定 (`plan.md`)**
 
 1.  **プラン生成**: `spec.md` と `workflow.md` の手法（例：TDD）に基づき、フェーズ・タスク・サブタスクの階層リストを作成せよ。
-2.  **完了メタタスクの注入**: 各フェーズの最後に必ず以下のタスクを挿入せよ。
-    - `- [ ] Task: Conductor - User Manual Verification '<Phase Name>' (Protocol in workflow.md)`
-3.  **承認**: ユーザーの承認を得よ。
+2.  **Phase0として調査タスクを追加**: autonomous-researcherスキルに基づく調査タスクを追加せよ。
+3.  **完了メタタスクの注入**: 各フェーズの最後に必ず以下のタスクを挿入せよ。
+    - [ ] Task: Conductor - Clippy & fmt Check。Clippyはfixを使用すること。&&は使えないので個別に実行すること。
+    - [ ] Task: Conductor - `.\install.ps1 -Path "$env:PLUGINS_DIR"` を実行
+    - [ ] Task: Conductor - User Manual Verification '<Phase Name>' (Protocol in workflow.md)`
+    - [ ] Task: Conductor - '<Phase Name>' の成果をコミット`
+4.  **承認**: ユーザーの承認を得よ。
 
 ## **5. アーティファクトの生成とレジストリ更新**
 
