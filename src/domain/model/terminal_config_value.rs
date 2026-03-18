@@ -9,20 +9,41 @@ pub enum ThemeType {
 }
 
 impl ThemeType {
+    /// 全てのテーマタイプと表示名、インデックスの定義
+    const THEMES: &[(Self, &'static str, i32)] = &[
+        (Self::SystemDefault, "System Default", 0),
+        (Self::OneHalfDark, "One Half Dark", 1),
+        (Self::OneHalfLight, "One Half Light", 2),
+    ];
+
     pub fn from_index(index: i32) -> Self {
-        match index {
-            1 => Self::OneHalfDark,
-            2 => Self::OneHalfLight,
-            _ => Self::SystemDefault,
-        }
+        Self::THEMES
+            .iter()
+            .find(|(_, _, i)| *i == index)
+            .map(|(t, _, _)| *t)
+            .unwrap_or(Self::SystemDefault)
     }
 
     pub fn to_index(self) -> i32 {
-        match self {
-            Self::SystemDefault => 0,
-            Self::OneHalfDark => 1,
-            Self::OneHalfLight => 2,
-        }
+        Self::THEMES
+            .iter()
+            .find(|(t, _, _)| *t == self)
+            .map(|(_, _, i)| *i)
+            .unwrap_or(0)
+    }
+
+    #[allow(dead_code)]
+    pub fn get_display_name(self) -> &'static str {
+        Self::THEMES
+            .iter()
+            .find(|(t, _, _)| *t == self)
+            .map(|(_, n, _)| *n)
+            .unwrap_or("Unknown")
+    }
+
+    #[allow(dead_code)]
+    pub fn all() -> Vec<Self> {
+        Self::THEMES.iter().map(|(t, _, _)| *t).collect()
     }
 }
 
@@ -126,5 +147,24 @@ mod tests {
         assert_eq!(ThemeType::SystemDefault.to_index(), 0);
         assert_eq!(ThemeType::OneHalfDark.to_index(), 1);
         assert_eq!(ThemeType::OneHalfLight.to_index(), 2);
+    }
+
+    #[test]
+    fn test_theme_type_display_name() {
+        assert_eq!(
+            ThemeType::SystemDefault.get_display_name(),
+            "System Default"
+        );
+        assert_eq!(ThemeType::OneHalfDark.get_display_name(), "One Half Dark");
+        assert_eq!(ThemeType::OneHalfLight.get_display_name(), "One Half Light");
+    }
+
+    #[test]
+    fn test_theme_type_all() {
+        let all = ThemeType::all();
+        assert_eq!(all.len(), 3);
+        assert!(all.contains(&ThemeType::SystemDefault));
+        assert!(all.contains(&ThemeType::OneHalfDark));
+        assert!(all.contains(&ThemeType::OneHalfLight));
     }
 }
