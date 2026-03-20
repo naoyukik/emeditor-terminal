@@ -25,9 +25,9 @@
 ## Phase 3: 最終検証
 全体的な動作確認と、コードのクリーンアップを行う。
 
-- [ ] Task: `cargo test` による全テストの通過確認
-- [ ] Task: `cargo clippy` による警告の確認・修正
-- [ ] Task: 設定ダイアログでのテーマ切り替えと保存・復元の手動動作確認
-- [ ] Task: `cargo fmt` による最終フォーマット確認
-- [ ] Task: Phase 3 完了のコミット
-- [ ] Task: Conductor - User Manual Verification 'Phase 3: 最終検証' (Protocol in workflow.md)
+- [x] Task: `cargo test` による全テストの通過確認
+- [x] Task: `cargo clippy` による警告の確認・修正
+- [x] Task: 設定ダイアログでのテーマ切り替えと保存・復元の手動動作確認
+- [x] Task: `cargo fmt` による最終フォーマット確認
+- [x] Task: Phase 3 完了のコミット
+- [x] Task: Conductor - User Manual Verification 'Phase 3: 最終検証' (Protocol in workflow.md)
