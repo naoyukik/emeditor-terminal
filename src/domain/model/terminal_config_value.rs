@@ -32,7 +32,6 @@ impl ThemeType {
             .unwrap_or(0)
     }
 
-    #[allow(dead_code)]
     pub fn get_display_name(self) -> &'static str {
         Self::THEMES
             .iter()
@@ -41,7 +40,6 @@ impl ThemeType {
             .unwrap_or("Unknown")
     }
 
-    #[allow(dead_code)]
     pub fn all() -> Vec<Self> {
         Self::THEMES.iter().map(|(t, _, _)| *t).collect()
     }

@@ -156,11 +156,7 @@ impl ConfigurationRepository for EmEditorConfigRepositoryImpl {
         }
 
         let theme_type_val = self.query_dword("ColorTheme", 0); // Default: SystemDefault
-        let theme_type = match theme_type_val {
-            1 => ThemeType::OneHalfDark,
-            2 => ThemeType::OneHalfLight,
-            _ => ThemeType::SystemDefault,
-        };
+        let theme_type = ThemeType::from_index(theme_type_val);
 
         let font_face = self.query_string("FontFaceName", &default.font_face);
         let font_size = self.query_dword("FontSize", default.font_size);
@@ -204,12 +200,7 @@ impl ConfigurationRepository for EmEditorConfigRepositoryImpl {
             config.font_weight,
             config.font_italic
         );
-        let theme_type_val = match config.theme_type {
-            ThemeType::SystemDefault => 0,
-            ThemeType::OneHalfDark => 1,
-            ThemeType::OneHalfLight => 2,
-        };
-        self.set_dword("ColorTheme", theme_type_val);
+        self.set_dword("ColorTheme", config.theme_type.to_index());
         self.set_string("FontFaceName", &config.font_face);
         self.set_dword("FontSize", config.font_size);
         self.set_dword("FontWeight", config.font_weight);

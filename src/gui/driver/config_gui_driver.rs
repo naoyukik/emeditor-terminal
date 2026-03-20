@@ -121,17 +121,17 @@ unsafe extern "system" fn settings_dlg_proc(
                 windows::Win32::UI::WindowsAndMessaging::GetDlgItem(hwnd, IDC_COMBO_THEME)
             {
                 if !combo_hwnd.0.is_null() {
-                    let themes = [
-                        windows::core::w!("System Default (Auto)"),
-                        windows::core::w!("One Half Dark"),
-                        windows::core::w!("One Half Light"),
-                    ];
-                    for &theme in &themes {
+                    for theme in ThemeType::all() {
+                        let display_name = theme.get_display_name();
+                        let wide_name: Vec<u16> = display_name
+                            .encode_utf16()
+                            .chain(std::iter::once(0))
+                            .collect();
                         SendMessageW(
                             combo_hwnd,
                             CB_ADDSTRING,
                             WPARAM(0),
-                            LPARAM(theme.as_ptr() as isize),
+                            LPARAM(wide_name.as_ptr() as isize),
                         );
                     }
 
