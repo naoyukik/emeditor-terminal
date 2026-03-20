@@ -1,0 +1,68 @@
+# Prerequisites
+*.d
+
+# Compiled Object files
+*.slo
+*.lo
+*.o
+*.obj
+
+# Precompiled Headers
+*.gch
+*.pch
+
+# Linker files
+*.ilk
+
+# Debugger Files
+*.pdb
+
+# Compiled Dynamic libraries
+*.so
+*.dylib
+*.dll
+
+# Fortran module files
+*.mod
+*.smod
+
+# Compiled Static libraries
+*.lai
+*.la
+*.a
+*.lib
+
+# Executables
+*.exe
+*.out
+*.app
+
+# debug information files
+*.dwo
+
+# Environment variables
+.env
+.env.*
+!.env.example
+
+# AI files
+*.local.md
+
+
+# Added by cargo
+
+/target
+/sdk/
+
+
+# IDE settings
+.idea/
+
+# local files
+# A folder for storing files you want to manage but not commit
+*.local
+
+/emeditor-terminal.eeWorkspace
+/sandbox/
+/emeditor-terminal.eesln
+

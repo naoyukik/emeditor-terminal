@@ -127,12 +127,21 @@ unsafe extern "system" fn settings_dlg_proc(
                             .encode_utf16()
                             .chain(std::iter::once(0))
                             .collect();
-                        SendMessageW(
+                        let item_idx = SendMessageW(
                             combo_hwnd,
                             CB_ADDSTRING,
                             WPARAM(0),
                             LPARAM(wide_name.as_ptr() as isize),
                         );
+                        // インデックス値を明示的に紐付ける
+                        if item_idx.0 >= 0 {
+                            SendMessageW(
+                                combo_hwnd,
+                                windows::Win32::UI::WindowsAndMessaging::CB_SETITEMDATA,
+                                WPARAM(item_idx.0 as usize),
+                                LPARAM(theme.to_index() as isize),
+                            );
+                        }
                     }
 
                     if let Ok(lock) = TEMP_CONFIG.lock() {
@@ -163,11 +172,20 @@ unsafe extern "system" fn settings_dlg_proc(
                     {
                         if !combo_hwnd.0.is_null() {
                             let sel_idx =
-                                SendMessageW(combo_hwnd, CB_GETCURSEL, WPARAM(0), LPARAM(0)).0
-                                    as i32;
-                            if let Ok(mut lock) = TEMP_CONFIG.lock() {
-                                if let Some(config) = lock.as_mut() {
-                                    config.theme_type = ThemeType::from_index(sel_idx);
+                                SendMessageW(combo_hwnd, CB_GETCURSEL, WPARAM(0), LPARAM(0)).0;
+                            if sel_idx != windows::Win32::UI::WindowsAndMessaging::CB_ERR as isize {
+                                let theme_val = SendMessageW(
+                                    combo_hwnd,
+                                    windows::Win32::UI::WindowsAndMessaging::CB_GETITEMDATA,
+                                    WPARAM(sel_idx as usize),
+                                    LPARAM(0),
+                                )
+                                .0 as i32;
+
+                                if let Ok(mut lock) = TEMP_CONFIG.lock() {
+                                    if let Some(config) = lock.as_mut() {
+                                        config.theme_type = ThemeType::from_index(theme_val);
+                                    }
                                 }
                             }
                         }

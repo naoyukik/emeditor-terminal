@@ -1,7 +1,7 @@
 {
   "track_id": "129_theme_logic_consolidation_20260318",
   "type": "refactor",
-  "status": "new",
+  "status": "completed",
   "created_at": "2026-03-18T00:00:00Z",
   "updated_at": "2026-03-18T00:00:00Z",
   "description": "ThemeType 変換ロジックの集約 (Issue #129)"
