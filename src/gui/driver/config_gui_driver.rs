@@ -121,29 +121,58 @@ unsafe extern "system" fn settings_dlg_proc(
                 windows::Win32::UI::WindowsAndMessaging::GetDlgItem(hwnd, IDC_COMBO_THEME)
             {
                 if !combo_hwnd.0.is_null() {
-                    let themes = [
-                        windows::core::w!("System Default (Auto)"),
-                        windows::core::w!("One Half Dark"),
-                        windows::core::w!("One Half Light"),
-                    ];
-                    for &theme in &themes {
-                        SendMessageW(
+                    for theme in ThemeType::all() {
+                        let display_name = theme.get_display_name();
+                        let wide_name: Vec<u16> = display_name
+                            .encode_utf16()
+                            .chain(std::iter::once(0))
+                            .collect();
+                        let item_idx = SendMessageW(
                             combo_hwnd,
                             CB_ADDSTRING,
                             WPARAM(0),
-                            LPARAM(theme.as_ptr() as isize),
+                            LPARAM(wide_name.as_ptr() as isize),
                         );
+                        // インデックス値を明示的に紐付ける
+                        if item_idx.0 >= 0 {
+                            SendMessageW(
+                                combo_hwnd,
+                                windows::Win32::UI::WindowsAndMessaging::CB_SETITEMDATA,
+                                WPARAM(item_idx.0 as usize),
+                                LPARAM(theme.to_index() as isize),
+                            );
+                        }
                     }
 
                     if let Ok(lock) = TEMP_CONFIG.lock() {
                         if let Some(config) = lock.as_ref() {
-                            let sel_idx = config.theme_type.to_index();
-                            SendMessageW(
+                            let target_val = config.theme_type.to_index();
+                            let count = SendMessageW(
                                 combo_hwnd,
-                                CB_SETCURSEL,
-                                WPARAM(sel_idx as usize),
+                                windows::Win32::UI::WindowsAndMessaging::CB_GETCOUNT,
+                                WPARAM(0),
                                 LPARAM(0),
-                            );
+                            )
+                            .0 as i32;
+
+                            for i in 0..count {
+                                let item_data = SendMessageW(
+                                    combo_hwnd,
+                                    windows::Win32::UI::WindowsAndMessaging::CB_GETITEMDATA,
+                                    WPARAM(i as usize),
+                                    LPARAM(0),
+                                )
+                                .0 as i32;
+                                if item_data == target_val {
+                                    SendMessageW(
+                                        combo_hwnd,
+                                        CB_SETCURSEL,
+                                        WPARAM(i as usize),
+                                        LPARAM(0),
+                                    );
+                                    break;
+                                }
+                            }
                             update_font_label(hwnd, config);
                         }
                     }
@@ -163,11 +192,20 @@ unsafe extern "system" fn settings_dlg_proc(
                     {
                         if !combo_hwnd.0.is_null() {
                             let sel_idx =
-                                SendMessageW(combo_hwnd, CB_GETCURSEL, WPARAM(0), LPARAM(0)).0
-                                    as i32;
-                            if let Ok(mut lock) = TEMP_CONFIG.lock() {
-                                if let Some(config) = lock.as_mut() {
-                                    config.theme_type = ThemeType::from_index(sel_idx);
+                                SendMessageW(combo_hwnd, CB_GETCURSEL, WPARAM(0), LPARAM(0)).0;
+                            if sel_idx != windows::Win32::UI::WindowsAndMessaging::CB_ERR as isize {
+                                let theme_val = SendMessageW(
+                                    combo_hwnd,
+                                    windows::Win32::UI::WindowsAndMessaging::CB_GETITEMDATA,
+                                    WPARAM(sel_idx as usize),
+                                    LPARAM(0),
+                                )
+                                .0 as i32;
+
+                                if let Ok(mut lock) = TEMP_CONFIG.lock() {
+                                    if let Some(config) = lock.as_mut() {
+                                        config.theme_type = ThemeType::from_index(theme_val);
+                                    }
                                 }
                             }
                         }

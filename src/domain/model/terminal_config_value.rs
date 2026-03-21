@@ -9,20 +9,44 @@ pub enum ThemeType {
 }
 
 impl ThemeType {
+    /// 全てのテーマタイプと表示名、インデックスの定義
+    const THEMES: &[(Self, &'static str, i32)] = &[
+        (Self::SystemDefault, "System Default (Auto)", 0),
+        (Self::OneHalfDark, "One Half Dark", 1),
+        (Self::OneHalfLight, "One Half Light", 2),
+    ];
+
     pub fn from_index(index: i32) -> Self {
-        match index {
-            1 => Self::OneHalfDark,
-            2 => Self::OneHalfLight,
-            _ => Self::SystemDefault,
-        }
+        Self::THEMES
+            .iter()
+            .find(|(_, _, i)| *i == index)
+            .map(|(t, _, _)| *t)
+            .unwrap_or(Self::SystemDefault)
     }
 
     pub fn to_index(self) -> i32 {
-        match self {
-            Self::SystemDefault => 0,
-            Self::OneHalfDark => 1,
-            Self::OneHalfLight => 2,
-        }
+        Self::THEMES
+            .iter()
+            .find(|(t, _, _)| *t == self)
+            .map(|(_, _, i)| *i)
+            .expect("ThemeType is missing from ThemeType::THEMES mapping")
+    }
+
+    pub fn get_display_name(self) -> &'static str {
+        Self::THEMES
+            .iter()
+            .find(|(t, _, _)| *t == self)
+            .map(|(_, n, _)| *n)
+            .unwrap_or_else(|| {
+                panic!(
+                    "ThemeType::{:?} has no display name mapping defined in THEMES",
+                    self
+                )
+            })
+    }
+
+    pub fn all() -> Vec<Self> {
+        Self::THEMES.iter().map(|(t, _, _)| *t).collect()
     }
 }
 
@@ -126,5 +150,44 @@ mod tests {
         assert_eq!(ThemeType::SystemDefault.to_index(), 0);
         assert_eq!(ThemeType::OneHalfDark.to_index(), 1);
         assert_eq!(ThemeType::OneHalfLight.to_index(), 2);
+    }
+
+    #[test]
+    fn test_theme_type_display_name() {
+        assert_eq!(
+            ThemeType::SystemDefault.get_display_name(),
+            "System Default (Auto)"
+        );
+        assert_eq!(ThemeType::OneHalfDark.get_display_name(), "One Half Dark");
+        assert_eq!(ThemeType::OneHalfLight.get_display_name(), "One Half Light");
+    }
+
+    #[test]
+    fn test_theme_type_all() {
+        let all = ThemeType::all();
+        // 要素数と集合としての包含関係
+        assert_eq!(all.len(), 3);
+        assert!(all.contains(&ThemeType::SystemDefault));
+        assert!(all.contains(&ThemeType::OneHalfDark));
+        assert!(all.contains(&ThemeType::OneHalfLight));
+
+        // 並び順が期待通りであること（ComboBoxの挿入順に影響するため重要）
+        assert_eq!(all[0], ThemeType::SystemDefault);
+        assert_eq!(all[1], ThemeType::OneHalfDark);
+        assert_eq!(all[2], ThemeType::OneHalfLight);
+
+        // 表示名に重複がないこと
+        let names: Vec<&str> = all.iter().map(|t| t.get_display_name()).collect();
+        let mut unique_names = names.clone();
+        unique_names.sort();
+        unique_names.dedup();
+        assert_eq!(names.len(), unique_names.len());
+
+        // 各位置と to_index()/from_index() の対応が一致していること (Round-trip)
+        for (idx, theme) in all.iter().enumerate() {
+            let idx_i32 = idx as i32;
+            assert_eq!(theme.to_index(), idx_i32);
+            assert_eq!(ThemeType::from_index(idx_i32), *theme);
+        }
     }
 }
