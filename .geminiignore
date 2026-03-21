@@ -45,24 +45,10 @@
 .env.*
 !.env.example
 
-# AI files
-*.local.md
-
-
 # Added by cargo
 
 /target
 /sdk/
 
-
 # IDE settings
 .idea/
-
-# local files
-# A folder for storing files you want to manage but not commit
-*.local
-
-/emeditor-terminal.eeWorkspace
-/sandbox/
-/emeditor-terminal.eesln
-
