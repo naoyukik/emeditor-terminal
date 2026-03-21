@@ -19,6 +19,13 @@
       "env": {
         "MEMORY_FILE_PATH": "$MEMORY_FILE_PATH"
       }
+    },
+    "sequential-thinking": {
+      "command": "pnpm",
+      "args": [
+        "dlx",
+        "@modelcontextprotocol/server-sequential-thinking"
+      ]
     }
   },
   "model": {
@@ -70,6 +77,12 @@
             "type": "command",
             "command": "$PYTHON_COMMAND $GEMINI_PROJECT_DIR/.gemini/hooks/suggest_conductor_skill.py",
             "description": "/conductor コマンド検出時にスキルの使用を促す"
+          },
+          {
+            "name": "check-get-content",
+            "type": "command",
+            "command": "$PYTHON_COMMAND $GEMINI_PROJECT_DIR/.gemini/hooks/detect_get_content_command.py",
+            "description": "PowerShellでのGet-Content利用を制限する"
           }
         ]
       },
