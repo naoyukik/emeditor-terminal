@@ -146,13 +146,33 @@ unsafe extern "system" fn settings_dlg_proc(
 
                     if let Ok(lock) = TEMP_CONFIG.lock() {
                         if let Some(config) = lock.as_ref() {
-                            let sel_idx = config.theme_type.to_index();
-                            SendMessageW(
+                            let target_val = config.theme_type.to_index();
+                            let count = SendMessageW(
                                 combo_hwnd,
-                                CB_SETCURSEL,
-                                WPARAM(sel_idx as usize),
+                                windows::Win32::UI::WindowsAndMessaging::CB_GETCOUNT,
+                                WPARAM(0),
                                 LPARAM(0),
-                            );
+                            )
+                            .0 as i32;
+
+                            for i in 0..count {
+                                let item_data = SendMessageW(
+                                    combo_hwnd,
+                                    windows::Win32::UI::WindowsAndMessaging::CB_GETITEMDATA,
+                                    WPARAM(i as usize),
+                                    LPARAM(0),
+                                )
+                                .0 as i32;
+                                if item_data == target_val {
+                                    SendMessageW(
+                                        combo_hwnd,
+                                        CB_SETCURSEL,
+                                        WPARAM(i as usize),
+                                        LPARAM(0),
+                                    );
+                                    break;
+                                }
+                            }
                             update_font_label(hwnd, config);
                         }
                     }

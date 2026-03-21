@@ -31,3 +31,15 @@
 - [x] Task: `cargo fmt` による最終フォーマット確認
 - [x] Task: Phase 3 完了のコミット
 - [x] Task: Conductor - User Manual Verification 'Phase 3: 最終検証' (Protocol in workflow.md)
+
+## Phase 4: レビュー指摘対応 (GitHub #130 & Second Opinion)
+指摘を受けた表示名の復元、安全性の向上、テストの堅牢化、および GUI Driver の順序依存排除に対応する。
+
+- [x] Task: `ThemeType` の表示名を `"System Default (Auto)"` に復元
+- [x] Task: `ThemeType::to_index` / `get_display_name` のマッピング定義漏れに対する `expect`/`panic` を追加
+- [x] Task: `ThemeType` の変換テスト拡充（round-trip, 重複チェック, 不正インデックス）
+- [x] Task: `config_gui_driver.rs` の ComboBox において `CB_SETITEMDATA` を使用し、初期選択時も ITEMDATA を探索することで順序依存を排除
+- [x] Task: `metadata.json` の `status` を `completed` に更新
+- [x] Task: `cargo test`, `cargo fmt`, `cargo clippy` による最終確認
+- [x] Task: Phase 4 完了のコミット
+- [x] Task: Conductor - User Manual Verification 'Phase 4: レビュー指摘対応' (Protocol in workflow.md)
