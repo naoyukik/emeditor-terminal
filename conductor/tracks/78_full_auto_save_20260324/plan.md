@@ -1,11 +1,11 @@
 # Implementation Plan: Issue 78 - 完全な自動保存の実装
 
 ## Phase 0: 外部・内部調査 (Research Phase)
-- [ ] Task: EmEditor SDK 調査：`on_destroy` (WM_DESTROY) 時の `reg_set_value` 呼び出しの有効性、プラグイン終了プロトコルの確認
-- [ ] Task: Microsoft Learn 調査：Win32 API `MessageBox` および EmEditor 独自のメッセージハンドリング手法のベストプラクティスを調査
-- [ ] Task: 内部調査：既存の `EmEditorConfigRepositoryImpl` の `save` 実装に潜在的なバグや制約（書き込み権限等）がないか再確認
-- [ ] Task: 成果物：調査結果に基づき `evidence_report.md` を作成する
-- [ ] Task: フィードバック：調査結果を本 `plan.md` または `spec.md` に反映する
+- [x] Task: EmEditor SDK 調査：`on_destroy` (WM_DESTROY) 時の `reg_set_value` 呼び出しの有効性、プラグイン終了プロトコルの確認
+- [x] Task: Microsoft Learn 調査：Win32 API `MessageBox` および EmEditor 独自のメッセージハンドリング手法のベストプラクティスを調査
+- [x] Task: 内部調査：既存 spinning `EmEditorConfigRepositoryImpl` の `save` 実装に潜在的なバグや制約（書き込み権限等）がないか再確認
+- [x] Task: 成果物：調査結果に基づき `evidence_report.md` を作成する
+- [x] Task: フィードバック：調査結果を本 `plan.md` または `spec.md` に反映する
 - [ ] Task: Conductor - User Manual Verification 'Phase 0' (Protocol in workflow.md)
 - [ ] Task: Commit progress: `chore(conductor): Complete Research Phase 0`
 

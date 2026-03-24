@@ -14,5 +14,5 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 ---
 
-- [ ] **Track: feat: プラグイン終了時の設定保存処理の実装 (GitHub Issue 78)**
+- [~] **Track: feat: プラグイン終了時の設定保存処理の実装 (GitHub Issue 78)**
 *Link: [./tracks/78_full_auto_save_20260324/](./tracks/78_full_auto_save_20260324/)*
