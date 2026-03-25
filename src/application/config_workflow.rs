@@ -1,5 +1,5 @@
 use crate::domain::model::terminal_config_value::TerminalConfig;
-use crate::domain::repository::configuration_repository::ConfigurationRepository;
+use crate::domain::repository::configuration_repository::{ConfigError, ConfigurationRepository};
 
 /// 設定関連のビジネスロジックを担当するワークフロー
 pub struct ConfigWorkflow {
@@ -17,8 +17,8 @@ impl ConfigWorkflow {
     }
 
     /// 指定された設定を保存する
-    pub fn save_config(&self, config: TerminalConfig) {
-        self.config_repository.save(&config);
+    pub fn save_config(&self, config: TerminalConfig) -> Result<(), ConfigError> {
+        self.config_repository.save(&config)
     }
 }
 
@@ -35,8 +35,9 @@ mod tests {
         fn load(&self) -> TerminalConfig {
             self.config.lock().unwrap().clone()
         }
-        fn save(&self, config: &TerminalConfig) {
+        fn save(&self, config: &TerminalConfig) -> Result<(), ConfigError> {
             *self.config.lock().unwrap() = config.clone();
+            Ok(())
         }
         fn get_terminal_config(&self) -> TerminalConfig {
             self.load()
@@ -61,7 +62,8 @@ mod tests {
         new_config.theme_type = ThemeType::OneHalfLight;
 
         // Save
-        workflow.save_config(new_config.clone());
+        let result = workflow.save_config(new_config.clone());
+        assert!(result.is_ok());
 
         // Reload and verify
         let reloaded = workflow.load_config();

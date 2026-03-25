@@ -1,7 +1,7 @@
 use crate::domain::model::color_theme_value::ColorTheme;
 use crate::domain::model::terminal_buffer_entity::TerminalBufferEntity;
 use crate::domain::model::terminal_config_value::TerminalConfig;
-use crate::domain::repository::configuration_repository::ConfigurationRepository;
+use crate::domain::repository::configuration_repository::{ConfigError, ConfigurationRepository};
 use crate::domain::repository::terminal_output_repository::TerminalOutputRepository;
 use crate::domain::service::ansi_parser_domain_service::AnsiParserDomainService;
 
@@ -79,6 +79,11 @@ impl TerminalWorkflow {
             );
         }
         self.buffer.resize(cols, rows);
+    }
+
+    /// 現在の設定を永続化領域に保存する
+    pub fn persist_config(&self) -> Result<(), ConfigError> {
+        self.config_repo.save(&self.config)
     }
 
     /// 設定を最新状態に更新する

@@ -10,9 +10,9 @@
 - [ ] Task: Commit progress: `chore(conductor): Complete Research Phase 0`
 
 ## Phase 1: Application 層の保存ロジック強化とテスト
-- [ ] Task: `ConfigWorkflow` の保存メソッドの戻り値を `Result<(), ConfigError>` に変更し、エラー情報を定義する
-- [ ] Task: `ConfigWorkflow` に `save_current` のような、現在のメモリ上の状態を保存するヘルパーを追加する
-- [ ] Task: ユニットテストを追加し、`ConfigWorkflow` が `ConfigurationRepository` の `save` を正しく呼び出すことを検証する
+- [x] Task: `ConfigWorkflow` の保存メソッドの戻り値を `Result<(), ConfigError>` に変更し、エラー情報を定義する
+- [x] Task: `TerminalWorkflow` に `persist_config` を追加し、現在のメモリ上の状態を保存できるようにする
+- [x] Task: ユニットテストを追加し、`ConfigWorkflow` が `ConfigurationRepository` の `save` を正しく呼び出すことを検証する
 - [ ] Task: Conductor - User Manual Verification 'Phase 1' (Protocol in workflow.md)
 - [ ] Task: Commit progress: `feat(config): Implement robust save logic in Application layer`
 

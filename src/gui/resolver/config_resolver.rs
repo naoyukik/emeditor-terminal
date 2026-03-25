@@ -47,7 +47,10 @@ pub(crate) fn handle_plugin_proc(
                 config_gui_driver::show_settings_dialog(hwnd, parent_hwnd, current_config)
             {
                 // 4. 更新があれば保存
-                workflow.save_config(new_config);
+                if let Err(e) = workflow.save_config(new_config) {
+                    log::error!("Failed to save configuration from dialog: {}", e);
+                    // TODO: Phase 2 で MessageBox によるユーザー通知を実装する
+                }
             }
 
             LRESULT(1) // TRUE

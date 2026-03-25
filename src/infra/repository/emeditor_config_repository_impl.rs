@@ -1,6 +1,6 @@
 use crate::domain::model::terminal_config_value::{TerminalConfig, ThemeType};
 use crate::domain::model::window_id_value::WindowId;
-use crate::domain::repository::configuration_repository::ConfigurationRepository;
+use crate::domain::repository::configuration_repository::{ConfigError, ConfigurationRepository};
 use crate::infra::driver::emeditor_io_driver::{
     self, EEREG_EMEDITORPLUGIN, REG_DWORD, REG_QUERY_VALUE_INFO, REG_SZ,
 };
@@ -103,7 +103,7 @@ impl EmEditorConfigRepositoryImpl {
         }
     }
 
-    fn set_string(&self, value_name: &str, value: &str) {
+    fn set_string(&self, value_name: &str, value: &str) -> i32 {
         // Allowing empty string to enable "reset to default" behavior
         let value_wide: Vec<u16> = value.encode_utf16().chain(std::iter::once(0)).collect();
         let value_name_wide: Vec<u16> = value_name
@@ -122,10 +122,10 @@ impl EmEditorConfigRepositoryImpl {
             dwFlags: 0,
         };
 
-        emeditor_io_driver::reg_set_value(self.get_hwnd(), &info);
+        emeditor_io_driver::reg_set_value(self.get_hwnd(), &info)
     }
 
-    fn set_dword(&self, value_name: &str, value: i32) {
+    fn set_dword(&self, value_name: &str, value: i32) -> i32 {
         let data = value as u32;
         let value_name_wide: Vec<u16> = value_name
             .encode_utf16()
@@ -143,7 +143,7 @@ impl EmEditorConfigRepositoryImpl {
             dwFlags: 0,
         };
 
-        emeditor_io_driver::reg_set_value(self.get_hwnd(), &info);
+        emeditor_io_driver::reg_set_value(self.get_hwnd(), &info)
     }
 }
 
@@ -186,10 +186,10 @@ impl ConfigurationRepository for EmEditorConfigRepositoryImpl {
         }
     }
 
-    fn save(&self, config: &TerminalConfig) {
+    fn save(&self, config: &TerminalConfig) -> Result<(), ConfigError> {
         if self.get_hwnd().0.is_null() {
             log::warn!("EmEditorConfigRepositoryImpl: HWND is NULL, skipping save.");
-            return;
+            return Err(ConfigError::SaveFailed("HWND is NULL".to_string()));
         }
         // Always save to allow explicit clearing of settings
         log::info!(
@@ -200,12 +200,23 @@ impl ConfigurationRepository for EmEditorConfigRepositoryImpl {
             config.font_weight,
             config.font_italic
         );
-        self.set_dword("ColorTheme", config.theme_type.to_index());
-        self.set_string("FontFaceName", &config.font_face);
-        self.set_dword("FontSize", config.font_size);
-        self.set_dword("FontWeight", config.font_weight);
-        self.set_dword("FontItalic", if config.font_italic { 1 } else { 0 });
-        self.set_string("ShellPath", &config.shell_path);
+
+        let mut results = Vec::new();
+
+        results.push(self.set_dword("ColorTheme", config.theme_type.to_index()));
+        results.push(self.set_string("FontFaceName", &config.font_face));
+        results.push(self.set_dword("FontSize", config.font_size));
+        results.push(self.set_dword("FontWeight", config.font_weight));
+        results.push(self.set_dword("FontItalic", if config.font_italic { 1 } else { 0 }));
+        results.push(self.set_string("ShellPath", &config.shell_path));
+
+        if results.iter().any(|&r| r != 0) {
+            let err_msg = format!("One or more settings failed to save. Return codes: {:?}", results);
+            log::error!("{}", err_msg);
+            return Err(ConfigError::SaveFailed(err_msg));
+        }
+
+        Ok(())
     }
 
     fn get_terminal_config(&self) -> TerminalConfig {
