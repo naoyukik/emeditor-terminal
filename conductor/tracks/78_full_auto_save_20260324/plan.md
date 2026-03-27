@@ -16,12 +16,12 @@
 - [ ] Task: Conductor - User Manual Verification 'Phase 1' (Protocol in workflow.md)
 - [ ] Task: Commit progress: `feat(config): Implement robust save logic in Application layer`
 
-## Phase 2: GUI 層での保存トリガーのフックと通知
-- [x] Task: `ConfigGuiDriver` または `ConfigWorkflow` を通じて、設定ダイアログの「OK」ボタン押下時に保存処理を実行するように実装する
-- [x] Task: `TerminalWindow` の `WM_DESTROY` ハンドラ（`on_destroy`）に `ConfigWorkflow::save_config` の呼び出しを追加する
-- [x] Task: 保存失敗時に EmEditor の `MessageBox` を表示するエラー通知ロジックを `Infrastructure` 層または `GUI` 層に実装する
+## Phase 2: GUI 層での保存トリガーの最適化と通知
+- [x] Task: 設定ダイアログの「OK」ボタン押下時に保存処理 (`save_config`) を実行するように実装する
+- [x] Task: 終了時の「先祖返り」バグを防ぐため、`on_destroy` での冗長な保存処理を排除（または実装しない）することを決定・実施する
+- [x] Task: 保存失敗時に EmEditor の `MessageBox` を表示するエラー通知ロジックを実装する
 - [ ] Task: Conductor - User Manual Verification 'Phase 2' (Protocol in workflow.md)
-- [ ] Task: Commit progress: `feat(gui): Hook save triggers and implement error notification`
+- [ ] Task: Commit progress: `feat(gui): Optimize save trigger and fix revert bug`
 
 ## Phase 3: 結合テストと実機検証
 - [ ] Task: EmEditor 実機でのテスト：設定変更後の再起動で設定が復元されることを確認する
