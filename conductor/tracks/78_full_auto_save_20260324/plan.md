@@ -17,9 +17,9 @@
 - [ ] Task: Commit progress: `feat(config): Implement robust save logic in Application layer`
 
 ## Phase 2: GUI 層での保存トリガーのフックと通知
-- [ ] Task: `ConfigGuiDriver` または `ConfigWorkflow` を通じて、設定ダイアログの「OK」ボタン押下時に保存処理を実行するように実装する
-- [ ] Task: `TerminalWindow` の `WM_DESTROY` ハンドラ（`on_destroy`）に `ConfigWorkflow::save_config` の呼び出しを追加する
-- [ ] Task: 保存失敗時に EmEditor の `MessageBox` を表示するエラー通知ロジックを `Infrastructure` 層または `GUI` 層に実装する
+- [x] Task: `ConfigGuiDriver` または `ConfigWorkflow` を通じて、設定ダイアログの「OK」ボタン押下時に保存処理を実行するように実装する
+- [x] Task: `TerminalWindow` の `WM_DESTROY` ハンドラ（`on_destroy`）に `ConfigWorkflow::save_config` の呼び出しを追加する
+- [x] Task: 保存失敗時に EmEditor の `MessageBox` を表示するエラー通知ロジックを `Infrastructure` 層または `GUI` 層に実装する
 - [ ] Task: Conductor - User Manual Verification 'Phase 2' (Protocol in workflow.md)
 - [ ] Task: Commit progress: `feat(gui): Hook save triggers and implement error notification`
 

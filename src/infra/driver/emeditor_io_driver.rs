@@ -1,6 +1,6 @@
 use windows::core::PCWSTR;
 use windows::Win32::Foundation::{HWND, LPARAM, WPARAM};
-use windows::Win32::UI::WindowsAndMessaging::SendMessageW;
+pub use windows::Win32::UI::WindowsAndMessaging::{MessageBoxW, MB_ICONERROR, MB_OK, SendMessageW};
 
 #[allow(dead_code)]
 const WM_USER: u32 = 0x0400;
@@ -141,5 +141,19 @@ pub fn reg_set_value(hwnd: HWND, info: &REG_SET_VALUE_INFO) -> i32 {
             info.pszValue.display()
         );
         ret
+    }
+}
+
+pub fn show_message_box(hwnd: HWND, text: &str, caption: &str, u_type: u32) -> i32 {
+    let wide_text: Vec<u16> = text.encode_utf16().chain(std::iter::once(0)).collect();
+    let wide_caption: Vec<u16> = caption.encode_utf16().chain(std::iter::once(0)).collect();
+    unsafe {
+        MessageBoxW(
+            hwnd,
+            PCWSTR(wide_text.as_ptr()),
+            PCWSTR(wide_caption.as_ptr()),
+            windows::Win32::UI::WindowsAndMessaging::MESSAGEBOX_STYLE(u_type),
+        )
+        .0
     }
 }

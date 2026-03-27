@@ -49,7 +49,13 @@ pub(crate) fn handle_plugin_proc(
                 // 4. 更新があれば保存
                 if let Err(e) = workflow.save_config(new_config) {
                     log::error!("Failed to save configuration from dialog: {}", e);
-                    // TODO: Phase 2 で MessageBox によるユーザー通知を実装する
+                    use crate::infra::driver::emeditor_io_driver::{MB_ICONERROR, MB_OK};
+                    crate::infra::driver::emeditor_io_driver::show_message_box(
+                        hwnd,
+                        &format!("設定の保存に失敗しました。\n{}", e),
+                        "Terminal Error",
+                        (MB_ICONERROR | MB_OK).0,
+                    );
                 }
             }
 

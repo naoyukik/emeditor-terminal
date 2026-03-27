@@ -354,6 +354,26 @@ pub fn on_ime_end_composition(hwnd: HWND) -> LRESULT {
 
 pub fn on_destroy() -> LRESULT {
     log::info!("WM_DESTROY: Cleaning up terminal resources");
+
+    // 設定の最終保存を試行
+    {
+        let data_arc = get_terminal_data();
+        let window_data = data_arc.lock().unwrap();
+        if let Err(e) = window_data.service.persist_config() {
+            log::error!("Failed to save configuration on destroy: {}", e);
+            // ウィンドウハンドルが有効な場合のみエラーを表示
+            if let Some(hwnd) = window_data.window_handle {
+                use crate::infra::driver::emeditor_io_driver::{MB_ICONERROR, MB_OK};
+                crate::infra::driver::emeditor_io_driver::show_message_box(
+                    hwnd.0,
+                    &format!("設定の保存に失敗しました。\n{}", e),
+                    "Terminal Error",
+                    (MB_ICONERROR | MB_OK).0,
+                );
+            }
+        }
+    }
+
     KeyboardIoDriver::uninstall_global();
 
     // 先にグローバルデータをリセット（ConPTY解放を含む）
