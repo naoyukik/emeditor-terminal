@@ -48,10 +48,13 @@
 # Added by cargo
 
 /target
-/sdk/
 
 # IDE settings
 .idea/
+
+# EmEditor settings
+/emeditor-terminal.eeWorkspace
+/emeditor-terminal.eesln
 
 # Exclude everything below this point from gminiignore
 # local files
@@ -61,6 +64,8 @@
 # AI files
 *.local.md
 
-/emeditor-terminal.eeWorkspace
-/sandbox/
-/emeditor-terminal.eesln
+# EmEditor SDK Documentation
+/sdk
+
+# Windows sandbox files
+/sandbox

@@ -1,54 +1,13 @@
-# Prerequisites
-*.d
+# Exclude everything below this point from gminiignore
+# local files
+# A folder for storing files you want to manage but not commit
+!*.local
 
-# Compiled Object files
-*.slo
-*.lo
-*.o
-*.obj
+# AI files
+!*.local.md
 
-# Precompiled Headers
-*.gch
-*.pch
+# EmEditor SDK Documentation
+!/sdk
 
-# Linker files
-*.ilk
-
-# Debugger Files
-*.pdb
-
-# Compiled Dynamic libraries
-*.so
-*.dylib
-*.dll
-
-# Fortran module files
-*.mod
-*.smod
-
-# Compiled Static libraries
-*.lai
-*.la
-*.a
-*.lib
-
-# Executables
-*.exe
-*.out
-*.app
-
-# debug information files
-*.dwo
-
-# Environment variables
-.env
-.env.*
-!.env.example
-
-# Added by cargo
-
-/target
-/sdk/
-
-# IDE settings
-.idea/
+# Windows sandbox files
+!/sandbox
