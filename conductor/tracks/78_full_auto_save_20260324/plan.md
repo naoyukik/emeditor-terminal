@@ -24,8 +24,15 @@
 - [ ] Task: Commit progress: `feat(gui): Optimize save trigger and fix revert bug`
 
 ## Phase 3: 結合テストと実機検証
-- [ ] Task: EmEditor 実機でのテスト：設定変更後の再起動で設定が復元されることを確認する
-- [ ] Task: EmEditor 実機でのテスト：プラグイン終了後に設定が永続化されていることを確認する（INI/レジストリの直接確認）
-- [ ] Task: 異常系テスト：保存失敗時のダイアログ表示をシミュレートし、正しく表示されることを確認する
-- [ ] Task: Conductor - User Manual Verification 'Phase 3' (Protocol in workflow.md)
-- [ ] Task: Commit progress: `test: Verify configuration persistence on real machine`
+- [x] Task: EmEditor 実機でのテスト：設定変更後の再起動で設定が復元されることを確認する
+- [x] Task: EmEditor 実機でのテスト：プラグイン終了後に設定が永続化されていることを確認する（INI/レジストリの直接確認）
+- [x] Task: 異常系テスト：保存失敗時のダイアログ表示をシミュレートし、正しく表示されることを確認する
+- [x] Task: Conductor - User Manual Verification 'Phase 3' (Protocol in workflow.md)
+- [x] Task: Commit progress: `test: Verify configuration persistence on real machine`
+
+## Phase 4: PR レビュー対応
+- [x] Task: 仕様書 (`spec.md`) およびメタデータ (`metadata.json`) の説明文を「即時保存」の方針に統一する
+- [x] Task: `config_resolver.rs` の MessageBox の親ウィンドウを `parent_hwnd` に修正する
+- [x] Task: 未使用の `persist_config` および `ConfigError::LoadFailed` に `#[allow(dead_code)]` を付与し、警告を抑制する
+- [x] Task: Conductor - User Manual Verification 'Phase 4' (Protocol in workflow.md)
+- [x] Task: Commit progress: `fix(review): Address PR review comments and documentation consistency`
