@@ -82,6 +82,7 @@ impl TerminalWorkflow {
     }
 
     /// 現在の設定を永続化領域に保存する
+    #[allow(dead_code)]
     pub fn persist_config(&self) -> Result<(), ConfigError> {
         self.config_repo.save(&self.config)
     }

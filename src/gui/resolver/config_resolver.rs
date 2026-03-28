@@ -51,7 +51,7 @@ pub(crate) fn handle_plugin_proc(
                     log::error!("Failed to save configuration from dialog: {}", e);
                     use crate::infra::driver::emeditor_io_driver::{MB_ICONERROR, MB_OK};
                     crate::infra::driver::emeditor_io_driver::show_message_box(
-                        hwnd,
+                        parent_hwnd,
                         &format!("設定の保存に失敗しました。\n{}", e),
                         "Terminal Error",
                         (MB_ICONERROR | MB_OK).0,

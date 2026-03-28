@@ -4,6 +4,7 @@ use std::fmt;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ConfigError {
     SaveFailed(String),
+    #[allow(dead_code)]
     LoadFailed(String),
 }
 
