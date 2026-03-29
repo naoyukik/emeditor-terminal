@@ -47,7 +47,16 @@ pub(crate) fn handle_plugin_proc(
                 config_gui_driver::show_settings_dialog(hwnd, parent_hwnd, current_config)
             {
                 // 4. 更新があれば保存
-                workflow.save_config(new_config);
+                if let Err(e) = workflow.save_config(new_config) {
+                    log::error!("Failed to save configuration from dialog: {}", e);
+                    use crate::infra::driver::emeditor_io_driver::{MB_ICONERROR, MB_OK};
+                    crate::infra::driver::emeditor_io_driver::show_message_box(
+                        parent_hwnd,
+                        &format!("設定の保存に失敗しました。\n{}", e),
+                        "Terminal Error",
+                        (MB_ICONERROR | MB_OK).0,
+                    );
+                }
             }
 
             LRESULT(1) // TRUE

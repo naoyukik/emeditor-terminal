@@ -45,24 +45,27 @@
 .env.*
 !.env.example
 
-# AI files
-*.local.md
-
-
 # Added by cargo
 
 /target
-/sdk/
-
 
 # IDE settings
 .idea/
 
+# EmEditor settings
+/emeditor-terminal.eeWorkspace
+/emeditor-terminal.eesln
+
+# Exclude everything below this point from gminiignore
 # local files
 # A folder for storing files you want to manage but not commit
 *.local
 
-/emeditor-terminal.eeWorkspace
-/sandbox/
-/emeditor-terminal.eesln
+# AI files
+*.local.md
 
+# EmEditor SDK Documentation
+/sdk
+
+# Windows sandbox files
+/sandbox

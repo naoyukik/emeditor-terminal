@@ -354,6 +354,7 @@ pub fn on_ime_end_composition(hwnd: HWND) -> LRESULT {
 
 pub fn on_destroy() -> LRESULT {
     log::info!("WM_DESTROY: Cleaning up terminal resources");
+
     KeyboardIoDriver::uninstall_global();
 
     // 先にグローバルデータをリセット（ConPTY解放を含む）
