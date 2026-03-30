@@ -51,30 +51,26 @@ impl Drop for CaretHandle {
     }
 }
 
-/// Helper to update IME window position based on the terminal cursor
-pub fn update_window_position(
+/// Updates both the system caret and the IME composition window position.
+pub fn sync_system_caret(
     hwnd: HWND,
     service: &TerminalWorkflow,
     renderer: &TerminalGuiDriver,
+    caret: Option<&CaretHandle>,
 ) {
-    if let Some(metrics) = renderer.get_metrics() {
+    if let Some((pixel_x, pixel_y)) = {
         let (cursor_x, cursor_y) = service.get_buffer().get_cursor_pos();
-        let display_cols = cursor_x;
+        renderer.cell_to_pixel(cursor_x, cursor_y)
+    } {
+        log::debug!("Syncing system caret: pixel=({}, {})", pixel_x, pixel_y);
 
-        let pixel_x = display_cols as i32 * metrics.base_width;
-        let pixel_y = cursor_y as i32 * metrics.char_height;
+        // 1. Update system caret position (for IME anchoring)
+        if let Some(c) = caret {
+            c.set_position(pixel_x, pixel_y);
+        }
 
-        log::debug!(
-            "Updating IME Window position: cursor=({}, {}), pixel=({}, {})",
-            cursor_x,
-            cursor_y,
-            pixel_x,
-            pixel_y
-        );
-
+        // 2. Update IME composition window position
         unsafe {
-            let _ = SetCaretPos(pixel_x, pixel_y);
-
             let himc = ImmGetContext(hwnd);
             if !himc.0.is_null() {
                 let form = COMPOSITIONFORM {
@@ -90,6 +86,15 @@ pub fn update_window_position(
             }
         }
     }
+}
+
+/// Deprecated: use sync_system_caret instead.
+pub fn update_window_position(
+    hwnd: HWND,
+    service: &TerminalWorkflow,
+    renderer: &TerminalGuiDriver,
+) {
+    sync_system_caret(hwnd, service, renderer, None);
 }
 
 pub fn is_composing(hwnd: HWND) -> bool {
@@ -199,16 +204,19 @@ pub fn handle_end_composition(hwnd: HWND, composition: &mut Option<CompositionIn
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::gui::driver::terminal_gui_driver::TerminalMetrics;
 
     #[test]
-    fn test_caret_handle_lifecycle() {
-        // HWND::default() will probably fail CreateCaret in real environment,
-        // but we can check if it compiles and handles drop safely.
-        let hwnd = HWND::default();
-        {
-            let caret = CaretHandle::new(hwnd);
-            caret.set_position(10, 20);
-        }
-        // Drop is called here.
+    fn test_cell_to_pixel_translation() {
+        let mut renderer = TerminalGuiDriver::new();
+        // Setup mock metrics
+        renderer.metrics = Some(TerminalMetrics {
+            char_height: 20,
+            base_width: 10,
+        });
+
+        assert_eq!(renderer.cell_to_pixel(0, 0), Some((0, 0)));
+        assert_eq!(renderer.cell_to_pixel(5, 3), Some((50, 60)));
+        assert_eq!(renderer.cell_to_pixel(100, 50), Some((1000, 1000)));
     }
 }
