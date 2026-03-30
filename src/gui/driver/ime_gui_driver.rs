@@ -10,6 +10,7 @@ use windows::Win32::UI::WindowsAndMessaging::{CreateCaret, DestroyCaret, SetCare
 
 use crate::application::TerminalWorkflow;
 use crate::gui::driver::terminal_gui_driver::{CompositionInfo, TerminalGuiDriver};
+use crate::gui::resolver::terminal_window_resolver::TerminalWindowResolver;
 
 /// RAII handle for the system caret.
 /// This is required for SetCaretPos to work correctly and anchor the IME window.
@@ -88,15 +89,6 @@ pub fn sync_system_caret(
     }
 }
 
-/// Deprecated: use sync_system_caret instead.
-pub fn update_window_position(
-    hwnd: HWND,
-    service: &TerminalWorkflow,
-    renderer: &TerminalGuiDriver,
-) {
-    sync_system_caret(hwnd, service, renderer, None);
-}
-
 pub fn is_composing(hwnd: HWND) -> bool {
     unsafe {
         let himc = ImmGetContext(hwnd);
@@ -116,7 +108,7 @@ pub fn handle_composition(
     hwnd: HWND,
     lparam: LPARAM,
     service: &mut TerminalWorkflow,
-    renderer: &TerminalGuiDriver,
+    _renderer: &TerminalGuiDriver,
     composition: &mut Option<CompositionInfo>,
 ) -> bool {
     log::debug!("WM_IME_COMPOSITION: lparam={:?}", lparam);
@@ -150,7 +142,18 @@ pub fn handle_composition(
     }
 
     if (lparam.0 as u32 & GCS_COMPSTR.0) != 0 {
-        update_window_position(hwnd, service, renderer);
+        // sync_system_caret will update both system caret and IME position
+        let data_arc = crate::gui::resolver::terminal_window_resolver::get_terminal_data();
+        {
+            let mut window_data = data_arc.lock().unwrap();
+            let TerminalWindowResolver {
+                ref service,
+                ref mut renderer,
+                ref caret,
+                ..
+            } = *window_data;
+            sync_system_caret(hwnd, service, renderer, caret.as_ref());
+        }
         unsafe {
             let himc = ImmGetContext(hwnd);
             if !himc.0.is_null() {

@@ -1,4 +1,4 @@
-use crate::gui::driver::ime_gui_driver::CaretHandle;
+use crate::gui::driver::ime_gui_driver::{sync_system_caret, CaretHandle};
 use crate::gui::driver::scroll_gui_driver::{update_window_scroll_info, ScrollAction};
 use crate::gui::resolver::terminal_window_resolver::{get_terminal_data, TerminalWindowResolver};
 use crate::infra::driver::keyboard_io_driver::KeyboardIoDriver;
@@ -74,10 +74,12 @@ pub fn on_paint(hwnd: HWND) -> LRESULT {
         let mut client_rect = windows::Win32::Foundation::RECT::default();
         let _ = windows::Win32::UI::WindowsAndMessaging::GetClientRect(hwnd, &mut client_rect);
 
+        // Destructure to allow simultaneous mutable borrow of renderer and immutable borrow of service
         let TerminalWindowResolver {
             ref service,
             ref mut renderer,
             ref composition,
+            ref caret,
             ..
         } = *window_data;
 
@@ -89,6 +91,9 @@ pub fn on_paint(hwnd: HWND) -> LRESULT {
             &service.color_theme,
             &service.config,
         );
+
+        // Always sync system caret position with virtual cursor during paint
+        sync_system_caret(hwnd, service, renderer, caret.as_ref());
 
         let _ = EndPaint(hwnd, &ps);
     }
