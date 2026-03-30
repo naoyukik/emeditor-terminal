@@ -101,7 +101,7 @@ struct RenderContext {
 
 pub struct TerminalGuiDriver {
     fonts: HashMap<u32, SendHFONT>,
-    metrics: Option<TerminalMetrics>,
+    pub(crate) metrics: Option<TerminalMetrics>,
 }
 
 impl Default for TerminalGuiDriver {
@@ -133,6 +133,15 @@ impl TerminalGuiDriver {
 
     pub fn get_metrics(&self) -> Option<&TerminalMetrics> {
         self.metrics.as_ref()
+    }
+
+    /// Converts virtual cell coordinates to client pixel coordinates.
+    pub fn cell_to_pixel(&self, x: usize, y: usize) -> Option<(i32, i32)> {
+        let metrics = self.metrics.as_ref()?;
+        Some((
+            x as i32 * metrics.base_width,
+            y as i32 * metrics.char_height,
+        ))
     }
 
     fn apply_dim_effect(color: COLORREF) -> COLORREF {
