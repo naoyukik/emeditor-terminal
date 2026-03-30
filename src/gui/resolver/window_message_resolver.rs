@@ -1,3 +1,4 @@
+use crate::gui::driver::ime_gui_driver::CaretHandle;
 use crate::gui::driver::scroll_gui_driver::{update_window_scroll_info, ScrollAction};
 use crate::gui::resolver::terminal_window_resolver::{get_terminal_data, TerminalWindowResolver};
 use crate::infra::driver::keyboard_io_driver::KeyboardIoDriver;
@@ -6,9 +7,7 @@ use windows::Win32::Graphics::Gdi::{
     BeginPaint, EndPaint, GetDC, InvalidateRect, ReleaseDC, PAINTSTRUCT,
 };
 use windows::Win32::UI::Input::KeyboardAndMouse::{SetFocus, VK_MENU};
-use windows::Win32::UI::WindowsAndMessaging::{
-    CreateCaret, DefWindowProcW, DestroyCaret, DLGC_WANTALLKEYS,
-};
+use windows::Win32::UI::WindowsAndMessaging::{DefWindowProcW, DLGC_WANTALLKEYS};
 
 const ISC_SHOWUICOMPOSITIONWINDOW: u32 = 0x80000000;
 
@@ -107,45 +106,13 @@ pub fn on_lbuttondown(hwnd: HWND) -> LRESULT {
 }
 
 pub fn on_set_focus(hwnd: HWND) -> LRESULT {
-    log::info!("WM_SETFOCUS: Focus received, installing keyboard hook");
-
-    // Note: TERMINAL_HWND logic was specific to where it's defined.
-    // If we need it, we should move it to infra/input.rs or terminal_data.rs
-    // But infra/input.rs manages hook instance now.
-    // Let's assume infra/input sets its own target hwnd on install.
-    // The previous implementation had a separate TERMINAL_HWND in window.rs.
-    // For caret creation:
+    log::info!("WM_SETFOCUS: Focus received, installing keyboard hook and system caret");
 
     let data_arc = get_terminal_data();
-    let mut window_data = data_arc.lock().unwrap();
-    let char_height = if let Some(metrics) = window_data.renderer.get_metrics() {
-        metrics.char_height
-    } else {
-        unsafe {
-            let hdc = GetDC(hwnd);
-            if hdc.is_invalid() {
-                // GetDC が失敗した場合はフォールバック値を用いる
-                16
-            } else {
-                let config = window_data.service.config.clone();
-                let _font = window_data.renderer.get_font_for_style(hdc, 0, &config);
-                // get_font_for_style internally updates metrics if they are None
-                ReleaseDC(hwnd, hdc);
-                window_data
-                    .renderer
-                    .get_metrics()
-                    .map(|m| m.char_height)
-                    .unwrap_or(16)
-            }
-        }
-    };
-    unsafe {
-        let _ = CreateCaret(
-            hwnd,
-            windows::Win32::Graphics::Gdi::HBITMAP::default(),
-            2,
-            char_height,
-        );
+    {
+        let mut window_data = data_arc.lock().unwrap();
+        // Create RAII system caret handle
+        window_data.caret = Some(CaretHandle::new(hwnd));
     }
 
     KeyboardIoDriver::install_global(hwnd);
@@ -153,9 +120,12 @@ pub fn on_set_focus(hwnd: HWND) -> LRESULT {
 }
 
 pub fn on_kill_focus() -> LRESULT {
-    log::info!("WM_KILLFOCUS: Focus lost, uninstalling keyboard hook");
-    unsafe {
-        let _ = DestroyCaret();
+    log::info!("WM_KILLFOCUS: Focus lost, uninstalling keyboard hook and system caret");
+    let data_arc = get_terminal_data();
+    {
+        let mut window_data = data_arc.lock().unwrap();
+        // RAII handle will automatically call DestroyCaret when dropped
+        window_data.caret = None;
     }
     KeyboardIoDriver::uninstall_global();
     LRESULT(0)

@@ -6,10 +6,50 @@ use windows::Win32::UI::Input::Ime::{
     ImmGetCompositionStringW, ImmGetContext, ImmReleaseContext, ImmSetCompositionWindow, CFS_POINT,
     COMPOSITIONFORM, GCS_COMPSTR, GCS_RESULTSTR,
 };
-use windows::Win32::UI::WindowsAndMessaging::SetCaretPos;
+use windows::Win32::UI::WindowsAndMessaging::{CreateCaret, DestroyCaret, SetCaretPos};
 
 use crate::application::TerminalWorkflow;
 use crate::gui::driver::terminal_gui_driver::{CompositionInfo, TerminalGuiDriver};
+
+/// RAII handle for the system caret.
+/// This is required for SetCaretPos to work correctly and anchor the IME window.
+pub struct CaretHandle {
+    hwnd: HWND,
+}
+
+// SAFETY: Caret operations in Win32 are thread-local, but we ensure all access
+// happens on the UI thread.
+unsafe impl Send for CaretHandle {}
+unsafe impl Sync for CaretHandle {}
+
+impl CaretHandle {
+    /// Creates a new invisible system caret for the specified window.
+    /// The size is set to 1x1 to be practically invisible but still serve as an anchor.
+    pub fn new(hwnd: HWND) -> Self {
+        log::info!("Creating system caret handle for HWND {:?}", hwnd);
+        unsafe {
+            // Width 1, Height 1 (practically invisible)
+            let _ = CreateCaret(hwnd, None, 1, 1);
+        }
+        Self { hwnd }
+    }
+
+    /// Moves the system caret to the specified pixel coordinates.
+    pub fn set_position(&self, x: i32, y: i32) {
+        unsafe {
+            let _ = SetCaretPos(x, y);
+        }
+    }
+}
+
+impl Drop for CaretHandle {
+    fn drop(&mut self) {
+        log::info!("Destroying system caret handle for HWND {:?}", self.hwnd);
+        unsafe {
+            let _ = DestroyCaret();
+        }
+    }
+}
 
 /// Helper to update IME window position based on the terminal cursor
 pub fn update_window_position(
@@ -153,5 +193,22 @@ pub fn handle_end_composition(hwnd: HWND, composition: &mut Option<CompositionIn
     *composition = None;
     unsafe {
         let _ = InvalidateRect(hwnd, None, BOOL(0));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_caret_handle_lifecycle() {
+        // HWND::default() will probably fail CreateCaret in real environment,
+        // but we can check if it compiles and handles drop safely.
+        let hwnd = HWND::default();
+        {
+            let caret = CaretHandle::new(hwnd);
+            caret.set_position(10, 20);
+        }
+        // Drop is called here.
     }
 }
