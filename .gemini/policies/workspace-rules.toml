@@ -23,8 +23,13 @@ toolName = [
     "get_symbol_info",
     "list_directory_tree",
     "open_file_in_editor",
+    "read_file",
+    "search_file",
     "search_in_files_by_regex",
     "search_in_files_by_text",
+    "search_regex",
+    "search_symbol",
+    "search_text",
 ]
 decision = "allow"
 priority = 50
