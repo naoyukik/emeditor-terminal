@@ -1,16 +1,18 @@
 use std::ffi::c_void;
 use std::mem::size_of;
-use windows::Win32::Foundation::{BOOL, HWND, LPARAM};
+use windows::Win32::Foundation::{BOOL, HWND, LPARAM, POINT, RECT};
 use windows::Win32::Graphics::Gdi::InvalidateRect;
 use windows::Win32::UI::Input::Ime::{
-    ImmGetCompositionStringW, ImmGetContext, ImmReleaseContext, ImmSetCompositionWindow, CFS_POINT,
+    ImmGetCompositionStringW, ImmGetContext, ImmReleaseContext, ImmSetCandidateWindow,
+    ImmSetCompositionWindow, CANDIDATEFORM, CFS_EXCLUDE, CFS_FORCE_POSITION, CFS_POINT,
     COMPOSITIONFORM, GCS_COMPSTR, GCS_RESULTSTR,
 };
-use windows::Win32::UI::WindowsAndMessaging::{CreateCaret, DestroyCaret, SetCaretPos};
+use windows::Win32::UI::Input::KeyboardAndMouse::GetFocus;
+use windows::Win32::UI::WindowsAndMessaging::{
+    CreateCaret, DestroyCaret, GetClientRect, HideCaret, SetCaretPos, ShowCaret,
+};
 
-use crate::application::TerminalWorkflow;
-use crate::gui::driver::terminal_gui_driver::{CompositionInfo, TerminalGuiDriver};
-use crate::gui::resolver::terminal_window_resolver::TerminalWindowResolver;
+use crate::gui::driver::terminal_gui_driver::TerminalGuiDriver;
 
 /// RAII handle for the system caret.
 /// This is required for SetCaretPos to work correctly and anchor the IME window.
@@ -29,8 +31,12 @@ impl CaretHandle {
     pub fn new(hwnd: HWND) -> Self {
         log::info!("Creating system caret handle for HWND {:?}", hwnd);
         unsafe {
-            // Width 1, Height 1 (practically invisible)
+            // Create a small caret
             let _ = CreateCaret(hwnd, None, 1, 1);
+            // Some IMEs need to see the caret "active" to anchor to it.
+            // We show and then hide it immediately to keep it invisible but active.
+            let _ = ShowCaret(hwnd);
+            let _ = HideCaret(hwnd);
         }
         Self { hwnd }
     }
@@ -55,34 +61,93 @@ impl Drop for CaretHandle {
 /// Updates both the system caret and the IME composition window position.
 pub fn sync_system_caret(
     hwnd: HWND,
-    service: &TerminalWorkflow,
+    cursor_pos: (usize, usize),
+    viewport_offset: usize,
     renderer: &TerminalGuiDriver,
     caret: Option<&CaretHandle>,
 ) {
-    if let Some((pixel_x, pixel_y)) = {
-        let (cursor_x, cursor_y) = service.get_buffer().get_cursor_pos();
-        renderer.cell_to_pixel(cursor_x, cursor_y)
-    } {
-        log::debug!("Syncing system caret: pixel=({}, {})", pixel_x, pixel_y);
+    // CRITICAL: Only sync if this window actually has focus.
+    // This prevents interfering with the parent EmEditor window's IME.
+    unsafe {
+        if GetFocus() != hwnd {
+            return;
+        }
+    }
+
+    // Convert absolute cursor Y to screen-relative Y
+    let relative_y = cursor_pos.1.saturating_sub(viewport_offset);
+
+    if let Some((pixel_x, pixel_y)) = renderer.cell_to_pixel(cursor_pos.0, relative_y) {
+        // 0. Clamp coordinates to client area to prevent disappearing off-screen
+        let mut client_rect = RECT::default();
+        let (clamped_x, clamped_y) = unsafe {
+            if GetClientRect(hwnd, &mut client_rect).is_ok() {
+                let margin = 5;
+                (
+                    pixel_x.clamp(client_rect.left, client_rect.right - margin),
+                    pixel_y.clamp(client_rect.top, client_rect.bottom - margin),
+                )
+            } else {
+                (pixel_x, pixel_y)
+            }
+        };
+
+        log::debug!(
+            "Syncing system caret: cursor=({},{}), offset={}, pixel=({}, {}), clamped=({}, {})",
+            cursor_pos.0,
+            cursor_pos.1,
+            viewport_offset,
+            pixel_x,
+            pixel_y,
+            clamped_x,
+            clamped_y
+        );
 
         // 1. Update system caret position (for IME anchoring)
         if let Some(c) = caret {
-            c.set_position(pixel_x, pixel_y);
+            c.set_position(clamped_x, clamped_y);
         }
 
-        // 2. Update IME composition window position
+        // 2. Update IME composition and candidate window positions
         unsafe {
             let himc = ImmGetContext(hwnd);
             if !himc.0.is_null() {
-                let form = COMPOSITIONFORM {
-                    dwStyle: CFS_POINT,
-                    ptCurrentPos: windows::Win32::Foundation::POINT {
-                        x: pixel_x,
-                        y: pixel_y,
-                    },
-                    rcArea: windows::Win32::Foundation::RECT::default(),
+                let metrics = renderer.get_metrics().cloned().unwrap_or(crate::gui::driver::terminal_gui_driver::TerminalMetrics { char_height: 16, base_width: 8 });
+
+                // For composition position, use clamped coordinates
+                let pt_current_pos = POINT {
+                    x: clamped_x,
+                    y: clamped_y,
                 };
-                let _ = ImmSetCompositionWindow(himc, &form);
+
+                // The exclusion area is the rectangle we want the IME list to AVOID covering.
+                let rc_exclude = RECT {
+                    left: clamped_x,
+                    top: clamped_y,
+                    right: clamped_x + metrics.base_width,
+                    bottom: clamped_y + metrics.char_height,
+                };
+
+                // Use CFS_FORCE_POSITION to bypass IME's own adjustments
+                let comp_form = COMPOSITIONFORM {
+                    dwStyle: CFS_FORCE_POSITION,
+                    ptCurrentPos: pt_current_pos,
+                    rcArea: RECT::default(),
+                };
+                let _ = ImmSetCompositionWindow(himc, &comp_form);
+
+                // Set candidate window position for all possible indices (0-3)
+                // to ensure maximum compatibility with different IME implementations.
+                for i in 0..4 {
+                    let cand_form = CANDIDATEFORM {
+                        dwIndex: i,
+                        dwStyle: CFS_EXCLUDE,
+                        ptCurrentPos: pt_current_pos,
+                        rcArea: rc_exclude,
+                    };
+                    let _ = ImmSetCandidateWindow(himc, &cand_form);
+                }
+
                 let _ = ImmReleaseContext(hwnd, himc);
             }
         }
@@ -104,15 +169,26 @@ pub fn is_composing(hwnd: HWND) -> bool {
     }
 }
 
+/// Results of IME processing to be handled by the upper layer.
+#[derive(PartialEq, Debug)]
+pub enum ImeResult {
+    NotHandled,
+    Result(String),
+    Composition(String),
+}
+
+/// Processes WM_IME_COMPOSITION and returns the result to be integrated into Workflow.
 pub fn handle_composition(
     hwnd: HWND,
     lparam: LPARAM,
-    service: &mut TerminalWorkflow,
-    _renderer: &TerminalGuiDriver,
-    composition: &mut Option<CompositionInfo>,
-) -> bool {
+    cursor_pos: (usize, usize),
+    viewport_offset: usize,
+    renderer: &TerminalGuiDriver,
+    caret: Option<&CaretHandle>,
+) -> ImeResult {
     log::debug!("WM_IME_COMPOSITION: lparam={:?}", lparam);
-    let mut handled = false;
+
+    let mut result = ImeResult::NotHandled;
 
     if (lparam.0 as u32 & GCS_RESULTSTR.0) != 0 {
         unsafe {
@@ -129,12 +205,7 @@ pub fn handle_composition(
                         len_bytes as u32,
                     );
                     let result_str = String::from_utf16_lossy(&buffer);
-                    log::info!("IME Result: '{}'", result_str);
-
-                    let _ = service.send_input(result_str.as_bytes());
-                    *composition = None;
-                    let _ = InvalidateRect(hwnd, None, BOOL(0));
-                    handled = true;
+                    result = ImeResult::Result(result_str);
                 }
                 let _ = ImmReleaseContext(hwnd, himc);
             }
@@ -142,18 +213,7 @@ pub fn handle_composition(
     }
 
     if (lparam.0 as u32 & GCS_COMPSTR.0) != 0 {
-        // sync_system_caret will update both system caret and IME position
-        let data_arc = crate::gui::resolver::terminal_window_resolver::get_terminal_data();
-        {
-            let mut window_data = data_arc.lock().unwrap();
-            let TerminalWindowResolver {
-                ref service,
-                ref mut renderer,
-                ref caret,
-                ..
-            } = *window_data;
-            sync_system_caret(hwnd, service, renderer, caret.as_ref());
-        }
+        sync_system_caret(hwnd, cursor_pos, viewport_offset, renderer, caret);
         unsafe {
             let himc = ImmGetContext(hwnd);
             if !himc.0.is_null() {
@@ -169,36 +229,27 @@ pub fn handle_composition(
                     );
 
                     let comp_str = String::from_utf16_lossy(&buffer);
-                    log::info!("IME Composition: '{}' (len={})", comp_str, len_u16);
-
-                    if comp_str.is_empty() {
-                        *composition = None;
-                    } else {
-                        *composition = Some(CompositionInfo { text: comp_str });
+                    if result == ImeResult::NotHandled {
+                        result = ImeResult::Composition(comp_str);
                     }
-
-                    let _ = InvalidateRect(hwnd, None, BOOL(0));
-                    handled = true;
                 }
                 let _ = ImmReleaseContext(hwnd, himc);
             }
         }
     }
 
-    handled
+    result
 }
 
-pub fn handle_start_composition(hwnd: HWND, service: &mut TerminalWorkflow) {
+pub fn handle_start_composition(hwnd: HWND) {
     log::debug!("WM_IME_STARTCOMPOSITION");
-    service.reset_viewport();
     unsafe {
         let _ = InvalidateRect(hwnd, None, BOOL(0));
     }
 }
 
-pub fn handle_end_composition(hwnd: HWND, composition: &mut Option<CompositionInfo>) {
+pub fn handle_end_composition(hwnd: HWND) {
     log::debug!("WM_IME_ENDCOMPOSITION");
-    *composition = None;
     unsafe {
         let _ = InvalidateRect(hwnd, None, BOOL(0));
     }

@@ -20,6 +20,7 @@ pub struct CompositionInfo {
     pub text: String,
 }
 
+#[derive(Clone, Copy, PartialEq, Debug)]
 pub struct TerminalMetrics {
     pub char_height: i32,
     pub base_width: i32,
@@ -102,6 +103,7 @@ struct RenderContext {
 pub struct TerminalGuiDriver {
     fonts: HashMap<u32, SendHFONT>,
     pub(crate) metrics: Option<TerminalMetrics>,
+    pub metrics_changed: bool,
 }
 
 impl Default for TerminalGuiDriver {
@@ -115,6 +117,7 @@ impl TerminalGuiDriver {
         Self {
             fonts: HashMap::new(),
             metrics: None,
+            metrics_changed: false,
         }
     }
 
@@ -211,7 +214,8 @@ impl TerminalGuiDriver {
                 return HFONT::default();
             }
 
-            if self.metrics.is_none() {
+            // Always update metrics when base font (style_mask == 0) is created or if not yet set
+            if style_mask == 0 || self.metrics.is_none() {
                 let old_font = SelectObject(hdc, HGDIOBJ(h_font.0));
                 let _font_guard = SelectedObjectGuard::new(hdc, old_font);
                 let mut tm = TEXTMETRICW::default();
@@ -219,10 +223,17 @@ impl TerminalGuiDriver {
                 let zero_utf16: &[u16] = &[0x0030];
                 let mut size = SIZE::default();
                 let _ = GetTextExtentPoint32W(hdc, zero_utf16, &mut size);
-                self.metrics = Some(TerminalMetrics {
+
+                let new_metrics = TerminalMetrics {
                     char_height: tm.tmHeight,
                     base_width: size.cx,
-                });
+                };
+
+                if self.metrics.as_ref() != Some(&new_metrics) {
+                    log::info!("Terminal metrics updated: {}x{}", size.cx, tm.tmHeight);
+                    self.metrics = Some(new_metrics);
+                    self.metrics_changed = true;
+                }
             }
 
             self.fonts.insert(style_mask, SendHFONT(h_font));
@@ -551,10 +562,7 @@ impl TerminalGuiDriver {
             let text = c.to_string();
             let w = (text.width().clamp(1, 2) as i32) * ctx.base_width;
             comp_dx.push(w);
-            comp_dx.extend(std::iter::repeat_n(
-                0,
-                text.encode_utf16().count().saturating_sub(1),
-            ));
+            comp_dx.extend(std::iter::repeat_n(0, text.encode_utf16().count().saturating_sub(1)));
             pixel_width += w;
         }
         let comp_rect = RECT {
@@ -568,8 +576,10 @@ impl TerminalGuiDriver {
             let old_font = SelectObject(hdc, HGDIOBJ(h_font.0));
             let _font_guard = SelectedObjectGuard::new(hdc, old_font);
 
+            // 視認性向上のため、テーマの背景色・文字色を明示的にセット
             SetBkColor(hdc, Self::rgb_to_colorref(&theme.default_bg));
             SetTextColor(hdc, Self::rgb_to_colorref(&theme.default_fg));
+
             let _ = ExtTextOutW(
                 hdc,
                 ctx.x,
@@ -581,6 +591,7 @@ impl TerminalGuiDriver {
                 Some(comp_dx.as_ptr()),
             );
 
+            // 変換中であることを示す下線を描画
             if pixel_width > 0 && ctx.char_height > 0 {
                 let underline_height: i32 = 1;
                 let underline_top = ctx.y + ctx.char_height - underline_height;

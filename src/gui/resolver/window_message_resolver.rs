@@ -1,4 +1,7 @@
-use crate::gui::driver::ime_gui_driver::{sync_system_caret, CaretHandle};
+use crate::gui::driver::ime_gui_driver::{
+    handle_composition, handle_end_composition, handle_start_composition, sync_system_caret,
+    CaretHandle, ImeResult,
+};
 use crate::gui::driver::scroll_gui_driver::{update_window_scroll_info, ScrollAction};
 use crate::gui::resolver::terminal_window_resolver::{get_terminal_data, TerminalWindowResolver};
 use crate::infra::driver::keyboard_io_driver::KeyboardIoDriver;
@@ -74,12 +77,11 @@ pub fn on_paint(hwnd: HWND) -> LRESULT {
         let mut client_rect = windows::Win32::Foundation::RECT::default();
         let _ = windows::Win32::UI::WindowsAndMessaging::GetClientRect(hwnd, &mut client_rect);
 
-        // Destructure to allow simultaneous mutable borrow of renderer and immutable borrow of service
+        // Destructure to allow simultaneous mutable borrow of renderer and service
         let TerminalWindowResolver {
-            ref service,
+            ref mut service,
             ref mut renderer,
             ref composition,
-            ref caret,
             ..
         } = *window_data;
 
@@ -92,8 +94,22 @@ pub fn on_paint(hwnd: HWND) -> LRESULT {
             &service.config,
         );
 
-        // Always sync system caret position with virtual cursor during paint
-        sync_system_caret(hwnd, service, renderer, caret.as_ref());
+        // If metrics were updated during render, trigger a resize to match new font dimensions
+        if renderer.metrics_changed {
+            renderer.metrics_changed = false;
+            let char_width = renderer.metrics.map(|m| m.base_width).unwrap_or(8);
+            let char_height = renderer.metrics.map(|m| m.char_height).unwrap_or(16);
+            let width = client_rect.right - client_rect.left;
+            let height = client_rect.bottom - client_rect.top;
+
+            if char_width > 0 && char_height > 0 {
+                // Use maximum available space
+                let cols = (width / char_width).max(1);
+                let rows = (height / char_height).max(1);
+                log::info!("Metrics changed detected in on_paint. Re-sizing to {}x{}", cols, rows);
+                service.resize(cols as usize, rows as usize);
+            }
+        }
 
         let _ = EndPaint(hwnd, &ps);
     }
@@ -175,88 +191,54 @@ pub fn on_keyup(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM) -> LRESULT
     unsafe { DefWindowProcW(hwnd, msg, wparam, lparam) }
 }
 
-pub fn on_syschar(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
-    let char_code = wparam.0 as u16;
-    log::debug!("WM_SYSCHAR received: 0x{:04X}", char_code);
-
-    if char_code == 0x0020 {
-        return unsafe { DefWindowProcW(hwnd, msg, wparam, lparam) };
-    }
-
-    LRESULT(0)
-}
-
 pub fn on_syscommand(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
-    let cmd = wparam.0 & 0xFFF0;
-    log::debug!("WM_SYSCOMMAND received: 0x{:04X}", cmd);
-    if cmd == 0xF100 {
-        let key_char = (lparam.0 & 0xFFFF) as u16;
-        if key_char == 0x0020 {
-            log::debug!("SC_KEYMENU from Alt+Space: passing to DefWindowProcW");
-            return unsafe { DefWindowProcW(hwnd, msg, wparam, lparam) };
-        }
-
-        log::debug!("SC_KEYMENU received (Menu activation blocked)");
-        return LRESULT(0);
-    }
+    log::debug!("WM_SYSCOMMAND received: 0x{:04X}", wparam.0);
     unsafe { DefWindowProcW(hwnd, msg, wparam, lparam) }
 }
 
-pub fn on_char(hwnd: HWND, wparam: WPARAM) -> LRESULT {
-    let char_code = wparam.0 as u16;
-    log::debug!(
-        "WM_CHAR received: 0x{:04X} ({})",
-        char_code,
-        String::from_utf16_lossy(&[char_code])
-    );
+pub fn on_syschar(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
+    let vk_code = wparam.0 as u16;
+    log::debug!("WM_SYSCHAR received: 0x{:04X}", vk_code);
+    unsafe { DefWindowProcW(hwnd, msg, wparam, lparam) }
+}
 
-    if char_code == 0x0D || char_code == 0x09 || char_code == 0x1B || char_code == 0x08 {
-        log::debug!(
-            "WM_CHAR: Skipping char 0x{:04X} (already handled by WM_KEYDOWN)",
-            char_code
-        );
-        return LRESULT(0);
-    }
-
-    {
-        let data_arc = get_terminal_data();
-        let mut window_data = data_arc.lock().unwrap();
-        window_data.service.reset_viewport();
-        let s = String::from_utf16_lossy(&[char_code]);
-        let _ = window_data.service.send_input(s.as_bytes());
-    }
-    update_window_scroll_info(hwnd);
-    unsafe {
-        let _ = InvalidateRect(hwnd, None, BOOL(0));
-    }
-
+pub fn on_char(_hwnd: HWND, wparam: WPARAM) -> LRESULT {
+    let ch = wparam.0 as u8;
+    log::debug!("WM_CHAR received: 0x{:02X}", ch);
+    let data_arc = get_terminal_data();
+    let window_data = data_arc.lock().unwrap();
+    let _ = window_data.service.send_input(&[ch]);
     LRESULT(0)
 }
 
-pub fn on_size(hwnd: HWND, lparam: LPARAM) -> LRESULT {
-    let width = (lparam.0 & 0xFFFF) as i32;
-    let height = ((lparam.0 >> 16) & 0xFFFF) as i32;
-    log::info!("WM_SIZE: width={}, height={}", width, height);
-
-    if width <= 0 || height <= 0 {
-        return LRESULT(0);
+pub fn on_size(hwnd: HWND, _lparam: LPARAM) -> LRESULT {
+    let mut client_rect = windows::Win32::Foundation::RECT::default();
+    unsafe {
+        let _ = windows::Win32::UI::WindowsAndMessaging::GetClientRect(hwnd, &mut client_rect);
     }
+    let width = (client_rect.right - client_rect.left) as i32;
+    let height = (client_rect.bottom - client_rect.top) as i32;
+    log::info!("WM_SIZE (GetClientRect): width={}, height={}", width, height);
 
+    let data_arc = get_terminal_data();
     {
-        let data_arc = get_terminal_data();
         let mut window_data = data_arc.lock().unwrap();
-
         let (char_width, char_height) = if let Some(metrics) = window_data.renderer.get_metrics() {
             (metrics.base_width, metrics.char_height)
         } else {
+            // 初回などメトリクスが未定の場合は 8x16 を仮定するが、
+            // 描画が始まれば TerminalGuiDriver 側で metrics が更新され、
+            // 次の描画サイクルで再調整される。
             (8, 16)
         };
 
-        let cols = (width / char_width).max(1) as i16;
-        let rows = (height / char_height).max(1) as i16;
-
-        log::info!("Resizing ConptyIoDriver to cols={}, rows={}", cols, rows);
-        window_data.service.resize(cols as usize, rows as usize);
+        if char_width > 0 && char_height > 0 {
+            // Calculate max columns that can fit in the physical width
+            let cols = (width / char_width).max(1);
+            let rows = (height / char_height).max(1);
+            log::info!("Updating logical size to {}x{} based on pixel size {}x{}", cols, rows, width, height);
+            window_data.service.resize(cols as usize, rows as usize);
+        }
     }
 
     update_window_scroll_info(hwnd);
@@ -278,35 +260,76 @@ pub fn on_ime_set_context(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM) 
 }
 
 pub fn on_ime_start_composition(hwnd: HWND) -> LRESULT {
+    handle_start_composition(hwnd);
+    let data_arc = get_terminal_data();
     {
-        let data_arc = get_terminal_data();
         let mut window_data = data_arc.lock().unwrap();
-        crate::gui::driver::ime_gui_driver::handle_start_composition(
+        window_data.service.reset_viewport();
+
+        let TerminalWindowResolver {
+            ref service,
+            ref renderer,
+            ref caret,
+            ..
+        } = *window_data;
+
+        // Sync IME position at the very beginning of composition
+        sync_system_caret(
             hwnd,
-            &mut window_data.service,
+            service.get_buffer().get_cursor_pos(),
+            service.get_buffer().get_viewport_offset(),
+            renderer,
+            caret.as_ref(),
         );
     }
     update_window_scroll_info(hwnd);
-
     LRESULT(0)
 }
 
 pub fn on_ime_composition(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
-    let handled = {
+    let result = {
         let data_arc = get_terminal_data();
         let mut window_data = data_arc.lock().unwrap();
-        let data_inner = &mut *window_data;
+        let TerminalWindowResolver {
+            ref mut service,
+            ref renderer,
+            ref caret,
+            ..
+        } = *window_data;
 
-        crate::gui::driver::ime_gui_driver::handle_composition(
+        handle_composition(
             hwnd,
             lparam,
-            &mut data_inner.service,
-            &data_inner.renderer,
-            &mut data_inner.composition,
+            service.get_buffer().get_cursor_pos(),
+            service.get_buffer().get_viewport_offset(),
+            renderer,
+            caret.as_ref(),
         )
     };
 
-    if !handled {
+    match result {
+        ImeResult::Result(ref text) => {
+            let data_arc = get_terminal_data();
+            let mut window_data = data_arc.lock().unwrap();
+            let _ = window_data.service.send_input(text.as_bytes());
+            window_data.composition = None;
+            unsafe {
+                let _ = InvalidateRect(hwnd, None, BOOL(0));
+            }
+        }
+        ImeResult::Composition(ref text) => {
+            let data_arc = get_terminal_data();
+            let mut window_data = data_arc.lock().unwrap();
+            window_data.composition =
+                Some(crate::gui::driver::terminal_gui_driver::CompositionInfo { text: text.clone() });
+            unsafe {
+                let _ = InvalidateRect(hwnd, None, BOOL(0));
+            }
+        }
+        _ => {}
+    }
+
+    if let ImeResult::NotHandled = result {
         unsafe { DefWindowProcW(hwnd, msg, wparam, lparam) }
     } else {
         LRESULT(0)
@@ -314,30 +337,29 @@ pub fn on_ime_composition(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM) 
 }
 
 pub fn on_ime_end_composition(hwnd: HWND) -> LRESULT {
+    handle_end_composition(hwnd);
+    let data_arc = get_terminal_data();
     {
-        let data_arc = get_terminal_data();
         let mut window_data = data_arc.lock().unwrap();
-        crate::gui::driver::ime_gui_driver::handle_end_composition(
-            hwnd,
-            &mut window_data.composition,
-        );
+        window_data.composition = None;
+    }
+    unsafe {
+        let _ = InvalidateRect(hwnd, None, BOOL(0));
     }
     LRESULT(0)
 }
 
 pub fn on_destroy() -> LRESULT {
     log::info!("WM_DESTROY: Cleaning up terminal resources");
-
-    KeyboardIoDriver::uninstall_global();
-
-    // 先にグローバルデータをリセット（ConPTY解放を含む）
     crate::gui::window::cleanup_terminal();
 
     let data_arc = get_terminal_data();
-    let mut window_data = data_arc.lock().unwrap();
-
-    window_data.window_handle = None;
-    window_data.renderer.clear_resources();
+    {
+        let mut window_data = data_arc.lock().unwrap();
+        window_data.renderer.clear_resources();
+        window_data.window_handle = None;
+        window_data.caret = None;
+    }
 
     log::info!("Terminal resources cleared");
     LRESULT(0)
@@ -350,6 +372,27 @@ pub fn on_get_dlg_code() -> LRESULT {
 
 pub fn on_app_repaint(hwnd: HWND) -> LRESULT {
     update_window_scroll_info(hwnd);
+    let data_arc = get_terminal_data();
+    {
+        let window_data = data_arc.lock().unwrap();
+        let TerminalWindowResolver {
+            ref service,
+            ref renderer,
+            ref caret,
+            ..
+        } = *window_data;
+
+        // Sync system caret before triggering repaint to ensure correct IME position.
+        // We sync even when composing because apps like Ink (Gemini CLI) move the cursor
+        // during composition or prompt redraw.
+        sync_system_caret(
+            hwnd,
+            service.get_buffer().get_cursor_pos(),
+            service.get_buffer().get_viewport_offset(),
+            renderer,
+            caret.as_ref(),
+        );
+    }
     unsafe {
         let _ = InvalidateRect(hwnd, None, BOOL(0));
     }
