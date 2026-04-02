@@ -3,51 +3,83 @@ use std::mem::size_of;
 use windows::Win32::Foundation::{BOOL, HWND, LPARAM};
 use windows::Win32::Graphics::Gdi::InvalidateRect;
 use windows::Win32::UI::Input::Ime::{
-    ImmGetCompositionStringW, ImmGetContext, ImmReleaseContext, ImmSetCompositionWindow, CFS_POINT,
-    COMPOSITIONFORM, GCS_COMPSTR, GCS_RESULTSTR,
+    ImmGetCompositionStringW, ImmGetContext, ImmReleaseContext, ImmSetCandidateWindow,
+    ImmSetCompositionWindow, CANDIDATEFORM, CFS_EXCLUDE, CFS_POINT, COMPOSITIONFORM, GCS_COMPSTR,
+    GCS_RESULTSTR,
 };
 use windows::Win32::UI::WindowsAndMessaging::{CreateCaret, DestroyCaret, SetCaretPos};
 
 use crate::application::TerminalWorkflow;
 use crate::gui::driver::terminal_gui_driver::{CompositionInfo, TerminalGuiDriver};
-use crate::gui::resolver::terminal_window_resolver::TerminalWindowResolver;
 
 /// RAII handle for the system caret.
 /// This is required for SetCaretPos to work correctly and anchor the IME window.
 pub struct CaretHandle {
     hwnd: HWND,
+    created: bool,
+    thread_id: u32,
 }
 
-// SAFETY: Caret operations in Win32 are thread-local, but we ensure all access
-// happens on the UI thread.
+// Win32 Caret API is thread-local to the UI thread.
+// We implement Send/Sync to allow it to be stored in TerminalWindowResolver (Mutex),
+// but we MUST ensure it is created and destroyed on the same UI thread.
 unsafe impl Send for CaretHandle {}
 unsafe impl Sync for CaretHandle {}
 
 impl CaretHandle {
-    /// Creates a new invisible system caret for the specified window.
-    /// The size is set to 1x1 to be practically invisible but still serve as an anchor.
-    pub fn new(hwnd: HWND) -> Self {
-        log::info!("Creating system caret handle for HWND {:?}", hwnd);
-        unsafe {
-            // Width 1, Height 1 (practically invisible)
-            let _ = CreateCaret(hwnd, None, 1, 1);
+    /// Creates a new invisible system caret for the specified window with given dimensions.
+    /// Matching the caret size to the actual font dimensions helps IME to position correctly.
+    pub fn new(hwnd: HWND, width: i32, height: i32) -> Self {
+        log::info!("Creating system caret handle for HWND {:?} size {}x{}", hwnd, width, height);
+        let thread_id = unsafe { windows::Win32::System::Threading::GetCurrentThreadId() };
+        let created = unsafe {
+            // Create a caret matching character dimensions
+            CreateCaret(hwnd, None, width, height).is_ok()
+        };
+        if !created {
+            log::error!("Failed to create system caret for HWND {:?}", hwnd);
         }
-        Self { hwnd }
+        Self {
+            hwnd,
+            created,
+            thread_id,
+        }
     }
 
     /// Moves the system caret to the specified pixel coordinates.
     pub fn set_position(&self, x: i32, y: i32) {
-        unsafe {
-            let _ = SetCaretPos(x, y);
+        if self.created {
+            // Caret operations must happen on the same thread
+            let current_thread = unsafe { windows::Win32::System::Threading::GetCurrentThreadId() };
+            if current_thread == self.thread_id {
+                unsafe {
+                    let _ = SetCaretPos(x, y);
+                }
+            } else {
+                log::warn!("Caret::set_position called from non-UI thread");
+            }
         }
     }
 }
 
 impl Drop for CaretHandle {
     fn drop(&mut self) {
-        log::info!("Destroying system caret handle for HWND {:?}", self.hwnd);
-        unsafe {
-            let _ = DestroyCaret();
+        if self.created {
+            let current_thread = unsafe { windows::Win32::System::Threading::GetCurrentThreadId() };
+            if current_thread == self.thread_id {
+                log::info!("Destroying system caret handle for HWND {:?}", self.hwnd);
+                unsafe {
+                    let _ = DestroyCaret();
+                }
+            } else {
+                log::error!(
+                    "CaretHandle dropped on wrong thread! created={}, current={}",
+                    self.thread_id,
+                    current_thread
+                );
+                // We cannot call DestroyCaret safely on another thread as it's thread-local.
+                // This indicates a bug in lifecycle management.
+            }
         }
     }
 }
@@ -70,19 +102,45 @@ pub fn sync_system_caret(
             c.set_position(pixel_x, pixel_y);
         }
 
-        // 2. Update IME composition window position
+        // 2. Update IME composition and candidate window positions
         unsafe {
             let himc = ImmGetContext(hwnd);
             if !himc.0.is_null() {
-                let form = COMPOSITIONFORM {
+                let metrics = renderer.get_metrics().cloned().unwrap_or(crate::gui::driver::terminal_gui_driver::TerminalMetrics { char_height: 16, base_width: 8 });
+                let pt_current_pos = windows::Win32::Foundation::POINT {
+                    x: pixel_x,
+                    y: pixel_y,
+                };
+
+                // The exclusion area is the rectangle we want the IME list to AVOID covering.
+                // For Japanese input, we should at least exclude 2 columns (full-width).
+                let rc_exclude = windows::Win32::Foundation::RECT {
+                    left: pixel_x,
+                    top: pixel_y,
+                    right: pixel_x + (metrics.base_width * 2),
+                    bottom: pixel_y + metrics.char_height,
+                };
+
+                // Style for composition window
+                let comp_form = COMPOSITIONFORM {
                     dwStyle: CFS_POINT,
-                    ptCurrentPos: windows::Win32::Foundation::POINT {
-                        x: pixel_x,
-                        y: pixel_y,
-                    },
+                    ptCurrentPos: pt_current_pos,
                     rcArea: windows::Win32::Foundation::RECT::default(),
                 };
-                let _ = ImmSetCompositionWindow(himc, &form);
+                let _ = ImmSetCompositionWindow(himc, &comp_form);
+
+                // Set candidate window position for all possible indices (0-3)
+                // to ensure maximum compatibility with different IME implementations.
+                for i in 0..4 {
+                    let cand_form = CANDIDATEFORM {
+                        dwIndex: i,
+                        dwStyle: CFS_EXCLUDE,
+                        ptCurrentPos: pt_current_pos,
+                        rcArea: rc_exclude,
+                    };
+                    let _ = ImmSetCandidateWindow(himc, &cand_form);
+                }
+
                 let _ = ImmReleaseContext(hwnd, himc);
             }
         }
@@ -108,13 +166,15 @@ pub fn handle_composition(
     hwnd: HWND,
     lparam: LPARAM,
     service: &mut TerminalWorkflow,
-    _renderer: &TerminalGuiDriver,
+    renderer: &TerminalGuiDriver,
+    caret: Option<&CaretHandle>,
     composition: &mut Option<CompositionInfo>,
 ) -> bool {
     log::debug!("WM_IME_COMPOSITION: lparam={:?}", lparam);
     let mut handled = false;
 
     if (lparam.0 as u32 & GCS_RESULTSTR.0) != 0 {
+        // ... (結果文字列の処理は変更なし)
         unsafe {
             let himc = ImmGetContext(hwnd);
             if !himc.0.is_null() {
@@ -143,17 +203,9 @@ pub fn handle_composition(
 
     if (lparam.0 as u32 & GCS_COMPSTR.0) != 0 {
         // sync_system_caret will update both system caret and IME position
-        let data_arc = crate::gui::resolver::terminal_window_resolver::get_terminal_data();
-        {
-            let mut window_data = data_arc.lock().unwrap();
-            let TerminalWindowResolver {
-                ref service,
-                ref mut renderer,
-                ref caret,
-                ..
-            } = *window_data;
-            sync_system_caret(hwnd, service, renderer, caret.as_ref());
-        }
+        // We use the passed caret reference instead of re-locking global data to avoid deadlock.
+        sync_system_caret(hwnd, service, renderer, caret);
+
         unsafe {
             let himc = ImmGetContext(hwnd);
             if !himc.0.is_null() {

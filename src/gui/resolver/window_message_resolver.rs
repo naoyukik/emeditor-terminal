@@ -114,8 +114,13 @@ pub fn on_set_focus(hwnd: HWND) -> LRESULT {
     let data_arc = get_terminal_data();
     {
         let mut window_data = data_arc.lock().unwrap();
-        // Create RAII system caret handle
-        window_data.caret = Some(CaretHandle::new(hwnd));
+        let (char_width, char_height) = if let Some(metrics) = window_data.renderer.get_metrics() {
+            (metrics.base_width, metrics.char_height)
+        } else {
+            (8, 16)
+        };
+        // Create RAII system caret handle with proper dimensions
+        window_data.caret = Some(CaretHandle::new(hwnd, char_width, char_height));
     }
 
     KeyboardIoDriver::install_global(hwnd);
@@ -302,6 +307,7 @@ pub fn on_ime_composition(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM) 
             lparam,
             &mut data_inner.service,
             &data_inner.renderer,
+            data_inner.caret.as_ref(),
             &mut data_inner.composition,
         )
     };

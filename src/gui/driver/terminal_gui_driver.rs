@@ -20,6 +20,7 @@ pub struct CompositionInfo {
     pub text: String,
 }
 
+#[derive(Clone, Copy, PartialEq, Debug)]
 pub struct TerminalMetrics {
     pub char_height: i32,
     pub base_width: i32,
