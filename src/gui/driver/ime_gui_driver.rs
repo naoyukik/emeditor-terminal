@@ -127,18 +127,15 @@ pub fn sync_system_caret(
                 let metrics = renderer.get_metrics().cloned().unwrap_or(crate::gui::driver::terminal_gui_driver::TerminalMetrics { char_height: 16, base_width: 8 });
 
                 // IMPORTANT: IMM32 API (ImmSetCompositionWindow, etc.) expects CLIENT coordinates.
-                // The OS bridge will handle the translation to Screen coordinates if necessary for TSF.
                 let pt_client = POINT {
                     x: pixel_x,
                     y: pixel_y,
                 };
 
-                let rc_exclude_client = RECT {
-                    left: pixel_x,
-                    top: pixel_y,
-                    right: pixel_x + (metrics.base_width * 2),
-                    bottom: pixel_y + metrics.char_height,
-                };
+                // Log actual OS caret position to verify SetCaretPos success
+                let mut os_caret_pos = POINT::default();
+                let _ = unsafe { windows::Win32::UI::WindowsAndMessaging::GetCaretPos(&mut os_caret_pos) };
+                log::info!("OS Caret Position: {:?}", os_caret_pos);
 
                 // 1. Set the font size for the composition window
                 let mut lf = windows::Win32::Graphics::Gdi::LOGFONTW {
@@ -157,21 +154,23 @@ pub fn sync_system_caret(
                 let res_font = windows::Win32::UI::Input::Ime::ImmSetCompositionFontW(himc, &lf);
 
                 // 2. Set the composition window position
+                // Use CFS_POINT as it's the most standard.
                 let comp_form = COMPOSITIONFORM {
-                    dwStyle: windows::Win32::UI::Input::Ime::CFS_FORCE_POSITION,
+                    dwStyle: windows::Win32::UI::Input::Ime::CFS_POINT,
                     ptCurrentPos: pt_client,
                     rcArea: RECT::default(),
                 };
                 let res_comp = ImmSetCompositionWindow(himc, &comp_form);
 
                 // 3. Set candidate window position for all possible indices (0-3)
+                // Use CFS_CANDIDATEPOS for direct positioning.
                 let mut res_cand = true;
                 for i in 0..4 {
                     let cand_form = CANDIDATEFORM {
                         dwIndex: i,
-                        dwStyle: windows::Win32::UI::Input::Ime::CFS_EXCLUDE,
+                        dwStyle: windows::Win32::UI::Input::Ime::CFS_CANDIDATEPOS,
                         ptCurrentPos: pt_client,
-                        rcArea: rc_exclude_client,
+                        rcArea: RECT::default(),
                     };
                     if !ImmSetCandidateWindow(himc, &cand_form).as_bool() {
                         res_cand = false;
