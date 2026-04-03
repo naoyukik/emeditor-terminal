@@ -91,6 +91,7 @@ pub fn sync_system_caret(
     viewport_offset: usize,
     renderer: &TerminalGuiDriver,
     caret: Option<&CaretHandle>,
+    font_face: &str,
 ) {
     // CRITICAL: Only sync if this window actually has focus.
     // This prevents interfering with the parent EmEditor window's IME.
@@ -105,7 +106,7 @@ pub fn sync_system_caret(
 
     if let Some((pixel_x, pixel_y)) = renderer.cell_to_pixel(cursor_pos.0, relative_y) {
         // Detailed logging for coordinate verification
-        log::info!("Syncing IME: client=({}, {}), cursor=({:?}), viewport={}", pixel_x, pixel_y, cursor_pos, viewport_offset);
+        log::info!("Syncing IME: client=({}, {}), cursor=({:?}), viewport={}, font={}", pixel_x, pixel_y, cursor_pos, viewport_offset, font_face);
 
         // 1. Update system caret position (Always uses client coordinates)
         if let Some(c) = caret {
@@ -133,17 +134,24 @@ pub fn sync_system_caret(
                 };
 
                 // 1. Set the font size for the composition window
-                let lf = windows::Win32::Graphics::Gdi::LOGFONTW {
+                let mut lf = windows::Win32::Graphics::Gdi::LOGFONTW {
                     lfHeight: metrics.char_height,
                     lfWidth: metrics.base_width,
                     lfCharSet: windows::Win32::Graphics::Gdi::DEFAULT_CHARSET,
                     ..Default::default()
                 };
+
+                // Set font face name
+                let face_name_wide: Vec<u16> = font_face.encode_utf16().collect();
+                let len = std::cmp::min(face_name_wide.len(), lf.lfFaceName.len() - 1);
+                lf.lfFaceName[..len].copy_from_slice(&face_name_wide[..len]);
+                lf.lfFaceName[len] = 0;
+
                 let _ = windows::Win32::UI::Input::Ime::ImmSetCompositionFontW(himc, &lf);
 
                 // 2. Set the composition window position
                 let comp_form = COMPOSITIONFORM {
-                    dwStyle: windows::Win32::UI::Input::Ime::CFS_POINT,
+                    dwStyle: windows::Win32::UI::Input::Ime::CFS_FORCE_POSITION,
                     ptCurrentPos: pt_client,
                     rcArea: RECT::default(),
                 };
@@ -196,6 +204,7 @@ pub fn handle_composition(
     viewport_offset: usize,
     renderer: &TerminalGuiDriver,
     caret: Option<&CaretHandle>,
+    font_face: &str,
 ) -> ImeResult {
     log::debug!("WM_IME_COMPOSITION: lparam={:?}", lparam);
 
@@ -223,7 +232,7 @@ pub fn handle_composition(
     }
 
     if (lparam.0 as u32 & GCS_COMPSTR.0) != 0 {
-        sync_system_caret(hwnd, cursor_pos, viewport_offset, renderer, caret);
+        sync_system_caret(hwnd, cursor_pos, viewport_offset, renderer, caret, font_face);
 
         unsafe {
             let himc = ImmGetContext(hwnd);

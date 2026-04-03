@@ -102,6 +102,7 @@ pub fn on_paint(hwnd: HWND) -> LRESULT {
             service.get_buffer().get_viewport_offset(),
             renderer,
             caret.as_ref(),
+            service.get_font_face(),
         );
 
         let _ = EndPaint(hwnd, &ps);
@@ -313,6 +314,7 @@ pub fn on_ime_start_composition(hwnd: HWND) -> LRESULT {
             service.get_buffer().get_viewport_offset(),
             renderer,
             caret.as_ref(),
+            service.get_font_face(),
         );
     }
     update_window_scroll_info(hwnd);
@@ -338,6 +340,7 @@ pub fn on_ime_composition(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM) 
             service.get_buffer().get_viewport_offset(),
             renderer,
             caret.as_ref(),
+            service.get_font_face(),
         )
     };
 
@@ -425,6 +428,7 @@ pub fn on_app_repaint(hwnd: HWND) -> LRESULT {
             service.get_buffer().get_viewport_offset(),
             renderer,
             caret.as_ref(),
+            service.get_font_face(),
         );
     }
     unsafe {
