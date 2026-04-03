@@ -115,6 +115,11 @@ pub fn sync_system_caret(
         // Detailed logging for coordinate verification
         log::info!("Syncing IME: client=({}, {}), cursor=({:?}), visible={}, font={}", pixel_x, pixel_y, cursor_pos, is_visible, font_face);
 
+        // Get window rect to see where we are on screen
+        let mut window_rect = windows::Win32::Foundation::RECT::default();
+        let _ = unsafe { windows::Win32::UI::WindowsAndMessaging::GetWindowRect(hwnd, &mut window_rect) };
+        log::info!("Window Rect: {:?}", window_rect);
+
         // 1. Update system caret position (Always uses client coordinates)
         if let Some(c) = caret {
             c.set_position(pixel_x, pixel_y);
@@ -127,7 +132,13 @@ pub fn sync_system_caret(
                 let metrics = renderer.get_metrics().cloned().unwrap_or(crate::gui::driver::terminal_gui_driver::TerminalMetrics { char_height: 16, base_width: 8 });
                 log::info!("Metrics: height={}, width={}", metrics.char_height, metrics.base_width);
 
-                // IMPORTANT: IMM32 API (ImmSetCompositionWindow, etc.) expects CLIENT coordinates.
+                // Try SCREEN coordinates for composition too, as some IMEs (TSF bridge) expect it
+                let mut pt_screen = POINT {
+                    x: pixel_x,
+                    y: pixel_y,
+                };
+                let _ = windows::Win32::Graphics::Gdi::ClientToScreen(hwnd, &mut pt_screen);
+
                 let pt_client = POINT {
                     x: pixel_x,
                     y: pixel_y,
@@ -135,8 +146,8 @@ pub fn sync_system_caret(
 
                 // Log actual OS caret position to verify SetCaretPos success
                 let mut os_caret_pos = POINT::default();
-                let _ = unsafe { windows::Win32::UI::WindowsAndMessaging::GetCaretPos(&mut os_caret_pos) };
-                log::info!("OS Caret Position: {:?}", os_caret_pos);
+                let _ = windows::Win32::UI::WindowsAndMessaging::GetCaretPos(&mut os_caret_pos);
+                log::info!("OS Caret Position: {:?}, Calculated Screen: {:?}", os_caret_pos, pt_screen);
 
                 // 1. Set the font size for the composition window
                 let mut lf = windows::Win32::Graphics::Gdi::LOGFONTW {
@@ -155,36 +166,30 @@ pub fn sync_system_caret(
                 let res_font = windows::Win32::UI::Input::Ime::ImmSetCompositionFontW(himc, &lf);
 
                 // 2. Set the composition window position
-                // Use CFS_RECT which is often more reliable for the composition string.
-                let rc_comp_client = RECT {
-                    left: pixel_x,
-                    top: pixel_y,
-                    right: pixel_x + (metrics.base_width * 20), // Provide enough space
-                    bottom: pixel_y + metrics.char_height,
-                };
+                // Try BOTH Client and Screen coordinates in sequence? No, let's try Screen this time
+                // since CandidateWindow worked better with more direct control.
                 let comp_form = COMPOSITIONFORM {
-                    dwStyle: windows::Win32::UI::Input::Ime::CFS_RECT,
-                    ptCurrentPos: pt_client,
-                    rcArea: rc_comp_client,
+                    dwStyle: windows::Win32::UI::Input::Ime::CFS_FORCE_POSITION,
+                    ptCurrentPos: pt_screen, // Using Screen Coordinates
+                    rcArea: RECT::default(),
                 };
                 let res_comp = ImmSetCompositionWindow(himc, &comp_form);
 
                 // 3. Set candidate window position for all possible indices (0-3)
-                // We'll use CFS_EXCLUDE to avoid covering the current input line.
                 let mut res_cand = true;
                 for i in 0..4 {
                     let cand_form = CANDIDATEFORM {
                         dwIndex: i,
-                        dwStyle: windows::Win32::UI::Input::Ime::CFS_EXCLUDE,
-                        ptCurrentPos: pt_client,
-                        rcArea: rc_comp_client, // Exclude the composition area
+                        dwStyle: windows::Win32::UI::Input::Ime::CFS_CANDIDATEPOS,
+                        ptCurrentPos: pt_screen, // Using Screen Coordinates
+                        rcArea: RECT::default(),
                     };
                     if !ImmSetCandidateWindow(himc, &cand_form).as_bool() {
                         res_cand = false;
                     }
                 }
 
-                log::info!("IMM32 Calls: Font={:?}, Comp={:?}, Cand={:?}, himc={:?}", res_font, res_comp, res_cand, himc.0);
+                log::info!("IMM32 Calls (Screen): Font={:?}, Comp={:?}, Cand={:?}, himc={:?}", res_font, res_comp, res_cand, himc.0);
 
                 let _ = ImmReleaseContext(hwnd, himc);
             } else {
