@@ -115,11 +115,6 @@ pub fn sync_system_caret(
         // Detailed logging for coordinate verification
         log::info!("Syncing IME: client=({}, {}), cursor=({:?}), visible={}, font={}", pixel_x, pixel_y, cursor_pos, is_visible, font_face);
 
-        // Get window rect to see where we are on screen
-        let mut window_rect = windows::Win32::Foundation::RECT::default();
-        let _ = unsafe { windows::Win32::UI::WindowsAndMessaging::GetWindowRect(hwnd, &mut window_rect) };
-        log::info!("Window Rect: {:?}", window_rect);
-
         // 1. Update system caret position (Always uses client coordinates)
         if let Some(c) = caret {
             c.set_position(pixel_x, pixel_y);
@@ -132,13 +127,9 @@ pub fn sync_system_caret(
                 let metrics = renderer.get_metrics().cloned().unwrap_or(crate::gui::driver::terminal_gui_driver::TerminalMetrics { char_height: 16, base_width: 8 });
                 log::info!("Metrics: height={}, width={}", metrics.char_height, metrics.base_width);
 
-                // Try SCREEN coordinates for composition too, as some IMEs (TSF bridge) expect it
-                let mut pt_screen = POINT {
-                    x: pixel_x,
-                    y: pixel_y,
-                };
-                let _ = windows::Win32::Graphics::Gdi::ClientToScreen(hwnd, &mut pt_screen);
-
+                // Use CLIENT coordinates for IMM32.
+                // The jumping was likely due to OS double-drawing (fixed by on_ime_set_context)
+                // and Screen coordinates (which we are now removing).
                 let pt_client = POINT {
                     x: pixel_x,
                     y: pixel_y,
@@ -147,13 +138,14 @@ pub fn sync_system_caret(
                 // Log actual OS caret position to verify SetCaretPos success
                 let mut os_caret_pos = POINT::default();
                 let _ = windows::Win32::UI::WindowsAndMessaging::GetCaretPos(&mut os_caret_pos);
-                log::info!("OS Caret Position: {:?}, Calculated Screen: {:?}", os_caret_pos, pt_screen);
+                log::info!("OS Caret Position: {:?}", os_caret_pos);
 
                 // 1. Set the font size for the composition window
                 let mut lf = windows::Win32::Graphics::Gdi::LOGFONTW {
                     lfHeight: metrics.char_height,
                     lfWidth: metrics.base_width,
                     lfCharSet: windows::Win32::Graphics::Gdi::DEFAULT_CHARSET,
+                    lfWeight: 400,
                     ..Default::default()
                 };
 
@@ -166,22 +158,22 @@ pub fn sync_system_caret(
                 let res_font = windows::Win32::UI::Input::Ime::ImmSetCompositionFontW(himc, &lf);
 
                 // 2. Set the composition window position
-                // Try BOTH Client and Screen coordinates in sequence? No, let's try Screen this time
-                // since CandidateWindow worked better with more direct control.
+                // Use CFS_POINT with Client coordinates.
                 let comp_form = COMPOSITIONFORM {
-                    dwStyle: windows::Win32::UI::Input::Ime::CFS_FORCE_POSITION,
-                    ptCurrentPos: pt_screen, // Using Screen Coordinates
+                    dwStyle: windows::Win32::UI::Input::Ime::CFS_POINT,
+                    ptCurrentPos: pt_client,
                     rcArea: RECT::default(),
                 };
                 let res_comp = ImmSetCompositionWindow(himc, &comp_form);
 
                 // 3. Set candidate window position for all possible indices (0-3)
+                // Use CFS_CANDIDATEPOS with Client coordinates.
                 let mut res_cand = true;
                 for i in 0..4 {
                     let cand_form = CANDIDATEFORM {
                         dwIndex: i,
                         dwStyle: windows::Win32::UI::Input::Ime::CFS_CANDIDATEPOS,
-                        ptCurrentPos: pt_screen, // Using Screen Coordinates
+                        ptCurrentPos: pt_client,
                         rcArea: RECT::default(),
                     };
                     if !ImmSetCandidateWindow(himc, &cand_form).as_bool() {
@@ -189,7 +181,7 @@ pub fn sync_system_caret(
                     }
                 }
 
-                log::info!("IMM32 Calls (Screen): Font={:?}, Comp={:?}, Cand={:?}, himc={:?}", res_font, res_comp, res_cand, himc.0);
+                log::info!("IMM32 Calls (Client): Font={:?}, Comp={:?}, Cand={:?}, himc={:?}", res_font, res_comp, res_cand, himc.0);
 
                 let _ = ImmReleaseContext(hwnd, himc);
             } else {

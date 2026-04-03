@@ -294,8 +294,10 @@ pub fn on_ime_set_context(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM) 
         wparam,
         lparam
     );
-    // DO NOT suppress ISC_SHOWUICOMPOSITIONWINDOW.
-    // Allowing the OS to show the UI might be necessary for ImmSetCompositionWindow to work correctly.
+    // Suppress the default OS composition window because we draw it ourselves in TerminalGuiDriver.
+    // This prevents double-drawing and "edge-jumping" of the composition string.
+    let mut lparam = lparam;
+    lparam.0 &= !(ISC_SHOWUICOMPOSITIONWINDOW as isize);
     unsafe { DefWindowProcW(hwnd, msg, wparam, lparam) }
 }
 
