@@ -3,7 +3,7 @@ use std::mem::size_of;
 use windows::Win32::Foundation::{HWND, LPARAM, POINT, RECT};
 use windows::Win32::UI::Input::Ime::{
     ImmGetCompositionStringW, ImmGetContext, ImmReleaseContext, ImmSetCandidateWindow,
-    ImmSetCompositionWindow, CANDIDATEFORM, CFS_EXCLUDE, COMPOSITIONFORM, GCS_COMPSTR,
+    ImmSetCompositionWindow, CANDIDATEFORM, COMPOSITIONFORM, GCS_COMPSTR,
     GCS_RESULTSTR,
 };
 use windows::Win32::UI::Input::KeyboardAndMouse::GetFocus;
@@ -104,9 +104,10 @@ pub fn sync_system_caret(
     let relative_y = cursor_pos.1.saturating_sub(viewport_offset);
 
     if let Some((pixel_x, pixel_y)) = renderer.cell_to_pixel(cursor_pos.0, relative_y) {
-        log::debug!("Syncing system caret: pixel=({}, {})", pixel_x, pixel_y);
+        // Detailed logging for coordinate verification
+        log::info!("Syncing IME: client=({}, {}), cursor=({:?}), viewport={}", pixel_x, pixel_y, cursor_pos, viewport_offset);
 
-        // 1. Update system caret position (for IME anchoring)
+        // 1. Update system caret position (Always uses client coordinates)
         if let Some(c) = caret {
             c.set_position(pixel_x, pixel_y);
         }
@@ -116,54 +117,45 @@ pub fn sync_system_caret(
             let himc = ImmGetContext(hwnd);
             if !himc.0.is_null() {
                 let metrics = renderer.get_metrics().cloned().unwrap_or(crate::gui::driver::terminal_gui_driver::TerminalMetrics { char_height: 16, base_width: 8 });
-                let mut pt_current_pos = POINT {
+
+                // IMPORTANT: IMM32 API (ImmSetCompositionWindow, etc.) expects CLIENT coordinates.
+                // The OS bridge will handle the translation to Screen coordinates if necessary for TSF.
+                let pt_client = POINT {
                     x: pixel_x,
                     y: pixel_y,
                 };
-                let _ = windows::Win32::Graphics::Gdi::ClientToScreen(hwnd, &mut pt_current_pos);
 
-                // The exclusion area is the rectangle we want the IME list to AVOID covering.
-                // For Japanese input, we should at least exclude 2 columns (full-width).
-                let mut rc_exclude = RECT {
+                let rc_exclude_client = RECT {
                     left: pixel_x,
                     top: pixel_y,
                     right: pixel_x + (metrics.base_width * 2),
                     bottom: pixel_y + metrics.char_height,
                 };
-                let points: &mut [POINT] = std::slice::from_raw_parts_mut(
-                    &mut rc_exclude as *mut RECT as *mut POINT,
-                    2,
-                );
-                let _ = windows::Win32::Graphics::Gdi::MapWindowPoints(
-                    hwnd,
-                    HWND::default(),
-                    points,
-                );
 
                 // 1. Set the font size for the composition window
                 let lf = windows::Win32::Graphics::Gdi::LOGFONTW {
                     lfHeight: metrics.char_height,
                     lfWidth: metrics.base_width,
+                    lfCharSet: windows::Win32::Graphics::Gdi::DEFAULT_CHARSET,
                     ..Default::default()
                 };
                 let _ = windows::Win32::UI::Input::Ime::ImmSetCompositionFontW(himc, &lf);
 
-                // 2. Set the composition window position (input text position)
+                // 2. Set the composition window position
                 let comp_form = COMPOSITIONFORM {
-                    dwStyle: windows::Win32::UI::Input::Ime::CFS_FORCE_POSITION,
-                    ptCurrentPos: pt_current_pos,
+                    dwStyle: windows::Win32::UI::Input::Ime::CFS_POINT,
+                    ptCurrentPos: pt_client,
                     rcArea: RECT::default(),
                 };
                 let _ = ImmSetCompositionWindow(himc, &comp_form);
 
                 // 3. Set candidate window position for all possible indices (0-3)
-                // to ensure maximum compatibility with different IME implementations.
                 for i in 0..4 {
                     let cand_form = CANDIDATEFORM {
                         dwIndex: i,
-                        dwStyle: CFS_EXCLUDE,
-                        ptCurrentPos: pt_current_pos,
-                        rcArea: rc_exclude,
+                        dwStyle: windows::Win32::UI::Input::Ime::CFS_EXCLUDE,
+                        ptCurrentPos: pt_client,
+                        rcArea: rc_exclude_client,
                     };
                     let _ = ImmSetCandidateWindow(himc, &cand_form);
                 }
