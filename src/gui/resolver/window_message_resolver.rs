@@ -1,14 +1,14 @@
+use crate::gui::driver::ime_gui_driver::{
+    handle_composition, handle_end_composition, handle_start_composition, sync_system_caret,
+    CaretHandle, ImeResult,
+};
+use crate::gui::driver::keyboard_gui_driver::KeyboardGuiDriver;
 use crate::gui::driver::scroll_gui_driver::{update_window_scroll_info, ScrollAction};
 use crate::gui::resolver::terminal_window_resolver::{get_terminal_data, TerminalWindowResolver};
-use crate::infra::driver::keyboard_io_driver::KeyboardIoDriver;
 use windows::Win32::Foundation::{BOOL, HWND, LPARAM, LRESULT, WPARAM};
-use windows::Win32::Graphics::Gdi::{
-    BeginPaint, EndPaint, GetDC, InvalidateRect, ReleaseDC, PAINTSTRUCT,
-};
+use windows::Win32::Graphics::Gdi::{BeginPaint, EndPaint, InvalidateRect, PAINTSTRUCT};
 use windows::Win32::UI::Input::KeyboardAndMouse::{SetFocus, VK_MENU};
-use windows::Win32::UI::WindowsAndMessaging::{
-    CreateCaret, DefWindowProcW, DestroyCaret, DLGC_WANTALLKEYS,
-};
+use windows::Win32::UI::WindowsAndMessaging::{DefWindowProcW, DLGC_WANTALLKEYS};
 
 const ISC_SHOWUICOMPOSITIONWINDOW: u32 = 0x80000000;
 
@@ -77,10 +77,12 @@ pub fn on_paint(hwnd: HWND) -> LRESULT {
         let mut client_rect = windows::Win32::Foundation::RECT::default();
         let _ = windows::Win32::UI::WindowsAndMessaging::GetClientRect(hwnd, &mut client_rect);
 
+        // Destructure to allow simultaneous mutable borrow of renderer and immutable borrow of service
         let TerminalWindowResolver {
             ref service,
             ref mut renderer,
             ref composition,
+            ref caret,
             ..
         } = *window_data;
 
@@ -91,6 +93,15 @@ pub fn on_paint(hwnd: HWND) -> LRESULT {
             composition.as_ref(),
             &service.color_theme,
             &service.config,
+        );
+
+        // Always sync system caret position with virtual cursor during paint
+        sync_system_caret(
+            hwnd,
+            service.get_buffer().get_cursor_pos(),
+            service.get_buffer().get_viewport_offset(),
+            renderer,
+            caret.as_ref(),
         );
 
         let _ = EndPaint(hwnd, &ps);
@@ -107,57 +118,34 @@ pub fn on_lbuttondown(hwnd: HWND) -> LRESULT {
 }
 
 pub fn on_set_focus(hwnd: HWND) -> LRESULT {
-    log::info!("WM_SETFOCUS: Focus received, installing keyboard hook");
-
-    // Note: TERMINAL_HWND logic was specific to where it's defined.
-    // If we need it, we should move it to infra/input.rs or terminal_data.rs
-    // But infra/input.rs manages hook instance now.
-    // Let's assume infra/input sets its own target hwnd on install.
-    // The previous implementation had a separate TERMINAL_HWND in window.rs.
-    // For caret creation:
+    log::info!("WM_SETFOCUS: Focus received, installing keyboard hook and system caret");
 
     let data_arc = get_terminal_data();
-    let mut window_data = data_arc.lock().unwrap();
-    let char_height = if let Some(metrics) = window_data.renderer.get_metrics() {
-        metrics.char_height
-    } else {
-        unsafe {
-            let hdc = GetDC(hwnd);
-            if hdc.is_invalid() {
-                // GetDC が失敗した場合はフォールバック値を用いる
-                16
-            } else {
-                let config = window_data.service.config.clone();
-                let _font = window_data.renderer.get_font_for_style(hdc, 0, &config);
-                // get_font_for_style internally updates metrics if they are None
-                ReleaseDC(hwnd, hdc);
-                window_data
-                    .renderer
-                    .get_metrics()
-                    .map(|m| m.char_height)
-                    .unwrap_or(16)
-            }
-        }
-    };
-    unsafe {
-        let _ = CreateCaret(
-            hwnd,
-            windows::Win32::Graphics::Gdi::HBITMAP::default(),
-            2,
-            char_height,
-        );
+    {
+        let mut window_data = data_arc.lock().unwrap();
+        let (char_width, char_height) = if let Some(metrics) = window_data.renderer.get_metrics() {
+            (metrics.base_width, metrics.char_height)
+        } else {
+            (8, 16)
+        };
+        // Create RAII system caret handle with proper dimensions
+        window_data.caret = Some(CaretHandle::new(hwnd, char_width, char_height));
+
+        KeyboardGuiDriver::install(hwnd);
     }
 
-    KeyboardIoDriver::install_global(hwnd);
     LRESULT(0)
 }
 
 pub fn on_kill_focus() -> LRESULT {
-    log::info!("WM_KILLFOCUS: Focus lost, uninstalling keyboard hook");
-    unsafe {
-        let _ = DestroyCaret();
+    log::info!("WM_KILLFOCUS: Focus lost, uninstalling keyboard hook and system caret");
+    let data_arc = get_terminal_data();
+    {
+        let mut window_data = data_arc.lock().unwrap();
+        // RAII handle will automatically call DestroyCaret when dropped
+        window_data.caret = None;
+        KeyboardGuiDriver::uninstall();
     }
-    KeyboardIoDriver::uninstall_global();
     LRESULT(0)
 }
 
@@ -305,12 +293,26 @@ pub fn on_ime_set_context(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM) 
 }
 
 pub fn on_ime_start_composition(hwnd: HWND) -> LRESULT {
+    handle_start_composition(hwnd);
+    let data_arc = get_terminal_data();
     {
-        let data_arc = get_terminal_data();
         let mut window_data = data_arc.lock().unwrap();
-        crate::gui::driver::ime_gui_driver::handle_start_composition(
+        window_data.service.reset_viewport();
+
+        let TerminalWindowResolver {
+            ref service,
+            ref renderer,
+            ref caret,
+            ..
+        } = *window_data;
+
+        // Sync IME position at the very beginning of composition
+        sync_system_caret(
             hwnd,
-            &mut window_data.service,
+            service.get_buffer().get_cursor_pos(),
+            service.get_buffer().get_viewport_offset(),
+            renderer,
+            caret.as_ref(),
         );
     }
     update_window_scroll_info(hwnd);
@@ -319,21 +321,49 @@ pub fn on_ime_start_composition(hwnd: HWND) -> LRESULT {
 }
 
 pub fn on_ime_composition(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
-    let handled = {
+    let result = {
         let data_arc = get_terminal_data();
         let mut window_data = data_arc.lock().unwrap();
-        let data_inner = &mut *window_data;
+        let TerminalWindowResolver {
+            ref mut service,
+            ref renderer,
+            ref caret,
+            ..
+        } = *window_data;
 
-        crate::gui::driver::ime_gui_driver::handle_composition(
+        handle_composition(
             hwnd,
             lparam,
-            &mut data_inner.service,
-            &data_inner.renderer,
-            &mut data_inner.composition,
+            service.get_buffer().get_cursor_pos(),
+            service.get_buffer().get_viewport_offset(),
+            renderer,
+            caret.as_ref(),
         )
     };
 
-    if !handled {
+    match result {
+        ImeResult::Result(ref text) => {
+            let data_arc = get_terminal_data();
+            let mut window_data = data_arc.lock().unwrap();
+            let _ = window_data.service.send_input(text.as_bytes());
+            window_data.composition = None;
+            unsafe {
+                let _ = InvalidateRect(hwnd, None, BOOL(0));
+            }
+        }
+        ImeResult::Composition(ref text) => {
+            let data_arc = get_terminal_data();
+            let mut window_data = data_arc.lock().unwrap();
+            window_data.composition =
+                Some(crate::gui::driver::terminal_gui_driver::CompositionInfo { text: text.clone() });
+            unsafe {
+                let _ = InvalidateRect(hwnd, None, BOOL(0));
+            }
+        }
+        _ => {}
+    }
+
+    if let ImeResult::NotHandled = result {
         unsafe { DefWindowProcW(hwnd, msg, wparam, lparam) }
     } else {
         LRESULT(0)
@@ -341,30 +371,30 @@ pub fn on_ime_composition(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM) 
 }
 
 pub fn on_ime_end_composition(hwnd: HWND) -> LRESULT {
+    handle_end_composition(hwnd);
+    let data_arc = get_terminal_data();
     {
-        let data_arc = get_terminal_data();
         let mut window_data = data_arc.lock().unwrap();
-        crate::gui::driver::ime_gui_driver::handle_end_composition(
-            hwnd,
-            &mut window_data.composition,
-        );
+        window_data.composition = None;
+    }
+    unsafe {
+        let _ = InvalidateRect(hwnd, None, BOOL(0));
     }
     LRESULT(0)
 }
 
 pub fn on_destroy() -> LRESULT {
     log::info!("WM_DESTROY: Cleaning up terminal resources");
-
-    KeyboardIoDriver::uninstall_global();
-
-    // 先にグローバルデータをリセット（ConPTY解放を含む）
     crate::gui::window::cleanup_terminal();
 
     let data_arc = get_terminal_data();
-    let mut window_data = data_arc.lock().unwrap();
-
-    window_data.window_handle = None;
-    window_data.renderer.clear_resources();
+    {
+        let mut window_data = data_arc.lock().unwrap();
+        KeyboardGuiDriver::uninstall();
+        window_data.renderer.clear_resources();
+        window_data.window_handle = None;
+        window_data.caret = None;
+    }
 
     log::info!("Terminal resources cleared");
     LRESULT(0)
@@ -377,6 +407,26 @@ pub fn on_get_dlg_code() -> LRESULT {
 
 pub fn on_app_repaint(hwnd: HWND) -> LRESULT {
     update_window_scroll_info(hwnd);
+    let data_arc = get_terminal_data();
+    {
+        let window_data = data_arc.lock().unwrap();
+        let TerminalWindowResolver {
+            ref service,
+            ref renderer,
+            ref caret,
+            ..
+        } = *window_data;
+
+        // ALWAYS sync system caret on repaint to ensure correct IME position,
+        // even during composition, as TUI apps may move the cursor.
+        sync_system_caret(
+            hwnd,
+            service.get_buffer().get_cursor_pos(),
+            service.get_buffer().get_viewport_offset(),
+            renderer,
+            caret.as_ref(),
+        );
+    }
     unsafe {
         let _ = InvalidateRect(hwnd, None, BOOL(0));
     }

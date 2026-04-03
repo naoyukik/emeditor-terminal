@@ -1,6 +1,6 @@
 ---
 name: autonomous-researcher
-description: Enforce autonomous technical research and evidence-based implementation. Search for and obtain the latest documentation for Win32 API, Rust crates, TUI specifications, etc., verify consistency with project conventions, and use it when proposing implementations.
+description: Enforce autonomous technical research and evidence-based implementation. Search for and obtain the latest documentation for Win32 API, Rust crates, TUI specifications, etc., verify consistency with project conventions, and use it when proposing implementations. Use this when investigating implementation issues in Conductor tracks.
 ---
 
 # Autonomous Researcher
@@ -27,6 +27,7 @@ description: Enforce autonomous technical research and evidence-based implementa
 - 実装提案を行う際、必ず冒頭に `Evidence Report` を記述する。
 - レポートには、参照したURL、調査で見つかった重要な事実（制約や落とし穴）、およびプロジェクト規約との整合性を明記する。
 - テンプレートとして `assets/evidence_report_template.md` を使用すること。
+- Conductorなどのplan用の実装提案が存在する場合、そのファイルの付近に `evidence_report.md` を保存すること.
 
 ## ガイドライン
 

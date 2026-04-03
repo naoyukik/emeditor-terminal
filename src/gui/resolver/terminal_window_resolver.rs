@@ -1,6 +1,7 @@
 use crate::application::TerminalWorkflow;
 use crate::domain::model::window_id_value::WindowId;
 use crate::gui::common::SendHWND;
+use crate::gui::driver::ime_gui_driver::CaretHandle;
 use crate::gui::driver::scroll_gui_driver::ScrollGuiDriver;
 use crate::gui::driver::terminal_gui_driver::{CompositionInfo, TerminalGuiDriver};
 use crate::infra::repository::conpty_repository_impl::DummyOutputRepository;
@@ -16,6 +17,7 @@ pub struct TerminalWindowResolver {
     pub window_handle: Option<SendHWND>,
     pub composition: Option<CompositionInfo>,
     pub scroll_manager: ScrollGuiDriver,
+    pub caret: Option<CaretHandle>,
 }
 
 impl TerminalWindowResolver {
@@ -26,6 +28,7 @@ impl TerminalWindowResolver {
             HWND::default().0 as isize,
         )));
         self.service = TerminalWorkflow::new(80, 25, output_repo, config_repo_for_service, true);
+        self.caret = None;
     }
 }
 
@@ -43,6 +46,7 @@ pub fn get_terminal_data() -> Arc<Mutex<TerminalWindowResolver>> {
                 window_handle: None,
                 composition: None,
                 scroll_manager: ScrollGuiDriver::new(),
+                caret: None,
             }))
         })
         .clone()
