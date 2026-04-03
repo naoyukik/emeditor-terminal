@@ -2,6 +2,7 @@ use crate::gui::driver::ime_gui_driver::{
     handle_composition, handle_end_composition, handle_start_composition, sync_system_caret,
     CaretHandle, ImeResult,
 };
+use crate::gui::driver::keyboard_gui_driver::KeyboardGuiDriver;
 use crate::gui::driver::scroll_gui_driver::{update_window_scroll_info, ScrollAction};
 use crate::gui::resolver::terminal_window_resolver::{get_terminal_data, TerminalWindowResolver};
 use windows::Win32::Foundation::{BOOL, HWND, LPARAM, LRESULT, WPARAM};
@@ -130,7 +131,7 @@ pub fn on_set_focus(hwnd: HWND) -> LRESULT {
         // Create RAII system caret handle with proper dimensions
         window_data.caret = Some(CaretHandle::new(hwnd, char_width, char_height));
 
-        window_data.service.install_keyboard_hook(hwnd);
+        KeyboardGuiDriver::install(hwnd);
     }
 
     LRESULT(0)
@@ -143,7 +144,7 @@ pub fn on_kill_focus() -> LRESULT {
         let mut window_data = data_arc.lock().unwrap();
         // RAII handle will automatically call DestroyCaret when dropped
         window_data.caret = None;
-        window_data.service.uninstall_keyboard_hook();
+        KeyboardGuiDriver::uninstall();
     }
     LRESULT(0)
 }
@@ -389,7 +390,7 @@ pub fn on_destroy() -> LRESULT {
     let data_arc = get_terminal_data();
     {
         let mut window_data = data_arc.lock().unwrap();
-        window_data.service.uninstall_keyboard_hook();
+        KeyboardGuiDriver::uninstall();
         window_data.renderer.clear_resources();
         window_data.window_handle = None;
         window_data.caret = None;

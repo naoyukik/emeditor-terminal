@@ -13,6 +13,7 @@ use crate::gui::driver::terminal_gui_driver::TerminalGuiDriver;
 
 /// RAII handle for the system caret.
 /// This is required for SetCaretPos to work correctly and anchor the IME window.
+/// Managed strictly on the UI thread to satisfy Win32 thread-locality.
 pub struct CaretHandle {
     hwnd: HWND,
     created: bool,
