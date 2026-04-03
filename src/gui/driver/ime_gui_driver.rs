@@ -125,6 +125,7 @@ pub fn sync_system_caret(
             let himc = ImmGetContext(hwnd);
             if !himc.0.is_null() {
                 let metrics = renderer.get_metrics().cloned().unwrap_or(crate::gui::driver::terminal_gui_driver::TerminalMetrics { char_height: 16, base_width: 8 });
+                log::info!("Metrics: height={}, width={}", metrics.char_height, metrics.base_width);
 
                 // IMPORTANT: IMM32 API (ImmSetCompositionWindow, etc.) expects CLIENT coordinates.
                 let pt_client = POINT {
@@ -154,23 +155,29 @@ pub fn sync_system_caret(
                 let res_font = windows::Win32::UI::Input::Ime::ImmSetCompositionFontW(himc, &lf);
 
                 // 2. Set the composition window position
-                // Use CFS_FORCE_POSITION to explicitly place the composition string.
+                // Use CFS_RECT which is often more reliable for the composition string.
+                let rc_comp_client = RECT {
+                    left: pixel_x,
+                    top: pixel_y,
+                    right: pixel_x + (metrics.base_width * 20), // Provide enough space
+                    bottom: pixel_y + metrics.char_height,
+                };
                 let comp_form = COMPOSITIONFORM {
-                    dwStyle: windows::Win32::UI::Input::Ime::CFS_FORCE_POSITION,
+                    dwStyle: windows::Win32::UI::Input::Ime::CFS_RECT,
                     ptCurrentPos: pt_client,
-                    rcArea: RECT::default(),
+                    rcArea: rc_comp_client,
                 };
                 let res_comp = ImmSetCompositionWindow(himc, &comp_form);
 
                 // 3. Set candidate window position for all possible indices (0-3)
-                // Use CFS_CANDIDATEPOS for direct positioning.
+                // We'll use CFS_EXCLUDE to avoid covering the current input line.
                 let mut res_cand = true;
                 for i in 0..4 {
                     let cand_form = CANDIDATEFORM {
                         dwIndex: i,
-                        dwStyle: windows::Win32::UI::Input::Ime::CFS_CANDIDATEPOS,
+                        dwStyle: windows::Win32::UI::Input::Ime::CFS_EXCLUDE,
                         ptCurrentPos: pt_client,
-                        rcArea: RECT::default(),
+                        rcArea: rc_comp_client, // Exclude the composition area
                     };
                     if !ImmSetCandidateWindow(himc, &cand_form).as_bool() {
                         res_cand = false;
