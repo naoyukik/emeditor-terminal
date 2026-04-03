@@ -1,7 +1,7 @@
 # Implementation Plan: システムキャレットの常時同期による IME 候補ウィンドウ位置の解決
 
 ## Phase 0: 調査と証拠収集 (Research & Evidence Gathering)
-- [ ] Task: `autonomous-researcher` スキルを使用し、Win32 API における `SetCaretPos` と `ImmSetCompositionWindow` の座標系要件の証拠（Evidence）を収集
+- [x] Task: `autonomous-researcher` スキルを使用し、Win32 API における `SetCaretPos` と `ImmSetCompositionWindow` の座標系要件の証拠（Evidence）を収集
     - `SetCaretPos` はクライアント座標、IME 制御はスクリーン座標であることの確証を Evidence Report として作成。
 - [ ] Task: Conductor - User Manual Verification 'Phase 0: Research' (Protocol in workflow.md)
 
