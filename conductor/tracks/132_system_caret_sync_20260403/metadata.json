@@ -1,0 +1,8 @@
+{
+  "track_id": "132_system_caret_sync_20260403",
+  "type": "bug",
+  "status": "new",
+  "created_at": "2026-04-03T15:03:00Z",
+  "updated_at": "2026-04-03T15:03:00Z",
+  "description": "システムキャレットの常時同期による IME 候補ウィンドウ表示位置の解決 (Issue #132)"
+}
