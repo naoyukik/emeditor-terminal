@@ -3,7 +3,7 @@
 ## Phase 0: 調査と証拠収集 (Research & Evidence Gathering)
 - [x] Task: `autonomous-researcher` スキルを使用し、Win32 API における `SetCaretPos` と `ImmSetCompositionWindow` の座標系要件の証拠（Evidence）を収集
     - `SetCaretPos` はクライアント座標、IME 制御はスクリーン座標であることの確証を Evidence Report として作成。
-- [ ] Task: Conductor - User Manual Verification 'Phase 0: Research' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Phase 0: Research' (Protocol in workflow.md)
 
 ## Phase 1: 基礎インフラの整備と検証 (Infrastructure & Resource Management)
 - [ ] Task: `src/gui/driver/ime_gui_driver.rs` における `CaretHandle` のライフサイクル検証
@@ -31,3 +31,4 @@
 - [ ] Task: Vim / PSReadLine 等の標準 TUI アプリにおける追従性の網羅的検証
 - [ ] Task: 最終的なコード品質チェックとクリーンアップ
 - [ ] Task: Conductor - User Manual Verification 'Phase 4: Final Validation' (Protocol in workflow.md)
+
