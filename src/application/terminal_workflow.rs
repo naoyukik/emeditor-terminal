@@ -4,6 +4,8 @@ use crate::domain::model::terminal_config_value::TerminalConfig;
 use crate::domain::repository::configuration_repository::{ConfigError, ConfigurationRepository};
 use crate::domain::repository::terminal_output_repository::TerminalOutputRepository;
 use crate::domain::service::ansi_parser_domain_service::AnsiParserDomainService;
+use crate::infra::driver::keyboard_io_driver::KeyboardIoDriver;
+use windows::Win32::Foundation::HWND;
 
 pub struct TerminalWorkflow {
     buffer: TerminalBufferEntity,
@@ -67,6 +69,16 @@ impl TerminalWorkflow {
 
     pub fn send_input(&self, input_bytes: &[u8]) -> std::io::Result<()> {
         self.output_repo.send_input(input_bytes)
+    }
+
+    /// グローバルキーボードフックをインストールする
+    pub fn install_keyboard_hook(&self, hwnd: HWND) {
+        KeyboardIoDriver::install_global(hwnd);
+    }
+
+    /// グローバルキーボードフックをアンインストールする
+    pub fn uninstall_keyboard_hook(&self) {
+        KeyboardIoDriver::uninstall_global();
     }
 
     pub fn resize(&mut self, cols: usize, rows: usize) {

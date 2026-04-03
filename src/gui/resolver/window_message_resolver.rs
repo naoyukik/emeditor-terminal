@@ -4,7 +4,6 @@ use crate::gui::driver::ime_gui_driver::{
 };
 use crate::gui::driver::scroll_gui_driver::{update_window_scroll_info, ScrollAction};
 use crate::gui::resolver::terminal_window_resolver::{get_terminal_data, TerminalWindowResolver};
-use crate::infra::driver::keyboard_io_driver::KeyboardIoDriver;
 use windows::Win32::Foundation::{BOOL, HWND, LPARAM, LRESULT, WPARAM};
 use windows::Win32::Graphics::Gdi::{BeginPaint, EndPaint, InvalidateRect, PAINTSTRUCT};
 use windows::Win32::UI::Input::KeyboardAndMouse::{SetFocus, VK_MENU};
@@ -130,9 +129,10 @@ pub fn on_set_focus(hwnd: HWND) -> LRESULT {
         };
         // Create RAII system caret handle with proper dimensions
         window_data.caret = Some(CaretHandle::new(hwnd, char_width, char_height));
+
+        window_data.service.install_keyboard_hook(hwnd);
     }
 
-    KeyboardIoDriver::install_global(hwnd);
     LRESULT(0)
 }
 
@@ -143,8 +143,8 @@ pub fn on_kill_focus() -> LRESULT {
         let mut window_data = data_arc.lock().unwrap();
         // RAII handle will automatically call DestroyCaret when dropped
         window_data.caret = None;
+        window_data.service.uninstall_keyboard_hook();
     }
-    KeyboardIoDriver::uninstall_global();
     LRESULT(0)
 }
 
@@ -384,17 +384,16 @@ pub fn on_ime_end_composition(hwnd: HWND) -> LRESULT {
 
 pub fn on_destroy() -> LRESULT {
     log::info!("WM_DESTROY: Cleaning up terminal resources");
-
-    KeyboardIoDriver::uninstall_global();
-
-    // 先にグローバルデータをリセット（ConPTY解放を含む）
     crate::gui::window::cleanup_terminal();
 
     let data_arc = get_terminal_data();
-    let mut window_data = data_arc.lock().unwrap();
-
-    window_data.window_handle = None;
-    window_data.renderer.clear_resources();
+    {
+        let mut window_data = data_arc.lock().unwrap();
+        window_data.service.uninstall_keyboard_hook();
+        window_data.renderer.clear_resources();
+        window_data.window_handle = None;
+        window_data.caret = None;
+    }
 
     log::info!("Terminal resources cleared");
     LRESULT(0)
