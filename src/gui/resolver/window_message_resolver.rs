@@ -294,27 +294,30 @@ pub fn on_ime_set_context(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM) 
 }
 
 pub fn on_ime_start_composition(hwnd: HWND) -> LRESULT {
+    log::info!("WM_IME_STARTCOMPOSITION");
     handle_start_composition(hwnd);
     let data_arc = get_terminal_data();
     {
         let mut window_data = data_arc.lock().unwrap();
         window_data.service.reset_viewport();
 
-        let TerminalWindowResolver {
-            ref service,
-            ref renderer,
-            ref caret,
-            ..
-        } = *window_data;
+        // Record the current cursor position as the "anchor" for this composition session.
+        let current_pos = window_data.service.get_buffer().get_cursor_pos();
+        window_data.ime_anchor = Some(current_pos);
+        log::info!("IME composition started, anchor set to {:?}", current_pos);
+
+        // Destructure to allow simultaneous borrowing if needed, but here we just need locals
+        let viewport_offset = window_data.service.get_buffer().get_viewport_offset();
+        let font_face = window_data.service.get_font_face().to_string();
 
         // Sync IME position at the very beginning of composition
         sync_system_caret(
             hwnd,
-            service.get_buffer().get_cursor_pos(),
-            service.get_buffer().get_viewport_offset(),
-            renderer,
-            caret.as_ref(),
-            service.get_font_face(),
+            current_pos,
+            viewport_offset,
+            &window_data.renderer,
+            window_data.caret.as_ref(),
+            &font_face,
         );
     }
     update_window_scroll_info(hwnd);
@@ -330,13 +333,17 @@ pub fn on_ime_composition(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM) 
             ref mut service,
             ref renderer,
             ref caret,
+            ref ime_anchor,
             ..
         } = *window_data;
+
+        // Use the anchor position if available, otherwise fallback to current buffer position
+        let sync_pos = ime_anchor.unwrap_or_else(|| service.get_buffer().get_cursor_pos());
 
         handle_composition(
             hwnd,
             lparam,
-            service.get_buffer().get_cursor_pos(),
+            sync_pos,
             service.get_buffer().get_viewport_offset(),
             renderer,
             caret.as_ref(),
@@ -346,6 +353,7 @@ pub fn on_ime_composition(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM) 
 
     match result {
         ImeResult::Result(ref text) => {
+            log::info!("IME Result: {}", text);
             let data_arc = get_terminal_data();
             let mut window_data = data_arc.lock().unwrap();
             let _ = window_data.service.send_input(text.as_bytes());
@@ -355,6 +363,7 @@ pub fn on_ime_composition(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM) 
             }
         }
         ImeResult::Composition(ref text) => {
+            log::debug!("IME Composition: {}", text);
             let data_arc = get_terminal_data();
             let mut window_data = data_arc.lock().unwrap();
             window_data.composition =
@@ -374,11 +383,13 @@ pub fn on_ime_composition(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM) 
 }
 
 pub fn on_ime_end_composition(hwnd: HWND) -> LRESULT {
+    log::info!("WM_IME_ENDCOMPOSITION");
     handle_end_composition(hwnd);
     let data_arc = get_terminal_data();
     {
         let mut window_data = data_arc.lock().unwrap();
         window_data.composition = None;
+        window_data.ime_anchor = None; // Clear the anchor
     }
     unsafe {
         let _ = InvalidateRect(hwnd, None, BOOL(0));
@@ -422,9 +433,12 @@ pub fn on_app_repaint(hwnd: HWND) -> LRESULT {
 
         // ALWAYS sync system caret on repaint to ensure correct IME position,
         // even during composition, as TUI apps may move the cursor.
+        // If IME is active, we use the anchor position to prevent jumping.
+        let sync_pos = window_data.ime_anchor.unwrap_or_else(|| service.get_buffer().get_cursor_pos());
+
         sync_system_caret(
             hwnd,
-            service.get_buffer().get_cursor_pos(),
+            sync_pos,
             service.get_buffer().get_viewport_offset(),
             renderer,
             caret.as_ref(),

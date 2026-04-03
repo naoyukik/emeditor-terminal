@@ -147,7 +147,7 @@ pub fn sync_system_caret(
                 lf.lfFaceName[..len].copy_from_slice(&face_name_wide[..len]);
                 lf.lfFaceName[len] = 0;
 
-                let _ = windows::Win32::UI::Input::Ime::ImmSetCompositionFontW(himc, &lf);
+                let res_font = windows::Win32::UI::Input::Ime::ImmSetCompositionFontW(himc, &lf);
 
                 // 2. Set the composition window position
                 let comp_form = COMPOSITIONFORM {
@@ -155,9 +155,10 @@ pub fn sync_system_caret(
                     ptCurrentPos: pt_client,
                     rcArea: RECT::default(),
                 };
-                let _ = ImmSetCompositionWindow(himc, &comp_form);
+                let res_comp = ImmSetCompositionWindow(himc, &comp_form);
 
                 // 3. Set candidate window position for all possible indices (0-3)
+                let mut res_cand = true;
                 for i in 0..4 {
                     let cand_form = CANDIDATEFORM {
                         dwIndex: i,
@@ -165,10 +166,16 @@ pub fn sync_system_caret(
                         ptCurrentPos: pt_client,
                         rcArea: rc_exclude_client,
                     };
-                    let _ = ImmSetCandidateWindow(himc, &cand_form);
+                    if !ImmSetCandidateWindow(himc, &cand_form).as_bool() {
+                        res_cand = false;
+                    }
                 }
 
+                log::info!("IMM32 Calls: Font={:?}, Comp={:?}, Cand={:?}, himc={:?}", res_font, res_comp, res_cand, himc.0);
+
                 let _ = ImmReleaseContext(hwnd, himc);
+            } else {
+                log::warn!("ImmGetContext returned NULL himc for HWND {:?}", hwnd);
             }
         }
     }
