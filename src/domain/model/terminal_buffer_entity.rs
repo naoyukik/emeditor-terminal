@@ -109,6 +109,8 @@ pub struct TerminalBufferEntity {
 
     /// 最後にユーザー入力によって文字が書き込まれた座標
     last_write_pos: Option<(usize, usize)>,
+    /// 最後に確定した有効な（可視かつ範囲内の）カーソル座標
+    last_valid_cursor_pos: (usize, usize),
 }
 
 impl TerminalBufferEntity {
@@ -132,6 +134,7 @@ impl TerminalBufferEntity {
             scrollback_limit: 10000,
             pending_cluster: String::new(),
             last_write_pos: None,
+            last_valid_cursor_pos: (0, 0),
         }
     }
 
@@ -495,6 +498,15 @@ impl TerminalBufferEntity {
     }
     pub fn get_cursor_pos(&self) -> (usize, usize) {
         (self.cursor.x, self.cursor.y)
+    }
+    pub fn get_last_valid_cursor_pos(&self) -> (usize, usize) {
+        self.last_valid_cursor_pos
+    }
+
+    pub(crate) fn update_last_valid_cursor_pos(&mut self) {
+        if self.cursor.is_visible && self.cursor.x < self.width && self.cursor.y < self.height {
+            self.last_valid_cursor_pos = (self.cursor.x, self.cursor.y);
+        }
     }
     pub fn get_last_write_pos(&self) -> Option<(usize, usize)> {
         self.last_write_pos

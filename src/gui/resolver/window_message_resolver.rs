@@ -98,7 +98,7 @@ pub fn on_paint(hwnd: HWND) -> LRESULT {
             &service.config,
         );
 
-        let sync_pos = ime_anchor.unwrap_or_else(|| service.get_buffer().get_cursor_pos());
+        let sync_pos = ime_anchor.unwrap_or_else(|| service.get_buffer().get_last_valid_cursor_pos());
 
         // Always sync system caret position with virtual cursor during paint
         sync_system_caret(
@@ -307,12 +307,11 @@ pub fn on_ime_start_composition(hwnd: HWND) -> LRESULT {
         let mut window_data = data_arc.lock().unwrap();
         window_data.service.reset_viewport();
 
-        // Record the current cursor position as the "anchor" for this composition session.
-        let anchor_pos = window_data.service.get_last_write_pos()
-            .unwrap_or_else(|| window_data.service.get_buffer().get_cursor_pos());
+        // Record the current valid cursor position as the "anchor" for this composition session.
+        let anchor_pos = window_data.service.get_buffer().get_last_valid_cursor_pos();
         window_data.ime_anchor = Some(anchor_pos);
-        log::info!("IME composition started, anchor set to {:?} (last_write={:?})",
-            anchor_pos, window_data.service.get_last_write_pos());
+        log::info!("IME composition started, anchor set to {:?} (buffer_pos={:?})",
+            anchor_pos, window_data.service.get_buffer().get_cursor_pos());
 
         let is_visible = window_data.service.get_buffer().is_cursor_visible();
         let viewport_offset = window_data.service.get_buffer().get_viewport_offset();
@@ -445,7 +444,8 @@ pub fn on_app_repaint(hwnd: HWND) -> LRESULT {
         // ALWAYS sync system caret on repaint to ensure correct IME position,
         // even during composition, as TUI apps may move the cursor.
         // If IME is active, we use the anchor position to prevent jumping.
-        let sync_pos = ime_anchor.unwrap_or_else(|| service.get_buffer().get_cursor_pos());
+        // We use the last known VALID cursor position to avoid "parking" artifacts.
+        let sync_pos = ime_anchor.unwrap_or_else(|| service.get_buffer().get_last_valid_cursor_pos());
 
         sync_system_caret(
             hwnd,
