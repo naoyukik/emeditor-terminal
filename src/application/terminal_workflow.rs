@@ -126,6 +126,10 @@ impl TerminalWorkflow {
         &self.buffer
     }
 
+    pub fn get_last_write_pos(&self) -> Option<(usize, usize)> {
+        self.buffer.get_last_write_pos()
+    }
+
     /// ヒストリーの現在の行数を取得する
     pub fn get_history_count(&self) -> usize {
         self.buffer.get_history_len()

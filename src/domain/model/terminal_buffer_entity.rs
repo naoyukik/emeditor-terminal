@@ -106,6 +106,9 @@ pub struct TerminalBufferEntity {
 
     /// 確定待ちの書記素クラスターバッファ
     pending_cluster: String,
+
+    /// 最後にユーザー入力によって文字が書き込まれた座標
+    last_write_pos: Option<(usize, usize)>,
 }
 
 impl TerminalBufferEntity {
@@ -128,6 +131,7 @@ impl TerminalBufferEntity {
             viewport_offset: 0,
             scrollback_limit: 10000,
             pending_cluster: String::new(),
+            last_write_pos: None,
         }
     }
 
@@ -420,6 +424,9 @@ impl TerminalBufferEntity {
             return;
         }
 
+        // Record the last written position for IME anchoring
+        self.last_write_pos = Some((x, y));
+
         self.ensure_safe_boundary(y, x);
         if display_width == 2 && x + 1 < self.width {
             self.ensure_safe_boundary(y, x + 1);
@@ -488,6 +495,9 @@ impl TerminalBufferEntity {
     }
     pub fn get_cursor_pos(&self) -> (usize, usize) {
         (self.cursor.x, self.cursor.y)
+    }
+    pub fn get_last_write_pos(&self) -> Option<(usize, usize)> {
+        self.last_write_pos
     }
     pub fn get_cursor_style(&self) -> CursorStyle {
         self.cursor.style

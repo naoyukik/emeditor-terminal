@@ -301,19 +301,24 @@ pub fn on_ime_start_composition(hwnd: HWND) -> LRESULT {
         let mut window_data = data_arc.lock().unwrap();
         window_data.service.reset_viewport();
 
-        // Record the current cursor position as the "anchor" for this composition session.
-        let current_pos = window_data.service.get_buffer().get_cursor_pos();
-        window_data.ime_anchor = Some(current_pos);
-        log::info!("IME composition started, anchor set to {:?}", current_pos);
+        // Record the position of the last written character or current cursor as the "anchor".
+        // TUI apps often jump the cursor to the bottom-right corner for status bar drawing.
+        // last_write_pos is more likely to represent the intended input position.
+        let anchor_pos = window_data.service.get_last_write_pos()
+            .unwrap_or_else(|| window_data.service.get_buffer().get_cursor_pos());
 
-        // Destructure to allow simultaneous borrowing if needed, but here we just need locals
+        window_data.ime_anchor = Some(anchor_pos);
+        log::info!("IME composition started, anchor set to {:?} (last_write={:?})",
+            anchor_pos, window_data.service.get_last_write_pos());
+
+        // Destructure to allow simultaneous borrowing
         let viewport_offset = window_data.service.get_buffer().get_viewport_offset();
         let font_face = window_data.service.get_font_face().to_string();
 
         // Sync IME position at the very beginning of composition
         sync_system_caret(
             hwnd,
-            current_pos,
+            anchor_pos,
             viewport_offset,
             &window_data.renderer,
             window_data.caret.as_ref(),
