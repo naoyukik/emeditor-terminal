@@ -92,7 +92,7 @@ toolName = [
 decision = "allow"
 priority = 100
 
-# 4. Automatically allow safe git commands
+# 7.1 Automatically allow safe GitHub CLI commands
 [[rule]]
 toolName = "run_shell_command"
 commandPrefix = ["gh issue view", "gh pr view", "gh repo view"]
@@ -102,6 +102,7 @@ priority = 100
 # 8. Automatically allow memory operations
 [[rule]]
 mcpName = "memory"
+toolName = "*"
 decision = "allow"
 priority = 100
 

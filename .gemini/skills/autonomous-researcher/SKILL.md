@@ -37,5 +37,8 @@ description: Enforce autonomous technical research and evidence-based implementa
 
 ## リソース
 
-- **`references/research_guidelines.md`**: 効果的な検索クエリとチェックリスト。
+- **`references/research_guidelines.md`**: 効果的な検索クエリとチェックリスト。Windows Terminalのリファレンス構造もここに含まれる。
 - **`assets/evidence_report_template.md`**: 実装提案に添付するレポートのテンプレート。
+- **Windows Terminal (microsoft/terminal)**: OSSとしてのリファレンス実装。
+  - **Local Path**: `external_sdk.local/microsoft/terminal/`
+  - ConPTYやVTシーケンス、IME制御の挙動を調査する際の最高位の参照先。ローカルリポジトリとしてクローン済み。
