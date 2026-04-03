@@ -1,6 +1,6 @@
 ---
 name: autonomous-researcher
-description: Enforce autonomous technical research and evidence-based implementation. Search for and obtain the latest documentation for Win32 API, Rust crates, TUI specifications, etc., verify consistency with project conventions, and use it when proposing implementations.Use this when investigating implementation issues in Conductor tracks.
+description: Enforce autonomous technical research and evidence-based implementation. Search for and obtain the latest documentation for Win32 API, Rust crates, TUI specifications, etc., verify consistency with project conventions, and use it when proposing implementations. Use this when investigating implementation issues in Conductor tracks.
 ---
 
 # Autonomous Researcher
