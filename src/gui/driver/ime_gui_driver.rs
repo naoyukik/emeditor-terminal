@@ -88,6 +88,7 @@ impl Drop for CaretHandle {
 pub fn sync_system_caret(
     hwnd: HWND,
     cursor_pos: (usize, usize),
+    is_visible: bool,
     viewport_offset: usize,
     renderer: &TerminalGuiDriver,
     caret: Option<&CaretHandle>,
@@ -101,12 +102,18 @@ pub fn sync_system_caret(
         }
     }
 
+    if !is_visible {
+        // If the cursor is hidden, it's often "parked" at the screen edge by TUI apps.
+        // We should NOT sync the system caret or IME to a hidden cursor's position.
+        return;
+    }
+
     // Convert absolute cursor Y to screen-relative Y
     let relative_y = cursor_pos.1.saturating_sub(viewport_offset);
 
     if let Some((pixel_x, pixel_y)) = renderer.cell_to_pixel(cursor_pos.0, relative_y) {
         // Detailed logging for coordinate verification
-        log::info!("Syncing IME: client=({}, {}), cursor=({:?}), viewport={}, font={}", pixel_x, pixel_y, cursor_pos, viewport_offset, font_face);
+        log::info!("Syncing IME: client=({}, {}), cursor=({:?}), visible={}, font={}", pixel_x, pixel_y, cursor_pos, is_visible, font_face);
 
         // 1. Update system caret position (Always uses client coordinates)
         if let Some(c) = caret {
@@ -239,7 +246,8 @@ pub fn handle_composition(
     }
 
     if (lparam.0 as u32 & GCS_COMPSTR.0) != 0 {
-        sync_system_caret(hwnd, cursor_pos, viewport_offset, renderer, caret, font_face);
+        // When composing, we always treat the cursor as visible to ensure synchronization.
+        sync_system_caret(hwnd, cursor_pos, true, viewport_offset, renderer, caret, font_face);
 
         unsafe {
             let himc = ImmGetContext(hwnd);
