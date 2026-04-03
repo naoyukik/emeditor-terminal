@@ -1,4 +1,7 @@
-use crate::gui::driver::ime_gui_driver::{sync_system_caret, CaretHandle};
+use crate::gui::driver::ime_gui_driver::{
+    handle_composition, handle_end_composition, handle_start_composition, sync_system_caret,
+    CaretHandle, ImeResult,
+};
 use crate::gui::driver::scroll_gui_driver::{update_window_scroll_info, ScrollAction};
 use crate::gui::resolver::terminal_window_resolver::{get_terminal_data, TerminalWindowResolver};
 use crate::infra::driver::keyboard_io_driver::KeyboardIoDriver;
@@ -93,7 +96,13 @@ pub fn on_paint(hwnd: HWND) -> LRESULT {
         );
 
         // Always sync system caret position with virtual cursor during paint
-        sync_system_caret(hwnd, service, renderer, caret.as_ref());
+        sync_system_caret(
+            hwnd,
+            service.get_buffer().get_cursor_pos(),
+            service.get_buffer().get_viewport_offset(),
+            renderer,
+            caret.as_ref(),
+        );
 
         let _ = EndPaint(hwnd, &ps);
     }
@@ -283,12 +292,26 @@ pub fn on_ime_set_context(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM) 
 }
 
 pub fn on_ime_start_composition(hwnd: HWND) -> LRESULT {
+    handle_start_composition(hwnd);
+    let data_arc = get_terminal_data();
     {
-        let data_arc = get_terminal_data();
         let mut window_data = data_arc.lock().unwrap();
-        crate::gui::driver::ime_gui_driver::handle_start_composition(
+        window_data.service.reset_viewport();
+
+        let TerminalWindowResolver {
+            ref service,
+            ref renderer,
+            ref caret,
+            ..
+        } = *window_data;
+
+        // Sync IME position at the very beginning of composition
+        sync_system_caret(
             hwnd,
-            &mut window_data.service,
+            service.get_buffer().get_cursor_pos(),
+            service.get_buffer().get_viewport_offset(),
+            renderer,
+            caret.as_ref(),
         );
     }
     update_window_scroll_info(hwnd);
@@ -297,22 +320,49 @@ pub fn on_ime_start_composition(hwnd: HWND) -> LRESULT {
 }
 
 pub fn on_ime_composition(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
-    let handled = {
+    let result = {
         let data_arc = get_terminal_data();
         let mut window_data = data_arc.lock().unwrap();
-        let data_inner = &mut *window_data;
+        let TerminalWindowResolver {
+            ref mut service,
+            ref renderer,
+            ref caret,
+            ..
+        } = *window_data;
 
-        crate::gui::driver::ime_gui_driver::handle_composition(
+        handle_composition(
             hwnd,
             lparam,
-            &mut data_inner.service,
-            &data_inner.renderer,
-            data_inner.caret.as_ref(),
-            &mut data_inner.composition,
+            service.get_buffer().get_cursor_pos(),
+            service.get_buffer().get_viewport_offset(),
+            renderer,
+            caret.as_ref(),
         )
     };
 
-    if !handled {
+    match result {
+        ImeResult::Result(ref text) => {
+            let data_arc = get_terminal_data();
+            let mut window_data = data_arc.lock().unwrap();
+            let _ = window_data.service.send_input(text.as_bytes());
+            window_data.composition = None;
+            unsafe {
+                let _ = InvalidateRect(hwnd, None, BOOL(0));
+            }
+        }
+        ImeResult::Composition(ref text) => {
+            let data_arc = get_terminal_data();
+            let mut window_data = data_arc.lock().unwrap();
+            window_data.composition =
+                Some(crate::gui::driver::terminal_gui_driver::CompositionInfo { text: text.clone() });
+            unsafe {
+                let _ = InvalidateRect(hwnd, None, BOOL(0));
+            }
+        }
+        _ => {}
+    }
+
+    if let ImeResult::NotHandled = result {
         unsafe { DefWindowProcW(hwnd, msg, wparam, lparam) }
     } else {
         LRESULT(0)
@@ -320,13 +370,14 @@ pub fn on_ime_composition(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM) 
 }
 
 pub fn on_ime_end_composition(hwnd: HWND) -> LRESULT {
+    handle_end_composition(hwnd);
+    let data_arc = get_terminal_data();
     {
-        let data_arc = get_terminal_data();
         let mut window_data = data_arc.lock().unwrap();
-        crate::gui::driver::ime_gui_driver::handle_end_composition(
-            hwnd,
-            &mut window_data.composition,
-        );
+        window_data.composition = None;
+    }
+    unsafe {
+        let _ = InvalidateRect(hwnd, None, BOOL(0));
     }
     LRESULT(0)
 }
@@ -356,6 +407,26 @@ pub fn on_get_dlg_code() -> LRESULT {
 
 pub fn on_app_repaint(hwnd: HWND) -> LRESULT {
     update_window_scroll_info(hwnd);
+    let data_arc = get_terminal_data();
+    {
+        let window_data = data_arc.lock().unwrap();
+        let TerminalWindowResolver {
+            ref service,
+            ref renderer,
+            ref caret,
+            ..
+        } = *window_data;
+
+        // ALWAYS sync system caret on repaint to ensure correct IME position,
+        // even during composition, as TUI apps may move the cursor.
+        sync_system_caret(
+            hwnd,
+            service.get_buffer().get_cursor_pos(),
+            service.get_buffer().get_viewport_offset(),
+            renderer,
+            caret.as_ref(),
+        );
+    }
     unsafe {
         let _ = InvalidateRect(hwnd, None, BOOL(0));
     }
