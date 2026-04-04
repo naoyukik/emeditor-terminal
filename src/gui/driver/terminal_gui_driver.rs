@@ -381,12 +381,17 @@ impl TerminalGuiDriver {
                 let mut x_offset = 0;
                 let mut cursor_pixel_x = None;
 
+                if visual_row == render_cursor_y {
+                    log::info!("Drawing Cursor Line: row={}, y={}, anchor_x={}", visual_row, current_y, render_cursor_x);
+                }
+
                 if let Some(line) = buffer.get_line_at_visual_row(visual_row) {
                     let mut cell_idx = 0;
                     while cell_idx < buffer.get_width() {
                         // Capture the pixel position when we reach the cursor column
                         if visual_row == render_cursor_y && cell_idx == render_cursor_x {
                             cursor_pixel_x = Some(x_offset);
+                            log::info!("Found Cursor Pixel: row={}, col={}, x_offset={}", visual_row, cell_idx, x_offset);
                         }
 
                         let cell = match line.get(cell_idx) {
