@@ -91,6 +91,8 @@ impl Default for Cursor {
 
 pub struct TerminalBufferEntity {
     lines: VecDeque<Vec<Cell>>,
+    alt_lines: VecDeque<Vec<Cell>>,
+    is_alternate_screen: bool,
     width: usize,
     height: usize,
     cursor: Cursor,
@@ -107,9 +109,7 @@ pub struct TerminalBufferEntity {
     /// 確定待ちの書記素クラスターバッファ
     pending_cluster: String,
 
-    /// 代替スクリーンバッファを使用中か
-    is_alternate_screen: bool,
-    /// 通常スクリーンのカーソル位置退避
+    /// 代替スクリーン用カーソル保存
     normal_screen_cursor: (usize, usize),
 
     /// 最後にユーザー入力によって文字が書き込まれた座標
@@ -121,11 +121,15 @@ pub struct TerminalBufferEntity {
 impl TerminalBufferEntity {
     pub fn new(width: usize, height: usize) -> Self {
         let mut lines = VecDeque::with_capacity(height);
+        let mut alt_lines = VecDeque::with_capacity(height);
         for _ in 0..height {
             lines.push_back(vec![Cell::default(); width]);
+            alt_lines.push_back(vec![Cell::default(); width]);
         }
         Self {
             lines,
+            alt_lines,
+            is_alternate_screen: false,
             width,
             height,
             cursor: Cursor::default(),
@@ -138,7 +142,6 @@ impl TerminalBufferEntity {
             viewport_offset: 0,
             scrollback_limit: 10000,
             pending_cluster: String::new(),
-            is_alternate_screen: false,
             normal_screen_cursor: (0, 0),
             last_write_pos: None,
             last_valid_cursor_pos: (0, 0),
@@ -293,11 +296,18 @@ impl TerminalBufferEntity {
     }
 
     fn ensure_safe_boundary(&mut self, y: usize, x: usize) {
-        if y >= self.lines.len() || x >= self.width {
+        let empty_cell = self.get_empty_cell();
+
+        let lines = if self.is_alternate_screen {
+            &mut self.alt_lines
+        } else {
+            &mut self.lines
+        };
+
+        if y >= lines.len() || x >= self.width {
             return;
         }
-        let empty_cell = self.get_empty_cell();
-        let line = &mut self.lines[y];
+        let line = &mut lines[y];
 
         if line[x].is_wide_continuation {
             if x > 0 {
@@ -430,19 +440,25 @@ impl TerminalBufferEntity {
         let x = self.cursor.x;
         let y = self.cursor.y;
 
-        if y >= self.lines.len() || x >= self.width {
+        self.ensure_safe_boundary(y, x);
+        if display_width == 2 && x + 1 < self.width {
+            self.ensure_safe_boundary(y, x + 1);
+        }
+
+        let lines = if self.is_alternate_screen {
+            &mut self.alt_lines
+        } else {
+            &mut self.lines
+        };
+
+        if y >= lines.len() || x >= self.width {
             return;
         }
 
         // Record the last written position for IME anchoring
         self.last_write_pos = Some((x, y));
 
-        self.ensure_safe_boundary(y, x);
-        if display_width == 2 && x + 1 < self.width {
-            self.ensure_safe_boundary(y, x + 1);
-        }
-
-        if let Some(line) = self.lines.get_mut(y) {
+        if let Some(line) = lines.get_mut(y) {
             if let Some(cell) = line.get_mut(x) {
                 *cell = Cell {
                     text: text.to_string(),
@@ -464,12 +480,18 @@ impl TerminalBufferEntity {
     }
 
     pub fn get_line_at_visual_row(&self, visual_row: usize) -> Option<&Vec<Cell>> {
-        let dist_from_bottom = (self.height - 1 - visual_row) + self.viewport_offset;
-        if dist_from_bottom < self.lines.len() {
-            let idx = self.lines.len() - 1 - dist_from_bottom;
-            self.lines.get(idx)
+        let lines = if self.is_alternate_screen {
+            &self.alt_lines
         } else {
-            let dist_in_history = dist_from_bottom - self.lines.len();
+            &self.lines
+        };
+
+        let dist_from_bottom = (self.height - 1 - visual_row) + self.viewport_offset;
+        if dist_from_bottom < lines.len() {
+            let idx = lines.len() - 1 - dist_from_bottom;
+            lines.get(idx)
+        } else {
+            let dist_in_history = dist_from_bottom - lines.len();
             if dist_in_history < self.history.len() {
                 let idx = self.history.len() - 1 - dist_in_history;
                 self.history.get(idx)
@@ -738,10 +760,12 @@ impl Perform for TerminalBufferEntity {
                                         self.normal_screen_cursor = (self.cursor.x, self.cursor.y);
                                         self.cursor.x = 0;
                                         self.cursor.y = 0;
-                                        // Clear alternate screen
+
+                                        // Initialize alt screen with empty cells matching current dimensions
                                         let empty_cell = self.get_empty_cell();
-                                        for line in self.lines.iter_mut() {
-                                            line.fill(empty_cell.clone());
+                                        self.alt_lines.clear();
+                                        for _ in 0..self.height {
+                                            self.alt_lines.push_back(vec![empty_cell.clone(); self.width]);
                                         }
                                     }
                                 }
