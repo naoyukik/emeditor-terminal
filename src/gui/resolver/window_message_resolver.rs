@@ -77,6 +77,10 @@ pub fn on_paint(hwnd: HWND) -> LRESULT {
         let mut client_rect = windows::Win32::Foundation::RECT::default();
         let _ = windows::Win32::UI::WindowsAndMessaging::GetClientRect(hwnd, &mut client_rect);
 
+        let mut window_rect = windows::Win32::Foundation::RECT::default();
+        let _ = windows::Win32::UI::WindowsAndMessaging::GetWindowRect(hwnd, &mut window_rect);
+        log::debug!("on_paint: client={:?}, window={:?}", client_rect, window_rect);
+
         // If IME is active, we use the anchor position to prevent jumping.
         let ime_anchor = window_data.ime_anchor;
 
@@ -269,16 +273,21 @@ pub fn on_size(hwnd: HWND, lparam: LPARAM) -> LRESULT {
         let data_arc = get_terminal_data();
         let mut window_data = data_arc.lock().unwrap();
 
-        let (char_width, char_height) = if let Some(metrics) = window_data.renderer.get_metrics() {
-            (metrics.base_width, metrics.char_height)
-        } else {
-            (8, 16)
+        // Recalculate metrics immediately on size change to ensure resize is based on current font
+        let metrics = {
+            let config = window_data.service.config.clone();
+            unsafe {
+                let hdc = windows::Win32::Graphics::Gdi::GetDC(hwnd);
+                let m = window_data.renderer.update_metrics(hdc, &config);
+                let _ = windows::Win32::Graphics::Gdi::ReleaseDC(hwnd, hdc);
+                m
+            }
         };
 
-        let cols = (width / char_width).max(1) as i16;
-        let rows = (height / char_height).max(1) as i16;
+        let cols = (width / metrics.base_width).max(1) as i16;
+        let rows = (height / metrics.char_height).max(1) as i16;
 
-        log::info!("Resizing ConptyIoDriver to cols={}, rows={}", cols, rows);
+        log::info!("Resizing ConptyIoDriver to cols={}, rows={} (metrics={:?})", cols, rows, metrics);
         window_data.service.resize(cols as usize, rows as usize);
     }
 
@@ -316,15 +325,15 @@ pub fn on_ime_start_composition(hwnd: HWND) -> LRESULT {
         log::info!("IME composition started, anchor set to {:?} (buffer_pos={:?})",
             anchor_pos, window_data.service.get_buffer().get_cursor_pos());
 
-        let is_visible = window_data.service.get_buffer().is_cursor_visible();
         let viewport_offset = window_data.service.get_buffer().get_viewport_offset();
         let font_face = window_data.service.get_font_face().to_string();
 
         // Sync IME position at the very beginning of composition
+        // Always pass true for visibility during IME start to ensure anchoring
         sync_system_caret(
             hwnd,
             anchor_pos,
-            is_visible,
+            true,
             viewport_offset,
             &window_data.renderer,
             window_data.caret.as_ref(),

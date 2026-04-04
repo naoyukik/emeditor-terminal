@@ -107,6 +107,11 @@ pub struct TerminalBufferEntity {
     /// 確定待ちの書記素クラスターバッファ
     pending_cluster: String,
 
+    /// 代替スクリーンバッファを使用中か
+    is_alternate_screen: bool,
+    /// 通常スクリーンのカーソル位置退避
+    normal_screen_cursor: (usize, usize),
+
     /// 最後にユーザー入力によって文字が書き込まれた座標
     last_write_pos: Option<(usize, usize)>,
     /// 最後に確定した有効な（可視かつ範囲内の）カーソル座標
@@ -133,6 +138,8 @@ impl TerminalBufferEntity {
             viewport_offset: 0,
             scrollback_limit: 10000,
             pending_cluster: String::new(),
+            is_alternate_screen: false,
+            normal_screen_cursor: (0, 0),
             last_write_pos: None,
             last_valid_cursor_pos: (0, 0),
         }
@@ -724,6 +731,20 @@ impl Perform for TerminalBufferEntity {
                                     self.cursor.x = 0;
                                 }
                                 25 => self.cursor.is_visible = true,
+                                1049 => {
+                                    if !self.is_alternate_screen {
+                                        log::info!("Switching to alternate screen buffer");
+                                        self.is_alternate_screen = true;
+                                        self.normal_screen_cursor = (self.cursor.x, self.cursor.y);
+                                        self.cursor.x = 0;
+                                        self.cursor.y = 0;
+                                        // Clear alternate screen
+                                        let empty_cell = self.get_empty_cell();
+                                        for line in self.lines.iter_mut() {
+                                            line.fill(empty_cell.clone());
+                                        }
+                                    }
+                                }
                                 _ => {}
                             }
                         }
@@ -741,6 +762,15 @@ impl Perform for TerminalBufferEntity {
                                     self.cursor.x = 0;
                                 }
                                 25 => self.cursor.is_visible = false,
+                                1049 => {
+                                    if self.is_alternate_screen {
+                                        log::info!("Switching back to normal screen buffer");
+                                        self.is_alternate_screen = false;
+                                        let (nx, ny) = self.normal_screen_cursor;
+                                        self.cursor.x = nx;
+                                        self.cursor.y = ny;
+                                    }
+                                }
                                 _ => {}
                             }
                         }

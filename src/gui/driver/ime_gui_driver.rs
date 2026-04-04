@@ -89,7 +89,7 @@ pub fn sync_system_caret(
     hwnd: HWND,
     cursor_pos: (usize, usize),
     is_visible: bool,
-    viewport_offset: usize,
+    _viewport_offset: usize,
     renderer: &TerminalGuiDriver,
     caret: Option<&CaretHandle>,
     font_face: &str,
@@ -114,6 +114,11 @@ pub fn sync_system_caret(
 
     if let Some((pixel_x, pixel_y)) = renderer.cell_to_pixel(cursor_pos.0, relative_y) {
         log::info!("Syncing IME: client=({}, {}), cursor=({:?}), font={}", pixel_x, pixel_y, cursor_pos, font_face);
+
+        // Get window and screen origins for diagnostic
+        let mut client_origin = POINT { x: 0, y: 0 };
+        let _ = unsafe { windows::Win32::Graphics::Gdi::ClientToScreen(hwnd, &mut client_origin) };
+        log::info!("Client Origin on Screen: {:?}, Window Handle: {:?}", client_origin, hwnd.0);
 
         // 1. Update system caret position (Always uses client coordinates)
         if let Some(c) = caret {
@@ -243,7 +248,8 @@ pub fn handle_composition(
     }
 
     if (lparam.0 as u32 & GCS_COMPSTR.0) != 0 {
-        // When composing, we always treat the cursor as visible to ensure synchronization.
+        // When composing, we always FORCE synchronization regardless of buffer visibility,
+        // because we know we are actively inputting text.
         sync_system_caret(hwnd, cursor_pos, true, viewport_offset, renderer, caret, font_face);
 
         unsafe {
