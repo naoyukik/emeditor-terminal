@@ -288,6 +288,7 @@ impl TerminalGuiDriver {
         client_rect: &RECT,
         buffer: &TerminalBufferEntity,
         composition: Option<&CompositionInfo>,
+        ime_anchor: Option<(usize, usize)>,
         theme: &crate::domain::model::color_theme_value::ColorTheme,
         config: &crate::domain::model::terminal_config_value::TerminalConfig,
     ) {
@@ -311,7 +312,7 @@ impl TerminalGuiDriver {
             let h_old_bm = SelectObject(h_mem_dc, HGDIOBJ(h_bm.0));
             let _bm_select_guard = SelectedObjectGuard::new(h_mem_dc, h_old_bm);
 
-            self.render_internal(h_mem_dc, client_rect, buffer, composition, theme, config);
+            self.render_internal(h_mem_dc, client_rect, buffer, composition, ime_anchor, theme, config);
 
             let _ = BitBlt(
                 hdc,
@@ -333,6 +334,7 @@ impl TerminalGuiDriver {
         client_rect: &RECT,
         buffer: &TerminalBufferEntity,
         composition: Option<&CompositionInfo>,
+        ime_anchor: Option<(usize, usize)>,
         theme: &crate::domain::model::color_theme_value::ColorTheme,
         config: &crate::domain::model::terminal_config_value::TerminalConfig,
     ) {
@@ -364,8 +366,16 @@ impl TerminalGuiDriver {
             let char_height = metrics.char_height;
             let base_width = metrics.base_width;
             let mut current_y = 0;
-            let (cursor_x, cursor_y) = buffer.get_cursor_pos();
+            let (buffer_cursor_x, buffer_cursor_y) = buffer.get_cursor_pos();
             let viewport_offset = buffer.get_viewport_offset();
+
+            // Use the IME anchor for composition positioning if active,
+            // otherwise use the buffer's logical cursor position.
+            let (render_cursor_x, render_cursor_y) = if composition.is_some() {
+                ime_anchor.unwrap_or((buffer_cursor_x, buffer_cursor_y))
+            } else {
+                (buffer_cursor_x, buffer_cursor_y)
+            };
 
             for visual_row in 0..buffer.get_height() {
                 let mut x_offset = 0;
@@ -481,9 +491,9 @@ impl TerminalGuiDriver {
                     }
                 }
 
-                if viewport_offset == 0 && visual_row == cursor_y {
+                if viewport_offset == 0 && visual_row == render_cursor_y {
                     let safe_cursor_x =
-                        std::cmp::min(cursor_x, buffer.get_width().saturating_sub(1));
+                        std::cmp::min(render_cursor_x, buffer.get_width().saturating_sub(1));
                     let cursor_pixel_x = safe_cursor_x as i32 * base_width;
                     if let Some(comp) = composition {
                         let ctx = RenderContext {

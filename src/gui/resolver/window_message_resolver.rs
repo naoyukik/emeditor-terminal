@@ -94,6 +94,7 @@ pub fn on_paint(hwnd: HWND) -> LRESULT {
             &client_rect,
             service.get_buffer(),
             composition.as_ref(),
+            ime_anchor,
             &service.color_theme,
             &service.config,
         );
