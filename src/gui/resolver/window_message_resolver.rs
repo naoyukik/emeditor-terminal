@@ -103,9 +103,11 @@ pub fn on_paint(hwnd: HWND) -> LRESULT {
             &service.config,
         );
 
+        // Always sync system caret position with virtual cursor during paint
+        // If IME is active, we use the anchor position to prevent jumping.
+        // We use the last known VALID cursor position to avoid "parking" artifacts.
         let sync_pos = ime_anchor.unwrap_or_else(|| service.get_buffer().get_last_valid_cursor_pos());
 
-        // Always sync system caret position with virtual cursor during paint
         sync_system_caret(
             hwnd,
             sync_pos,
@@ -114,6 +116,7 @@ pub fn on_paint(hwnd: HWND) -> LRESULT {
             renderer,
             caret.as_ref(),
             service.get_font_face(),
+            renderer.get_last_cursor_pixel_pos(),
         );
 
         let _ = EndPaint(hwnd, &ps);
@@ -338,6 +341,7 @@ pub fn on_ime_start_composition(hwnd: HWND) -> LRESULT {
             &window_data.renderer,
             window_data.caret.as_ref(),
             &font_face,
+            None,
         );
     }
     update_window_scroll_info(hwnd);
@@ -368,6 +372,7 @@ pub fn on_ime_composition(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM) 
             renderer,
             caret.as_ref(),
             service.get_font_face(),
+            renderer.get_last_cursor_pixel_pos(),
         )
     };
 
@@ -467,6 +472,7 @@ pub fn on_app_repaint(hwnd: HWND) -> LRESULT {
             renderer,
             caret.as_ref(),
             service.get_font_face(),
+            renderer.get_last_cursor_pixel_pos(),
         );
     }
     unsafe {

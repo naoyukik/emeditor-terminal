@@ -93,6 +93,7 @@ pub fn sync_system_caret(
     renderer: &TerminalGuiDriver,
     caret: Option<&CaretHandle>,
     font_face: &str,
+    forced_pixel_pos: Option<(i32, i32)>,
 ) {
     // CRITICAL: Only sync if this window actually has focus.
     // This prevents interfering with the parent EmEditor window's IME.
@@ -102,90 +103,93 @@ pub fn sync_system_caret(
         }
     }
 
-    if !is_visible {
-        // If the cursor is hidden, it's often "parked" at the screen edge by TUI apps.
-        // We should NOT sync the system caret or IME to a hidden cursor's position.
+    if !is_visible && forced_pixel_pos.is_none() {
         return;
     }
 
-    // IMPORTANT: cursor_pos.1 is already screen-relative (0..height-1) in TerminalBufferEntity.
-    // Do NOT subtract viewport_offset here.
-    let relative_y = cursor_pos.1;
-
-    if let Some((pixel_x, pixel_y)) = renderer.cell_to_pixel(cursor_pos.0, relative_y) {
-        log::info!("Syncing IME: client=({}, {}), cursor=({:?}), font={}", pixel_x, pixel_y, cursor_pos, font_face);
-
-        // Get window and screen origins for diagnostic
-        let mut client_origin = POINT { x: 0, y: 0 };
-        let _ = unsafe { windows::Win32::Graphics::Gdi::ClientToScreen(hwnd, &mut client_origin) };
-        log::info!("Client Origin on Screen: {:?}, Window Handle: {:?}", client_origin, hwnd.0);
-
-        // 1. Update system caret position (Always uses client coordinates)
-        if let Some(c) = caret {
-            c.set_position(pixel_x, pixel_y);
+    // Use pre-calculated pixel position from the renderer if available (most accurate),
+    // otherwise fallback to cell-to-pixel translation.
+    let (pixel_x, pixel_y) = if let Some(pos) = forced_pixel_pos {
+        pos
+    } else {
+        // IMPORTANT: cursor_pos.1 is already screen-relative (0..height-1) in TerminalBufferEntity.
+        let relative_y = cursor_pos.1;
+        match renderer.cell_to_pixel(cursor_pos.0, relative_y) {
+            Some(p) => p,
+            None => return,
         }
+    };
 
-        // 2. Update IME composition and candidate window positions
-        unsafe {
-            let himc = ImmGetContext(hwnd);
-            if !himc.0.is_null() {
-                let metrics = renderer.get_metrics().cloned().unwrap_or(crate::gui::driver::terminal_gui_driver::TerminalMetrics { char_height: 16, base_width: 8 });
+    log::info!("Syncing IME: final_pixel=({}, {}), cursor=({:?}), font={}", pixel_x, pixel_y, cursor_pos, font_face);
 
-                // Try root ancestor to see if it fixes coordinate origin for some IMEs
-                let root_hwnd = windows::Win32::UI::WindowsAndMessaging::GetAncestor(hwnd, windows::Win32::UI::WindowsAndMessaging::GA_ROOT);
+    // Get window and screen origins for diagnostic
+    let mut client_origin = POINT { x: 0, y: 0 };
+    let _ = unsafe { windows::Win32::Graphics::Gdi::ClientToScreen(hwnd, &mut client_origin) };
+    let root_hwnd = unsafe { windows::Win32::UI::WindowsAndMessaging::GetAncestor(hwnd, windows::Win32::UI::WindowsAndMessaging::GA_ROOT) };
+    log::info!("Diagnostic: client_origin={:?}, hwnd={:?}, root={:?}", client_origin, hwnd.0, root_hwnd.0);
 
-                let pt_client = POINT {
-                    x: pixel_x,
-                    y: pixel_y,
-                };
+    // 1. Update system caret position (Always uses client coordinates)
+    if let Some(c) = caret {
+        c.set_position(pixel_x, pixel_y);
+    }
 
-                // Log actual OS caret position to verify SetCaretPos success
-                let mut os_caret_pos = POINT::default();
-                let _ = windows::Win32::UI::WindowsAndMessaging::GetCaretPos(&mut os_caret_pos);
-                log::info!("OS Caret Position: {:?}, hwnd={:?}, root={:?}", os_caret_pos, hwnd.0, root_hwnd.0);
+    // 2. Update IME composition and candidate window positions
+    unsafe {
+        let himc = ImmGetContext(hwnd);
+        if !himc.0.is_null() {
+            let metrics = renderer.get_metrics().cloned().unwrap_or(crate::gui::driver::terminal_gui_driver::TerminalMetrics { char_height: 16, base_width: 8 });
 
-                // 1. Set the font size for the composition window
-                let mut lf = windows::Win32::Graphics::Gdi::LOGFONTW {
-                    lfHeight: metrics.char_height,
-                    lfWidth: metrics.base_width,
-                    lfCharSet: windows::Win32::Graphics::Gdi::DEFAULT_CHARSET,
-                    lfWeight: 400,
-                    ..Default::default()
-                };
+            let pt_client = POINT {
+                x: pixel_x,
+                y: pixel_y,
+            };
 
-                let face_name_wide: Vec<u16> = font_face.encode_utf16().collect();
-                let len = std::cmp::min(face_name_wide.len(), lf.lfFaceName.len() - 1);
-                lf.lfFaceName[..len].copy_from_slice(&face_name_wide[..len]);
-                lf.lfFaceName[len] = 0;
+            // Log actual OS caret position to verify SetCaretPos success
+            let mut os_caret_pos = POINT::default();
+            let _ = windows::Win32::UI::WindowsAndMessaging::GetCaretPos(&mut os_caret_pos);
+            log::info!("OS Caret Position: {:?}", os_caret_pos);
 
-                let res_font = windows::Win32::UI::Input::Ime::ImmSetCompositionFontW(himc, &lf);
+            // 1. Set the font size for the composition window
+            let mut lf = windows::Win32::Graphics::Gdi::LOGFONTW {
+                lfHeight: metrics.char_height,
+                lfWidth: metrics.base_width,
+                lfCharSet: windows::Win32::Graphics::Gdi::DEFAULT_CHARSET,
+                lfWeight: 400,
+                ..Default::default()
+            };
 
-                // 2. Set the composition window position
-                let comp_form = COMPOSITIONFORM {
-                    dwStyle: windows::Win32::UI::Input::Ime::CFS_POINT,
+            let face_name_wide: Vec<u16> = font_face.encode_utf16().collect();
+            let len = std::cmp::min(face_name_wide.len(), lf.lfFaceName.len() - 1);
+            lf.lfFaceName[..len].copy_from_slice(&face_name_wide[..len]);
+            lf.lfFaceName[len] = 0;
+
+            let res_font = windows::Win32::UI::Input::Ime::ImmSetCompositionFontW(himc, &lf);
+
+            // 2. Set the composition window position
+            let comp_form = COMPOSITIONFORM {
+                dwStyle: windows::Win32::UI::Input::Ime::CFS_POINT,
+                ptCurrentPos: pt_client,
+                rcArea: RECT::default(),
+            };
+            let res_comp = ImmSetCompositionWindow(himc, &comp_form);
+
+            // 3. Set candidate window position for all possible indices (0-3)
+            let mut res_cand = true;
+            for i in 0..4 {
+                let cand_form = CANDIDATEFORM {
+                    dwIndex: i,
+                    dwStyle: windows::Win32::UI::Input::Ime::CFS_CANDIDATEPOS,
                     ptCurrentPos: pt_client,
                     rcArea: RECT::default(),
                 };
-                let res_comp = ImmSetCompositionWindow(himc, &comp_form);
-
-                // 3. Set candidate window position
-                let mut res_cand = true;
-                for i in 0..4 {
-                    let cand_form = CANDIDATEFORM {
-                        dwIndex: i,
-                        dwStyle: windows::Win32::UI::Input::Ime::CFS_CANDIDATEPOS,
-                        ptCurrentPos: pt_client,
-                        rcArea: RECT::default(),
-                    };
-                    if !ImmSetCandidateWindow(himc, &cand_form).as_bool() {
-                        res_cand = false;
-                    }
+                if !ImmSetCandidateWindow(himc, &cand_form).as_bool() {
+                    res_cand = false;
                 }
-
-                log::info!("IMM32 Calls (Client): Font={:?}, Comp={:?}, Cand={:?}, himc={:?}", res_font, res_comp, res_cand, himc.0);
-
-                let _ = ImmReleaseContext(hwnd, himc);
             }
+
+            log::info!("IMM32 Calls (Client): Font={:?}, Comp={:?}, Cand={:?}, himc={:?}", res_font, res_comp, res_cand, himc.0);
+
+            let _ = ImmReleaseContext(hwnd, himc);
         }
     }
 }
@@ -221,6 +225,7 @@ pub fn handle_composition(
     renderer: &TerminalGuiDriver,
     caret: Option<&CaretHandle>,
     font_face: &str,
+    forced_pixel_pos: Option<(i32, i32)>,
 ) -> ImeResult {
     log::debug!("WM_IME_COMPOSITION: lparam={:?}", lparam);
 
@@ -250,7 +255,7 @@ pub fn handle_composition(
     if (lparam.0 as u32 & GCS_COMPSTR.0) != 0 {
         // When composing, we always FORCE synchronization regardless of buffer visibility,
         // because we know we are actively inputting text.
-        sync_system_caret(hwnd, cursor_pos, true, viewport_offset, renderer, caret, font_face);
+        sync_system_caret(hwnd, cursor_pos, true, viewport_offset, renderer, caret, font_face, forced_pixel_pos);
 
         unsafe {
             let himc = ImmGetContext(hwnd);

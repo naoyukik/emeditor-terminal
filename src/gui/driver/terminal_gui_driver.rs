@@ -103,6 +103,9 @@ struct RenderContext {
 pub struct TerminalGuiDriver {
     fonts: HashMap<u32, SendHFONT>,
     pub(crate) metrics: Option<TerminalMetrics>,
+    /// The exact pixel position where the cursor was last rendered.
+    /// Used to synchronize IME and system caret with absolute precision.
+    last_cursor_pixel_pos: Option<(i32, i32)>,
 }
 
 impl Default for TerminalGuiDriver {
@@ -116,7 +119,12 @@ impl TerminalGuiDriver {
         Self {
             fonts: HashMap::new(),
             metrics: None,
+            last_cursor_pixel_pos: None,
         }
+    }
+
+    pub fn get_last_cursor_pixel_pos(&self) -> Option<(i32, i32)> {
+        self.last_cursor_pixel_pos
     }
 
     fn rgb_to_colorref(rgb: &crate::domain::model::color_theme_value::RgbColor) -> COLORREF {
@@ -412,13 +420,12 @@ impl TerminalGuiDriver {
                 (buffer_cursor_x, buffer_cursor_y)
             };
 
+            // Reset last cursor position at start of render
+            self.last_cursor_pixel_pos = None;
+
             for visual_row in 0..buffer.get_height() {
                 let mut x_offset = 0;
                 let mut cursor_pixel_x = None;
-
-                if visual_row == render_cursor_y {
-                    log::info!("Drawing Cursor Line: row={}, y={}, anchor_x={}", visual_row, current_y, render_cursor_x);
-                }
 
                 if let Some(line) = buffer.get_line_at_visual_row(visual_row) {
                     let mut cell_idx = 0;
@@ -426,7 +433,7 @@ impl TerminalGuiDriver {
                         // Capture the pixel position when we reach the cursor column
                         if visual_row == render_cursor_y && cell_idx == render_cursor_x {
                             cursor_pixel_x = Some(x_offset);
-                            log::info!("Found Cursor Pixel: row={}, col={}, x_offset={}", visual_row, cell_idx, x_offset);
+                            self.last_cursor_pixel_pos = Some((x_offset, current_y));
                         }
 
                         let cell = match line.get(cell_idx) {
