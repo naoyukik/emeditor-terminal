@@ -123,10 +123,15 @@ pub fn sync_system_caret(
     log::info!("Syncing IME: final_pixel=({}, {}), cursor=({:?}), font={}", pixel_x, pixel_y, cursor_pos, font_face);
 
     // Get window and screen origins for diagnostic
-    let mut client_origin = POINT { x: 0, y: 0 };
-    let _ = unsafe { windows::Win32::Graphics::Gdi::ClientToScreen(hwnd, &mut client_origin) };
-    let root_hwnd = unsafe { windows::Win32::UI::WindowsAndMessaging::GetAncestor(hwnd, windows::Win32::UI::WindowsAndMessaging::GA_ROOT) };
-    log::info!("Diagnostic: client_origin={:?}, hwnd={:?}, root={:?}", client_origin, hwnd.0, root_hwnd.0);
+    unsafe {
+        let mut client_origin = POINT { x: 0, y: 0 };
+        let _ = windows::Win32::Graphics::Gdi::ClientToScreen(hwnd, &mut client_origin);
+        let mut window_rect = RECT::default();
+        let _ = windows::Win32::UI::WindowsAndMessaging::GetWindowRect(hwnd, &mut window_rect);
+        let style = windows::Win32::UI::WindowsAndMessaging::GetWindowLongW(hwnd, windows::Win32::UI::WindowsAndMessaging::GWL_STYLE);
+        let root_hwnd = windows::Win32::UI::WindowsAndMessaging::GetAncestor(hwnd, windows::Win32::UI::WindowsAndMessaging::GA_ROOT);
+        log::info!("Diagnostic: client_origin={:?}, window_rect={:?}, style={:#x}, hwnd={:?}, root={:?}", client_origin, window_rect, style, hwnd.0, root_hwnd.0);
+    }
 
     // 1. Update system caret position (Always uses client coordinates)
     if let Some(c) = caret {
