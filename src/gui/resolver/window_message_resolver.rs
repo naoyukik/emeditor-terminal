@@ -83,7 +83,6 @@ pub fn on_paint(hwnd: HWND) -> LRESULT {
 
         // If IME is active, we use the anchor position to prevent jumping.
         let ime_anchor = window_data.ime_anchor;
-        let forced_pos = window_data.ime_pixel_anchor.or_else(|| window_data.renderer.get_last_cursor_pixel_pos());
 
         // Destructure to allow simultaneous mutable borrow of renderer and immutable borrow of service
         let TerminalWindowResolver {
@@ -108,6 +107,7 @@ pub fn on_paint(hwnd: HWND) -> LRESULT {
         // If IME is active, we use the anchor position to prevent jumping.
         // We use the last known VALID cursor position to avoid "parking" artifacts.
         let sync_pos = ime_anchor.unwrap_or_else(|| service.get_buffer().get_last_valid_cursor_pos());
+        let forced_pos = window_data.ime_pixel_anchor.or_else(|| renderer.get_last_cursor_pixel_pos());
 
         sync_system_caret(
             hwnd,
@@ -459,7 +459,6 @@ pub fn on_app_repaint(hwnd: HWND) -> LRESULT {
     {
         let window_data = data_arc.lock().unwrap();
         let ime_anchor = window_data.ime_anchor;
-        let forced_pos = window_data.ime_pixel_anchor.or_else(|| window_data.renderer.get_last_cursor_pixel_pos());
 
         let TerminalWindowResolver {
             ref service,
@@ -473,6 +472,7 @@ pub fn on_app_repaint(hwnd: HWND) -> LRESULT {
         // If IME is active, we use the anchor position to prevent jumping.
         // We use the last known VALID cursor position to avoid "parking" artifacts.
         let sync_pos = ime_anchor.unwrap_or_else(|| service.get_buffer().get_last_valid_cursor_pos());
+        let forced_pos = window_data.ime_pixel_anchor.or_else(|| renderer.get_last_cursor_pixel_pos());
 
         sync_system_caret(
             hwnd,
