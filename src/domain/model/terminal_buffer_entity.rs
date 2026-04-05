@@ -107,8 +107,16 @@ pub struct TerminalBufferEntity {
     /// 確定待ちの書記素クラスターバッファ
     pending_cluster: String,
 
-    /// 最後にユーザー入力によって文字が書き込まれた座標
-    last_write_pos: Option<(usize, usize)>,
+    /// 返信待ちのVTシーケンス（DSR応答など）
+    pending_reply: String,
+
+    /// 代替スクリーンバッファを使用中か
+    is_alternate_screen: bool,
+    /// 通常スクリーンのカーソル位置退避
+    normal_screen_cursor: (usize, usize),
+    /// 裏画面バッファ
+    alt_lines: VecDeque<Vec<Cell>>,
+
     /// 最後に確定した有効な（可視かつ範囲内の）カーソル座標
     last_valid_cursor_pos: (usize, usize),
 }
@@ -116,8 +124,10 @@ pub struct TerminalBufferEntity {
 impl TerminalBufferEntity {
     pub fn new(width: usize, height: usize) -> Self {
         let mut lines = VecDeque::with_capacity(height);
+        let mut alt_lines = VecDeque::with_capacity(height);
         for _ in 0..height {
             lines.push_back(vec![Cell::default(); width]);
+            alt_lines.push_back(vec![Cell::default(); width]);
         }
         Self {
             lines,
@@ -133,7 +143,10 @@ impl TerminalBufferEntity {
             viewport_offset: 0,
             scrollback_limit: 10000,
             pending_cluster: String::new(),
-            last_write_pos: None,
+            pending_reply: String::new(),
+            is_alternate_screen: false,
+            normal_screen_cursor: (0, 0),
+            alt_lines,
             last_valid_cursor_pos: (0, 0),
         }
     }
@@ -427,9 +440,6 @@ impl TerminalBufferEntity {
             return;
         }
 
-        // Record the last written position for IME anchoring
-        self.last_write_pos = Some((x, y));
-
         self.ensure_safe_boundary(y, x);
         if display_width == 2 && x + 1 < self.width {
             self.ensure_safe_boundary(y, x + 1);
@@ -503,13 +513,18 @@ impl TerminalBufferEntity {
         self.last_valid_cursor_pos
     }
 
+    pub fn take_pending_reply(&mut self) -> Option<String> {
+        if self.pending_reply.is_empty() {
+            None
+        } else {
+            Some(std::mem::take(&mut self.pending_reply))
+        }
+    }
+
     pub(crate) fn update_last_valid_cursor_pos(&mut self) {
         if self.cursor.is_visible && self.cursor.x < self.width && self.cursor.y < self.height {
             self.last_valid_cursor_pos = (self.cursor.x, self.cursor.y);
         }
-    }
-    pub fn get_last_write_pos(&self) -> Option<(usize, usize)> {
-        self.last_write_pos
     }
     pub fn get_cursor_style(&self) -> CursorStyle {
         self.cursor.style
@@ -528,14 +543,20 @@ impl TerminalBufferEntity {
         for line in &mut self.lines {
             line.resize(new_width, Cell::default());
         }
-        self.width = new_width;
+        for line in &mut self.alt_lines {
+            line.resize(new_width, Cell::default());
+        }
+
         if new_height > self.height {
             for _ in 0..(new_height - self.height) {
                 self.lines.push_back(vec![Cell::default(); new_width]);
+                self.alt_lines.push_back(vec![Cell::default(); new_width]);
             }
         } else if new_height < self.height {
             self.lines.truncate(new_height);
+            self.alt_lines.truncate(new_height);
         }
+        self.width = new_width;
         self.height = new_height;
         self.scroll_top = 0;
         self.scroll_bottom = self.height.saturating_sub(1);
@@ -724,6 +745,23 @@ impl Perform for TerminalBufferEntity {
                                     self.cursor.x = 0;
                                 }
                                 25 => self.cursor.is_visible = true,
+                                1049 => {
+                                    if !self.is_alternate_screen {
+                                        log::info!("Switching to alternate screen buffer");
+                                        self.is_alternate_screen = true;
+                                        self.normal_screen_cursor = (self.cursor.x, self.cursor.y);
+                                        self.cursor.x = 0;
+                                        self.cursor.y = 0;
+                                        // Swap lines to alt_lines
+                                        std::mem::swap(&mut self.lines, &mut self.alt_lines);
+                                        // Initialize alt screen with empty cells matching current dimensions
+                                        let empty_cell = self.get_empty_cell();
+                                        self.lines.clear();
+                                        for _ in 0..self.height {
+                                            self.lines.push_back(vec![empty_cell.clone(); self.width]);
+                                        }
+                                    }
+                                }
                                 _ => {}
                             }
                         }
@@ -741,6 +779,16 @@ impl Perform for TerminalBufferEntity {
                                     self.cursor.x = 0;
                                 }
                                 25 => self.cursor.is_visible = false,
+                                1049 => {
+                                    if self.is_alternate_screen {
+                                        log::info!("Switching back to normal screen buffer");
+                                        self.is_alternate_screen = false;
+                                        std::mem::swap(&mut self.lines, &mut self.alt_lines);
+                                        let (nx, ny) = self.normal_screen_cursor;
+                                        self.cursor.x = nx;
+                                        self.cursor.y = ny;
+                                    }
+                                }
                                 _ => {}
                             }
                         }
@@ -785,6 +833,12 @@ impl Perform for TerminalBufferEntity {
             'M' => {
                 let n = self.get_param(params, 0, 1) as usize;
                 self.delete_lines(n);
+            }
+            'n' => {
+                if self.get_param(params, 0, 0) == 6 {
+                    let reply = format!("\x1b[{};{}R", self.cursor.y + 1, self.cursor.x + 1);
+                    self.pending_reply.push_str(&reply);
+                }
             }
             'q' => {
                 if intermediates.first() == Some(&b' ') {

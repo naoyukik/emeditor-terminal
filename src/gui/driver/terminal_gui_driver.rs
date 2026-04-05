@@ -103,6 +103,7 @@ struct RenderContext {
 pub struct TerminalGuiDriver {
     fonts: HashMap<u32, SendHFONT>,
     pub(crate) metrics: Option<TerminalMetrics>,
+    last_cursor_pixel_pos: Option<(i32, i32)>,
 }
 
 impl Default for TerminalGuiDriver {
@@ -116,7 +117,12 @@ impl TerminalGuiDriver {
         Self {
             fonts: HashMap::new(),
             metrics: None,
+            last_cursor_pixel_pos: None,
         }
+    }
+
+    pub fn get_last_cursor_pixel_pos(&self) -> Option<(i32, i32)> {
+        self.last_cursor_pixel_pos
     }
 
     fn rgb_to_colorref(rgb: &crate::domain::model::color_theme_value::RgbColor) -> COLORREF {
@@ -379,9 +385,15 @@ impl TerminalGuiDriver {
 
             for visual_row in 0..buffer.get_height() {
                 let mut x_offset = 0;
+                let mut cursor_pixel_x = None;
+
                 if let Some(line) = buffer.get_line_at_visual_row(visual_row) {
                     let mut cell_idx = 0;
                     while cell_idx < buffer.get_width() {
+                        if visual_row == render_cursor_y && cell_idx == render_cursor_x {
+                            cursor_pixel_x = Some(x_offset);
+                        }
+
                         let cell = match line.get(cell_idx) {
                             Some(c) => c,
                             None => break,
@@ -391,11 +403,11 @@ impl TerminalGuiDriver {
                             continue;
                         }
 
-                        // レビュー指摘修正: ループ内での clone 回避（参照を利用）
                         let start_attr = &cell.attribute;
                         let mut run_text = String::new();
                         let mut run_dx = Vec::new();
 
+                        let run_start_idx = cell_idx;
                         while cell_idx < buffer.get_width() {
                             let c = match line.get(cell_idx) {
                                 Some(c) => c,
@@ -408,12 +420,12 @@ impl TerminalGuiDriver {
                             if &c.attribute != start_attr {
                                 break;
                             }
+                            if visual_row == render_cursor_y && cell_idx == render_cursor_x && cell_idx != run_start_idx {
+                                break;
+                            }
 
                             run_text.push_str(&c.text);
-                            // セル内テキストの UTF-16 長を事前に計算（最適化）
                             let utf16_len = c.text.encode_utf16().count();
-
-                            // レビュー指摘修正: 物理表示幅を 1〜2 に制限
                             let display_width = c.text.width().clamp(1, 2);
                             let w = display_width as i32 * base_width;
                             run_dx.push(w);
@@ -474,8 +486,6 @@ impl TerminalGuiDriver {
                                 bottom: current_y + char_height,
                             };
 
-                            // セキュリティリスク修正: 生テキストのログ出力を削除
-
                             let _ = ExtTextOutW(
                                 hdc,
                                 x_offset,
@@ -492,9 +502,10 @@ impl TerminalGuiDriver {
                 }
 
                 if viewport_offset == 0 && visual_row == render_cursor_y {
-                    let safe_cursor_x =
-                        std::cmp::min(render_cursor_x, buffer.get_width().saturating_sub(1));
-                    let cursor_pixel_x = safe_cursor_x as i32 * base_width;
+                    let safe_cursor_x = std::cmp::min(render_cursor_x, buffer.get_width().saturating_sub(1));
+                    let cursor_pixel_x = cursor_pixel_x.unwrap_or_else(|| safe_cursor_x as i32 * base_width);
+                    self.last_cursor_pixel_pos = Some((cursor_pixel_x + client_rect.left, current_y + client_rect.top));
+
                     if let Some(comp) = composition {
                         let ctx = RenderContext {
                             x: cursor_pixel_x,

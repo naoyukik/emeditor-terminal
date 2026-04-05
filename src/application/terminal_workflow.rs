@@ -64,6 +64,9 @@ impl TerminalWorkflow {
     pub fn process_output(&mut self, output_bytes: &[u8]) {
         self.parser.parse(output_bytes, &mut self.buffer);
         self.buffer.update_last_valid_cursor_pos();
+        if let Some(reply) = self.buffer.take_pending_reply() {
+            let _ = self.output_repo.send_input(reply.as_bytes());
+        }
     }
 
     pub fn send_input(&self, input_bytes: &[u8]) -> std::io::Result<()> {
@@ -125,10 +128,6 @@ impl TerminalWorkflow {
 
     pub fn get_buffer(&self) -> &TerminalBufferEntity {
         &self.buffer
-    }
-
-    pub fn get_last_write_pos(&self) -> Option<(usize, usize)> {
-        self.buffer.get_last_write_pos()
     }
 
     /// ヒストリーの現在の行数を取得する
