@@ -170,10 +170,14 @@ pub fn sync_system_caret(
 
             let res_font = windows::Win32::UI::Input::Ime::ImmSetCompositionFontW(himc, &lf);
 
+            // Convert to Screen coordinates ONLY for IME API
+            let mut pt_screen = pt_client;
+            let _ = windows::Win32::Graphics::Gdi::ClientToScreen(hwnd, &mut pt_screen);
+
             // 2. Set the composition window position
             let comp_form = COMPOSITIONFORM {
                 dwStyle: windows::Win32::UI::Input::Ime::CFS_POINT,
-                ptCurrentPos: pt_client,
+                ptCurrentPos: pt_screen,
                 rcArea: RECT::default(),
             };
             let res_comp = ImmSetCompositionWindow(himc, &comp_form);
@@ -184,7 +188,7 @@ pub fn sync_system_caret(
                 let cand_form = CANDIDATEFORM {
                     dwIndex: i,
                     dwStyle: windows::Win32::UI::Input::Ime::CFS_CANDIDATEPOS,
-                    ptCurrentPos: pt_client,
+                    ptCurrentPos: pt_screen,
                     rcArea: RECT::default(),
                 };
                 if !ImmSetCandidateWindow(himc, &cand_form).as_bool() {
@@ -192,7 +196,7 @@ pub fn sync_system_caret(
                 }
             }
 
-            log::info!("IMM32 Calls (Client): Font={:?}, Comp={:?}, Cand={:?}, himc={:?}", res_font, res_comp, res_cand, himc.0);
+            log::info!("IMM32 Calls: Font={:?}, Comp={:?}, Cand={:?}, screen={:?}", res_font, res_comp, res_cand, pt_screen);
 
             let _ = ImmReleaseContext(hwnd, himc);
         }
