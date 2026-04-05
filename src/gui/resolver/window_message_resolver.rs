@@ -101,11 +101,17 @@ pub fn on_paint(hwnd: HWND) -> LRESULT {
 
         let sync_pos = ime_anchor.unwrap_or_else(|| service.get_buffer().get_last_valid_cursor_pos());
 
+        // During IME composition (ime_anchor is Some), always treat cursor as visible.
+        // anchor_pos was captured from get_last_valid_cursor_pos(), so visibility is guaranteed.
+        // Without this, TUI apps that hide/show cursor during redraws (e.g. Gemini CLI) would
+        // cause sync_system_caret to bail out and leave the IME window at the wrong position.
+        let is_visible = ime_anchor.is_some() || service.get_buffer().is_cursor_visible();
+
         // Always sync system caret position with virtual cursor during paint
         sync_system_caret(
             hwnd,
             sync_pos,
-            service.get_buffer().is_cursor_visible(),
+            is_visible,
             service.get_buffer().get_viewport_offset(),
             renderer,
             caret.as_ref(),
@@ -316,15 +322,17 @@ pub fn on_ime_start_composition(hwnd: HWND) -> LRESULT {
         log::info!("IME composition started, anchor set to {:?} (buffer_pos={:?})",
             anchor_pos, window_data.service.get_buffer().get_cursor_pos());
 
-        let is_visible = window_data.service.get_buffer().is_cursor_visible();
         let viewport_offset = window_data.service.get_buffer().get_viewport_offset();
         let font_face = window_data.service.get_font_face().to_string();
 
+        // anchor_pos comes from get_last_valid_cursor_pos(), which is only set when the cursor
+        // is visible. So we can always treat it as visible here, even if the TUI app has
+        // temporarily hidden the cursor between paint frames.
         // Sync IME position at the very beginning of composition
         sync_system_caret(
             hwnd,
             anchor_pos,
-            is_visible,
+            true,
             viewport_offset,
             &window_data.renderer,
             window_data.caret.as_ref(),
@@ -450,10 +458,13 @@ pub fn on_app_repaint(hwnd: HWND) -> LRESULT {
         // We use the last known VALID cursor position to avoid "parking" artifacts.
         let sync_pos = ime_anchor.unwrap_or_else(|| service.get_buffer().get_last_valid_cursor_pos());
 
+        // During IME composition, always treat cursor as visible (same rationale as on_paint).
+        let is_visible = ime_anchor.is_some() || service.get_buffer().is_cursor_visible();
+
         sync_system_caret(
             hwnd,
             sync_pos,
-            service.get_buffer().is_cursor_visible(),
+            is_visible,
             service.get_buffer().get_viewport_offset(),
             renderer,
             caret.as_ref(),

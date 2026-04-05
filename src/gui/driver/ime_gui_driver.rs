@@ -108,10 +108,16 @@ pub fn sync_system_caret(
         return;
     }
 
-    // Convert absolute cursor Y to screen-relative Y
+    // Convert absolute cursor Y to screen-relative Y (used as fallback)
     let relative_y = cursor_pos.1.saturating_sub(viewport_offset);
 
-    if let Some((pixel_x, pixel_y)) = renderer.cell_to_pixel(cursor_pos.0, relative_y) {
+    // Prefer renderer's measured pixel position (accurate for variable-width chars).
+    // Fall back to cell-based calculation when renderer hasn't painted yet.
+    let pixel_pos = renderer
+        .get_last_cursor_pixel_pos()
+        .or_else(|| renderer.cell_to_pixel(cursor_pos.0, relative_y));
+
+    if let Some((pixel_x, pixel_y)) = pixel_pos {
         // Detailed logging for coordinate verification
         log::info!("Syncing IME: client=({}, {}), cursor=({:?}), visible={}, font={}", pixel_x, pixel_y, cursor_pos, is_visible, font_face);
 
