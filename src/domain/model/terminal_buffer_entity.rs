@@ -537,9 +537,6 @@ impl TerminalBufferEntity {
             self.last_valid_cursor_pos = (self.cursor.x, self.cursor.y);
         }
     }
-    pub fn get_last_write_pos(&self) -> Option<(usize, usize)> {
-        self.last_write_pos
-    }
     pub fn get_cursor_style(&self) -> CursorStyle {
         self.cursor.style
     }
@@ -554,17 +551,31 @@ impl TerminalBufferEntity {
     }
 
     pub fn resize(&mut self, new_width: usize, new_height: usize) {
+        // Resize primary lines
         for line in &mut self.lines {
             line.resize(new_width, Cell::default());
         }
-        self.width = new_width;
-        if new_height > self.height {
-            for _ in 0..(new_height - self.height) {
+        if new_height > self.lines.len() {
+            for _ in 0..(new_height - self.lines.len()) {
                 self.lines.push_back(vec![Cell::default(); new_width]);
             }
-        } else if new_height < self.height {
+        } else if new_height < self.lines.len() {
             self.lines.truncate(new_height);
         }
+
+        // Resize alternate lines
+        for line in &mut self.alt_lines {
+            line.resize(new_width, Cell::default());
+        }
+        if new_height > self.alt_lines.len() {
+            for _ in 0..(new_height - self.alt_lines.len()) {
+                self.alt_lines.push_back(vec![Cell::default(); new_width]);
+            }
+        } else if new_height < self.alt_lines.len() {
+            self.alt_lines.truncate(new_height);
+        }
+
+        self.width = new_width;
         self.height = new_height;
         self.scroll_top = 0;
         self.scroll_bottom = self.height.saturating_sub(1);
