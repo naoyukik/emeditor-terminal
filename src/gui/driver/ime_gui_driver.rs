@@ -135,11 +135,21 @@ pub fn sync_system_caret(
                 log::info!("Metrics: height={}, width={}", metrics.char_height, metrics.base_width);
 
                 // Use SCREEN coordinates for IMM32 as required by project spec.
+                // Using CFS_RECT to allow candidate window positioning relative to the composition area.
                 let mut pt_screen = POINT {
                     x: pixel_x,
                     y: pixel_y,
                 };
                 let _ = ClientToScreen(hwnd, &mut pt_screen);
+
+                // Use a rectangle representing the current character cell for IME positioning.
+                // This helps the Candidate Window to appear below the character.
+                let rc_area = RECT {
+                    left: pt_screen.x,
+                    top: pt_screen.y,
+                    right: pt_screen.x + metrics.base_width,
+                    bottom: pt_screen.y + metrics.char_height,
+                };
 
                 // Log actual OS caret position to verify SetCaretPos success
                 let mut os_caret_pos = POINT::default();
@@ -164,11 +174,11 @@ pub fn sync_system_caret(
                 let res_font = windows::Win32::UI::Input::Ime::ImmSetCompositionFontW(himc, &lf);
 
                 // 2. Set the composition window position
-                // Use CFS_POINT with Screen coordinates.
+                // Use CFS_RECT with Screen coordinates for better candidate placement.
                 let comp_form = COMPOSITIONFORM {
-                    dwStyle: windows::Win32::UI::Input::Ime::CFS_POINT,
+                    dwStyle: windows::Win32::UI::Input::Ime::CFS_RECT,
                     ptCurrentPos: pt_screen,
-                    rcArea: RECT::default(),
+                    rcArea: rc_area,
                 };
                 let res_comp = ImmSetCompositionWindow(himc, &comp_form);
 

@@ -504,7 +504,7 @@ impl TerminalGuiDriver {
                 if viewport_offset == 0 && visual_row == render_cursor_y {
                     let safe_cursor_x = std::cmp::min(render_cursor_x, buffer.get_width().saturating_sub(1));
                     let cursor_pixel_x = cursor_pixel_x.unwrap_or_else(|| safe_cursor_x as i32 * base_width);
-                    self.last_cursor_pixel_pos = Some((cursor_pixel_x + client_rect.left, current_y + client_rect.top));
+                    self.last_cursor_pixel_pos = Some((cursor_pixel_x, current_y));
 
                     if let Some(comp) = composition {
                         let ctx = RenderContext {

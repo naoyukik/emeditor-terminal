@@ -303,8 +303,8 @@ pub fn on_ime_set_context(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM) 
     );
     // Suppress the default OS composition window because we draw it ourselves in TerminalGuiDriver.
     // This prevents double-drawing and "edge-jumping" of the composition string.
-    let mut lparam = lparam;
-    lparam.0 &= !(ISC_SHOWUICOMPOSITIONWINDOW as isize);
+    // let mut lparam = lparam;
+    // lparam.0 &= !(ISC_SHOWUICOMPOSITIONWINDOW as isize);
     unsafe { DefWindowProcW(hwnd, msg, wparam, lparam) }
 }
 
