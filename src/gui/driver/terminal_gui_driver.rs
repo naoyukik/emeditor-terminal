@@ -136,32 +136,6 @@ impl TerminalGuiDriver {
         self.metrics.as_ref()
     }
 
-    pub fn update_metrics(&mut self, hdc: HDC, config: &crate::domain::model::terminal_config_value::TerminalConfig) -> TerminalMetrics {
-        unsafe {
-            let h_font = self.get_font_for_style(hdc, 0, config);
-            let old_font = SelectObject(hdc, HGDIOBJ(h_font.0));
-            let _font_guard = SelectedObjectGuard::new(hdc, old_font);
-
-            let mut tm = TEXTMETRICW::default();
-            let _ = GetTextMetricsW(hdc, &mut tm);
-
-            let zero_utf16: &[u16] = &[0x0030];
-            let mut size = SIZE::default();
-            let _ = GetTextExtentPoint32W(hdc, zero_utf16, &mut size);
-
-            let new_metrics = TerminalMetrics {
-                char_height: tm.tmHeight,
-                base_width: size.cx,
-            };
-
-            if self.metrics != Some(new_metrics) {
-                log::info!("Metrics updated: old={:?}, new={:?}", self.metrics, new_metrics);
-                self.metrics = Some(new_metrics);
-            }
-            new_metrics
-        }
-    }
-
     /// Converts virtual cell coordinates to client pixel coordinates.
     pub fn cell_to_pixel(&self, x: usize, y: usize) -> Option<(i32, i32)> {
         let metrics = self.metrics.as_ref()?;
@@ -239,7 +213,6 @@ impl TerminalGuiDriver {
             }
 
             if self.metrics.is_none() {
-                // Initial metrics if not already set by render()
                 let old_font = SelectObject(hdc, HGDIOBJ(h_font.0));
                 let _font_guard = SelectedObjectGuard::new(hdc, old_font);
                 let mut tm = TEXTMETRICW::default();
@@ -319,15 +292,11 @@ impl TerminalGuiDriver {
         theme: &crate::domain::model::color_theme_value::ColorTheme,
         config: &crate::domain::model::terminal_config_value::TerminalConfig,
     ) {
-        log::info!("Render Call: client_rect={:?}", client_rect);
         let width = client_rect.right - client_rect.left;
         let height = client_rect.bottom - client_rect.top;
         if width <= 0 || height <= 0 {
             return;
         }
-
-        // Force metric recalculation to ensure we're always in sync with current DPI/Font
-        self.update_metrics(hdc, config);
 
         unsafe {
             let h_mem_dc = CreateCompatibleDC(hdc);
@@ -345,10 +314,6 @@ impl TerminalGuiDriver {
 
             self.render_internal(h_mem_dc, client_rect, buffer, composition, ime_anchor, theme, config);
 
-            // Copy the rendered buffer to the window.
-            // We use (0,0) as destination because our memory bitmap is exactly the size of the area we want to draw.
-            // Wait, if client_rect.left is NOT 0, we should copy to client_rect.left.
-            // But let's see what the log says.
             let _ = BitBlt(
                 hdc,
                 client_rect.left,
