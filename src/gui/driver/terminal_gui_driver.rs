@@ -379,16 +379,9 @@ impl TerminalGuiDriver {
 
             for visual_row in 0..buffer.get_height() {
                 let mut x_offset = 0;
-                let mut cursor_pixel_x = None;
-
                 if let Some(line) = buffer.get_line_at_visual_row(visual_row) {
                     let mut cell_idx = 0;
                     while cell_idx < buffer.get_width() {
-                        // Capture the pixel position when we reach the cursor column
-                        if visual_row == render_cursor_y && cell_idx == render_cursor_x {
-                            cursor_pixel_x = Some(x_offset);
-                        }
-
                         let cell = match line.get(cell_idx) {
                             Some(c) => c,
                             None => break,
@@ -403,7 +396,6 @@ impl TerminalGuiDriver {
                         let mut run_text = String::new();
                         let mut run_dx = Vec::new();
 
-                        let run_start_idx = cell_idx;
                         while cell_idx < buffer.get_width() {
                             let c = match line.get(cell_idx) {
                                 Some(c) => c,
@@ -416,13 +408,12 @@ impl TerminalGuiDriver {
                             if &c.attribute != start_attr {
                                 break;
                             }
-                            // Also break if we hit the cursor position to ensure pixel accuracy
-                            if visual_row == render_cursor_y && cell_idx == render_cursor_x && cell_idx != run_start_idx {
-                                break;
-                            }
 
                             run_text.push_str(&c.text);
+                            // セル内テキストの UTF-16 長を事前に計算（最適化）
                             let utf16_len = c.text.encode_utf16().count();
+
+                            // レビュー指摘修正: 物理表示幅を 1〜2 に制限
                             let display_width = c.text.width().clamp(1, 2);
                             let w = display_width as i32 * base_width;
                             run_dx.push(w);
@@ -483,6 +474,8 @@ impl TerminalGuiDriver {
                                 bottom: current_y + char_height,
                             };
 
+                            // セキュリティリスク修正: 生テキストのログ出力を削除
+
                             let _ = ExtTextOutW(
                                 hdc,
                                 x_offset,
@@ -499,11 +492,9 @@ impl TerminalGuiDriver {
                 }
 
                 if viewport_offset == 0 && visual_row == render_cursor_y {
-                    // Fallback if the loop didn't capture the pixel X (e.g. at the end of line)
-                    let cursor_pixel_x = cursor_pixel_x.unwrap_or_else(|| {
-                        std::cmp::min(render_cursor_x, buffer.get_width()) as i32 * base_width
-                    });
-
+                    let safe_cursor_x =
+                        std::cmp::min(render_cursor_x, buffer.get_width().saturating_sub(1));
+                    let cursor_pixel_x = safe_cursor_x as i32 * base_width;
                     if let Some(comp) = composition {
                         let ctx = RenderContext {
                             x: cursor_pixel_x,
@@ -516,8 +507,9 @@ impl TerminalGuiDriver {
                         let style = buffer.get_cursor_style();
                         let display_width =
                             if let Some(line) = buffer.get_line_at_visual_row(visual_row) {
-                                line.get(std::cmp::min(render_cursor_x, buffer.get_width().saturating_sub(1)))
+                                line.get(safe_cursor_x)
                                     .map(|cell| {
+                                        // レビュー指摘修正: カーソル幅も 1〜2 に制限
                                         let w = cell.text.width();
                                         w.clamp(1, 2)
                                     })
