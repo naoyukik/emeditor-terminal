@@ -108,12 +108,12 @@ pub fn sync_system_caret(
         return;
     }
 
-    // IMPORTANT: cursor_pos.1 is already screen-relative (0..height-1) in TerminalBufferEntity.
-    // Do NOT subtract viewport_offset here.
-    let relative_y = cursor_pos.1;
+    // Convert absolute cursor Y to screen-relative Y
+    let relative_y = cursor_pos.1.saturating_sub(viewport_offset);
 
     if let Some((pixel_x, pixel_y)) = renderer.cell_to_pixel(cursor_pos.0, relative_y) {
-        log::info!("Syncing IME: client=({}, {}), cursor=({:?}), font={}", pixel_x, pixel_y, cursor_pos, font_face);
+        // Detailed logging for coordinate verification
+        log::info!("Syncing IME: client=({}, {}), cursor=({:?}), visible={}, font={}", pixel_x, pixel_y, cursor_pos, is_visible, font_face);
 
         // 1. Update system caret position (Always uses client coordinates)
         if let Some(c) = caret {
@@ -125,10 +125,11 @@ pub fn sync_system_caret(
             let himc = ImmGetContext(hwnd);
             if !himc.0.is_null() {
                 let metrics = renderer.get_metrics().cloned().unwrap_or(crate::gui::driver::terminal_gui_driver::TerminalMetrics { char_height: 16, base_width: 8 });
+                log::info!("Metrics: height={}, width={}", metrics.char_height, metrics.base_width);
 
-                // Try root ancestor to see if it fixes coordinate origin for some IMEs
-                let root_hwnd = windows::Win32::UI::WindowsAndMessaging::GetAncestor(hwnd, windows::Win32::UI::WindowsAndMessaging::GA_ROOT);
-
+                // Use CLIENT coordinates for IMM32.
+                // The jumping was likely due to OS double-drawing (fixed by on_ime_set_context)
+                // and Screen coordinates (which we are now removing).
                 let pt_client = POINT {
                     x: pixel_x,
                     y: pixel_y,
@@ -137,7 +138,7 @@ pub fn sync_system_caret(
                 // Log actual OS caret position to verify SetCaretPos success
                 let mut os_caret_pos = POINT::default();
                 let _ = windows::Win32::UI::WindowsAndMessaging::GetCaretPos(&mut os_caret_pos);
-                log::info!("OS Caret Position: {:?}, hwnd={:?}, root={:?}", os_caret_pos, hwnd.0, root_hwnd.0);
+                log::info!("OS Caret Position: {:?}", os_caret_pos);
 
                 // 1. Set the font size for the composition window
                 let mut lf = windows::Win32::Graphics::Gdi::LOGFONTW {
@@ -148,6 +149,7 @@ pub fn sync_system_caret(
                     ..Default::default()
                 };
 
+                // Set font face name
                 let face_name_wide: Vec<u16> = font_face.encode_utf16().collect();
                 let len = std::cmp::min(face_name_wide.len(), lf.lfFaceName.len() - 1);
                 lf.lfFaceName[..len].copy_from_slice(&face_name_wide[..len]);
@@ -156,6 +158,7 @@ pub fn sync_system_caret(
                 let res_font = windows::Win32::UI::Input::Ime::ImmSetCompositionFontW(himc, &lf);
 
                 // 2. Set the composition window position
+                // Use CFS_POINT with Client coordinates.
                 let comp_form = COMPOSITIONFORM {
                     dwStyle: windows::Win32::UI::Input::Ime::CFS_POINT,
                     ptCurrentPos: pt_client,
@@ -163,7 +166,8 @@ pub fn sync_system_caret(
                 };
                 let res_comp = ImmSetCompositionWindow(himc, &comp_form);
 
-                // 3. Set candidate window position
+                // 3. Set candidate window position for all possible indices (0-3)
+                // Use CFS_CANDIDATEPOS with Client coordinates.
                 let mut res_cand = true;
                 for i in 0..4 {
                     let cand_form = CANDIDATEFORM {
@@ -180,6 +184,8 @@ pub fn sync_system_caret(
                 log::info!("IMM32 Calls (Client): Font={:?}, Comp={:?}, Cand={:?}, himc={:?}", res_font, res_comp, res_cand, himc.0);
 
                 let _ = ImmReleaseContext(hwnd, himc);
+            } else {
+                log::warn!("ImmGetContext returned NULL himc for HWND {:?}", hwnd);
             }
         }
     }
