@@ -353,15 +353,10 @@ impl TerminalGuiDriver {
 
             self.render_internal(h_mem_dc, client_rect, buffer, composition, ime_anchor, theme, config);
 
-            // The renderer reported pixel positions relative to the memory DC (0,0).
-            // We need to add the client_rect offsets to make them window-relative.
-            if let Some((mut px, mut py)) = self.last_cursor_pixel_pos {
-                px += client_rect.left;
-                py += client_rect.top;
-                self.last_cursor_pixel_pos = Some((px, py));
-            }
-
             // Copy the rendered buffer to the window.
+            // We use (0,0) as destination because our memory bitmap is exactly the size of the area we want to draw.
+            // Wait, if client_rect.left is NOT 0, we should copy to client_rect.left.
+            // But let's see what the log says.
             let _ = BitBlt(
                 hdc,
                 client_rect.left,
@@ -433,14 +428,6 @@ impl TerminalGuiDriver {
                 let mut cursor_pixel_x = None;
 
                 if let Some(line) = buffer.get_line_at_visual_row(visual_row) {
-                    if visual_row == render_cursor_y && composition.is_some() {
-                        let mut line_text = String::new();
-                        for cell in line.iter().take(30) {
-                            line_text.push_str(if cell.text.is_empty() { " " } else { &cell.text });
-                        }
-                        log::info!("Buffer Content at Cursor Line {}: [{}]", visual_row, line_text);
-                    }
-
                     let mut cell_idx = 0;
                     while cell_idx < buffer.get_width() {
                         // Capture the pixel position when we reach the cursor column

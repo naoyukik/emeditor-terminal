@@ -107,7 +107,6 @@ pub fn on_paint(hwnd: HWND) -> LRESULT {
         // If IME is active, we use the anchor position to prevent jumping.
         // We use the last known VALID cursor position to avoid "parking" artifacts.
         let sync_pos = ime_anchor.unwrap_or_else(|| service.get_buffer().get_last_valid_cursor_pos());
-        let forced_pos = window_data.ime_pixel_anchor.or_else(|| renderer.get_last_cursor_pixel_pos());
 
         sync_system_caret(
             hwnd,
@@ -117,7 +116,7 @@ pub fn on_paint(hwnd: HWND) -> LRESULT {
             renderer,
             caret.as_ref(),
             service.get_font_face(),
-            forced_pos,
+            renderer.get_last_cursor_pixel_pos(),
         );
 
         let _ = EndPaint(hwnd, &ps);
@@ -326,15 +325,8 @@ pub fn on_ime_start_composition(hwnd: HWND) -> LRESULT {
         // Record the current valid cursor position as the "anchor" for this composition session.
         let anchor_pos = window_data.service.get_buffer().get_last_valid_cursor_pos();
         window_data.ime_anchor = Some(anchor_pos);
-
-        // Capture the ACTUAL OS CARET POSITION as the definitive pixel anchor.
-        // If alphabet input is correctly positioned, this caret is already in the right place!
-        let mut caret_pt = windows::Win32::Foundation::POINT::default();
-        let _ = unsafe { windows::Win32::UI::WindowsAndMessaging::GetCaretPos(&mut caret_pt) };
-        window_data.ime_pixel_anchor = Some((caret_pt.x, caret_pt.y));
-
-        log::info!("IME composition started, anchor set to {:?} (buffer_pos={:?}), pixel_anchor={:?}",
-            anchor_pos, window_data.service.get_buffer().get_cursor_pos(), window_data.ime_pixel_anchor);
+        log::info!("IME composition started, anchor set to {:?} (buffer_pos={:?})",
+            anchor_pos, window_data.service.get_buffer().get_cursor_pos());
 
         let viewport_offset = window_data.service.get_buffer().get_viewport_offset();
         let font_face = window_data.service.get_font_face().to_string();
@@ -349,7 +341,7 @@ pub fn on_ime_start_composition(hwnd: HWND) -> LRESULT {
             &window_data.renderer,
             window_data.caret.as_ref(),
             &font_face,
-            window_data.ime_pixel_anchor,
+            None,
         );
     }
     update_window_scroll_info(hwnd);
@@ -423,7 +415,6 @@ pub fn on_ime_end_composition(hwnd: HWND) -> LRESULT {
         let mut window_data = data_arc.lock().unwrap();
         window_data.composition = None;
         window_data.ime_anchor = None; // Clear the anchor
-        window_data.ime_pixel_anchor = None; // Clear the pixel anchor
     }
     unsafe {
         let _ = InvalidateRect(hwnd, None, BOOL(0));
@@ -472,7 +463,6 @@ pub fn on_app_repaint(hwnd: HWND) -> LRESULT {
         // If IME is active, we use the anchor position to prevent jumping.
         // We use the last known VALID cursor position to avoid "parking" artifacts.
         let sync_pos = ime_anchor.unwrap_or_else(|| service.get_buffer().get_last_valid_cursor_pos());
-        let forced_pos = window_data.ime_pixel_anchor.or_else(|| renderer.get_last_cursor_pixel_pos());
 
         sync_system_caret(
             hwnd,
@@ -482,7 +472,7 @@ pub fn on_app_repaint(hwnd: HWND) -> LRESULT {
             renderer,
             caret.as_ref(),
             service.get_font_face(),
-            forced_pos,
+            renderer.get_last_cursor_pixel_pos(),
         );
     }
     unsafe {

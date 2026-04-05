@@ -19,7 +19,6 @@ pub struct TerminalWindowResolver {
     pub scroll_manager: ScrollGuiDriver,
     pub caret: Option<CaretHandle>,
     pub ime_anchor: Option<(usize, usize)>,
-    pub ime_pixel_anchor: Option<(i32, i32)>,
 }
 
 impl TerminalWindowResolver {
@@ -32,7 +31,6 @@ impl TerminalWindowResolver {
         self.service = TerminalWorkflow::new(80, 25, output_repo, config_repo_for_service, true);
         self.caret = None;
         self.ime_anchor = None;
-        self.ime_pixel_anchor = None;
     }
 }
 
@@ -52,7 +50,6 @@ pub fn get_terminal_data() -> Arc<Mutex<TerminalWindowResolver>> {
                 scroll_manager: ScrollGuiDriver::new(),
                 caret: None,
                 ime_anchor: None,
-                ime_pixel_anchor: None,
             }))
         })
         .clone()
