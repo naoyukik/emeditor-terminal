@@ -1,7 +1,6 @@
 use std::ffi::c_void;
 use std::mem::size_of;
 use windows::Win32::Foundation::{HWND, LPARAM, POINT, RECT};
-use windows::Win32::Graphics::Gdi::ClientToScreen;
 use windows::Win32::UI::Input::Ime::{
     ImmGetCompositionStringW, ImmGetContext, ImmReleaseContext, ImmSetCandidateWindow,
     ImmSetCompositionWindow, CANDIDATEFORM, COMPOSITIONFORM, GCS_COMPSTR,
@@ -134,21 +133,20 @@ pub fn sync_system_caret(
                 let metrics = renderer.get_metrics().cloned().unwrap_or(crate::gui::driver::terminal_gui_driver::TerminalMetrics { char_height: 16, base_width: 8 });
                 log::info!("Metrics: height={}, width={}", metrics.char_height, metrics.base_width);
 
-                // Use SCREEN coordinates for IMM32 as required by project spec.
+                // Use CLIENT coordinates for IMM32.
                 // Using CFS_RECT to allow candidate window positioning relative to the composition area.
-                let mut pt_screen = POINT {
+                let pt_client = POINT {
                     x: pixel_x,
                     y: pixel_y,
                 };
-                let _ = ClientToScreen(hwnd, &mut pt_screen);
 
                 // Use a rectangle representing the current character cell for IME positioning.
                 // This helps the Candidate Window to appear below the character.
                 let rc_area = RECT {
-                    left: pt_screen.x,
-                    top: pt_screen.y,
-                    right: pt_screen.x + metrics.base_width,
-                    bottom: pt_screen.y + metrics.char_height,
+                    left: pt_client.x,
+                    top: pt_client.y,
+                    right: pt_client.x + metrics.base_width,
+                    bottom: pt_client.y + metrics.char_height,
                 };
 
                 // Log actual OS caret position to verify SetCaretPos success
@@ -174,22 +172,22 @@ pub fn sync_system_caret(
                 let res_font = windows::Win32::UI::Input::Ime::ImmSetCompositionFontW(himc, &lf);
 
                 // 2. Set the composition window position
-                // Use CFS_RECT with Screen coordinates for better candidate placement.
+                // Use CFS_RECT with Client coordinates for better candidate placement.
                 let comp_form = COMPOSITIONFORM {
                     dwStyle: windows::Win32::UI::Input::Ime::CFS_RECT,
-                    ptCurrentPos: pt_screen,
+                    ptCurrentPos: pt_client,
                     rcArea: rc_area,
                 };
                 let res_comp = ImmSetCompositionWindow(himc, &comp_form);
 
                 // 3. Set candidate window position for all possible indices (0-3)
-                // Use CFS_CANDIDATEPOS with Screen coordinates.
+                // Use CFS_CANDIDATEPOS with Client coordinates.
                 let mut res_cand = true;
                 for i in 0..4 {
                     let cand_form = CANDIDATEFORM {
                         dwIndex: i,
                         dwStyle: windows::Win32::UI::Input::Ime::CFS_CANDIDATEPOS,
-                        ptCurrentPos: pt_screen,
+                        ptCurrentPos: pt_client,
                         rcArea: RECT::default(),
                     };
                     if !ImmSetCandidateWindow(himc, &cand_form).as_bool() {
@@ -197,7 +195,7 @@ pub fn sync_system_caret(
                     }
                 }
 
-                log::info!("IMM32 Calls (Screen): Font={:?}, Comp={:?}, Cand={:?}, himc={:?}", res_font, res_comp, res_cand, himc.0);
+                log::info!("IMM32 Calls (Client): Font={:?}, Comp={:?}, Cand={:?}, himc={:?}", res_font, res_comp, res_cand, himc.0);
 
                 let _ = ImmReleaseContext(hwnd, himc);
             } else {
