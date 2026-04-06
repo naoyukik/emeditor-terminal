@@ -112,9 +112,7 @@ pub fn on_paint(hwnd: HWND) -> LRESULT {
             hwnd,
             sync_pos,
             is_visible,
-            service.get_buffer().get_viewport_offset(),
-            service.get_buffer().get_buffer_line_count(),
-            service.get_buffer().get_height(),
+            service.get_buffer(),
             renderer,
             caret.as_ref(),
             service.get_font_face(),
@@ -327,7 +325,6 @@ pub fn on_ime_start_composition(hwnd: HWND) -> LRESULT {
         log::info!("IME composition started, anchor set to {:?} (buffer_pos={:?})",
             anchor_pos, window_data.service.get_buffer().get_cursor_pos());
 
-        let viewport_offset = window_data.service.get_buffer().get_viewport_offset();
         let font_face = window_data.service.get_font_face().to_string();
 
         // anchor_pos comes from get_last_valid_cursor_pos(), which is only set when the cursor
@@ -339,9 +336,7 @@ pub fn on_ime_start_composition(hwnd: HWND) -> LRESULT {
             hwnd,
             anchor_pos,
             true,
-            viewport_offset,
-            buffer.get_buffer_line_count(),
-            buffer.get_height(),
+            buffer,
             &window_data.renderer,
             window_data.caret.as_ref(),
             &font_face,
@@ -356,9 +351,6 @@ pub fn on_ime_composition(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM) 
     let result = {
         let data_arc = get_terminal_data();
         let mut window_data = data_arc.lock().unwrap();
-        let buffer = window_data.service.get_buffer();
-        let buffer_line_count = buffer.get_buffer_line_count();
-        let buffer_height = buffer.get_height();
 
         let TerminalWindowResolver {
             ref mut service,
@@ -375,9 +367,7 @@ pub fn on_ime_composition(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM) 
             hwnd,
             lparam,
             sync_pos,
-            service.get_buffer().get_viewport_offset(),
-            buffer_line_count,
-            buffer_height,
+            service.get_buffer(),
             renderer,
             caret.as_ref(),
             service.get_font_face(),
@@ -480,9 +470,7 @@ pub fn on_app_repaint(hwnd: HWND) -> LRESULT {
             hwnd,
             sync_pos,
             is_visible,
-            buffer.get_viewport_offset(),
-            buffer.get_buffer_line_count(),
-            buffer.get_height(),
+            buffer,
             renderer,
             caret.as_ref(),
             service.get_font_face(),

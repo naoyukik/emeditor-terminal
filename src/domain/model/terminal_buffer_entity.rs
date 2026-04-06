@@ -494,6 +494,34 @@ impl TerminalBufferEntity {
         self.lines.len()
     }
 
+    pub fn is_alternate_screen(&self) -> bool {
+        self.is_alternate_screen
+    }
+
+    /// バッファの絶対行 (abs_y) を画面上の表示行 (visual_row) に変換する。
+    /// 表示範囲外の場合は None を返す。
+    pub fn get_visual_row(&self, abs_y: usize) -> Option<usize> {
+        let visual_y = if self.is_alternate_screen {
+            // 代替スクリーンの場合、0-indexed の絶対座標がそのまま画面座標になる。
+            // 画面高さを超える場合は無効。
+            if abs_y < self.height {
+                abs_y as i32
+            } else {
+                return None;
+            }
+        } else {
+            // 通常スクリーンの場合、下詰め（バッファの最後が画面の下端にくる）レンダリングを行う。
+            // visual_y = abs_y - lines_len + height + viewport_offset
+            (abs_y as i32) - (self.lines.len() as i32) + (self.height as i32) + (self.viewport_offset as i32)
+        };
+
+        if visual_y >= 0 && visual_y < (self.height as i32) {
+            Some(visual_y as usize)
+        } else {
+            None
+        }
+    }
+
     pub fn get_history_len(&self) -> usize {
         self.history.len()
     }

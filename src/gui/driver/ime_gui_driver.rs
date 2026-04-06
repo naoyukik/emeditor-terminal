@@ -9,6 +9,7 @@ use windows::Win32::UI::Input::Ime::{
 use windows::Win32::UI::Input::KeyboardAndMouse::GetFocus;
 use windows::Win32::UI::WindowsAndMessaging::{CreateCaret, DestroyCaret, SetCaretPos, ShowCaret};
 
+use crate::domain::model::terminal_buffer_entity::TerminalBufferEntity;
 use crate::gui::driver::terminal_gui_driver::TerminalGuiDriver;
 
 /// RAII handle for the system caret.
@@ -111,9 +112,7 @@ pub fn sync_system_caret(
     hwnd: HWND,
     cursor_pos: (usize, usize),
     is_visible: bool,
-    viewport_offset: usize,
-    buffer_line_count: usize,
-    buffer_height: usize,
+    buffer: &TerminalBufferEntity,
     renderer: &TerminalGuiDriver,
     caret: Option<&CaretHandle>,
     font_face: &str,
@@ -132,15 +131,12 @@ pub fn sync_system_caret(
         return;
     }
 
-    // Convert absolute cursor Y to screen-relative Y (used as fallback)
-    // visual_row = abs_y - buf_len + view_h + v_off
-    let visual_y = (cursor_pos.1 as i32) - (buffer_line_count as i32) + (buffer_height as i32) + (viewport_offset as i32);
-    let relative_y = if visual_y >= 0 && visual_y < (buffer_height as i32) {
-        visual_y as usize
-    } else {
-        // If out of bounds, use simple sub as fallback but it might be off
-        cursor_pos.1.saturating_sub(viewport_offset)
-    };
+    // Convert logical cursor coordinates to visual pixel coordinates.
+    let visual_y = buffer.get_visual_row(cursor_pos.1);
+    let relative_y = visual_y.unwrap_or_else(|| {
+        // Fallback if cursor is off-screen (should not happen for active IME)
+        cursor_pos.1.saturating_sub(buffer.get_viewport_offset())
+    });
 
     // Prefer renderer's measured pixel position (accurate for variable-width chars)
     // ONLY if the logical position matches what was rendered.
@@ -157,8 +153,8 @@ pub fn sync_system_caret(
         }
 
         log::info!(
-            "Syncing IME: client_pos=({}, {}), cursor=({:?}), v_offset={}, client_rect={:?}, visible={}, font={}",
-            pixel_x, pixel_y, cursor_pos, viewport_offset, client_rect, is_visible, font_face
+            "Syncing IME: client_pos=({}, {}), cursor=({:?}), v_offset={}, buffer_len={}, buf_height={}, client_rect={:?}, visible={}, alt_screen={}, font={}",
+            pixel_x, pixel_y, cursor_pos, buffer.get_viewport_offset(), buffer.get_buffer_line_count(), buffer.get_height(), client_rect, is_visible, buffer.is_alternate_screen(), font_face
         );
 
         // If client_rect has an offset, we MUST include it for IMM32/Caret to align with BitBlt.
@@ -269,9 +265,7 @@ pub fn handle_composition(
     hwnd: HWND,
     lparam: LPARAM,
     cursor_pos: (usize, usize),
-    viewport_offset: usize,
-    buffer_line_count: usize,
-    buffer_height: usize,
+    buffer: &TerminalBufferEntity,
     renderer: &TerminalGuiDriver,
     caret: Option<&CaretHandle>,
     font_face: &str,
@@ -307,9 +301,7 @@ pub fn handle_composition(
             hwnd,
             cursor_pos,
             true,
-            viewport_offset,
-            buffer_line_count,
-            buffer_height,
+            buffer,
             renderer,
             caret,
             font_face,

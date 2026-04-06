@@ -379,7 +379,6 @@ impl TerminalGuiDriver {
             let base_width = metrics.base_width;
             let mut current_y = 0;
             let (buffer_cursor_x, buffer_cursor_y) = buffer.get_cursor_pos();
-            let viewport_offset = buffer.get_viewport_offset();
 
             // Use the IME anchor for composition positioning if active,
             // otherwise use the buffer's logical cursor position.
@@ -389,21 +388,7 @@ impl TerminalGuiDriver {
                 (buffer_cursor_x, buffer_cursor_y)
             };
 
-            let render_cursor_visual_y = {
-                let abs_y = render_cursor_y as i32;
-                let buf_len = buffer.get_buffer_line_count() as i32;
-                let view_h = buffer.get_height() as i32;
-                let v_off = viewport_offset as i32;
-
-                // get_line_at_visual_row の逆変換:
-                // visual_row = abs_y - buf_len + view_h + v_off
-                let visual_y = abs_y - buf_len + view_h + v_off;
-                if visual_y >= 0 && visual_y < view_h {
-                    Some(visual_y as usize)
-                } else {
-                    None
-                }
-            };
+            let render_cursor_visual_y = buffer.get_visual_row(render_cursor_y);
 
             for visual_row in 0..buffer.get_height() {
                 let is_cursor_row = Some(visual_row) == render_cursor_visual_y;
