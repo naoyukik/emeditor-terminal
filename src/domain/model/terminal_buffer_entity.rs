@@ -522,6 +522,34 @@ impl TerminalBufferEntity {
         }
     }
 
+    /// 指定された絶対座標 (abs_x, abs_y) における画面上の表示セル位置 (visual_column) を算出する。
+    /// 全角文字などによる表示幅の差異を考慮する。
+    pub fn get_visual_column(&self, abs_x: usize, abs_y: usize) -> usize {
+        // 対象の行を取得
+        let line = if self.is_alternate_screen {
+            self.alt_lines.get(abs_y)
+        } else {
+            self.lines.get(abs_y)
+        };
+
+        let Some(line) = line else {
+            return abs_x; // 行が見つからない場合はフォールバック
+        };
+
+        // abs_x までの表示幅を合計する
+        let mut visual_x = 0;
+        for (i, cell) in line.iter().enumerate() {
+            if i >= abs_x {
+                break;
+            }
+            if cell.is_wide_continuation {
+                continue;
+            }
+            visual_x += cell.text.width().clamp(1, 2);
+        }
+        visual_x
+    }
+
     pub fn get_history_len(&self) -> usize {
         self.history.len()
     }

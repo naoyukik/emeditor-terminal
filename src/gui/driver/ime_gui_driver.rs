@@ -133,6 +133,8 @@ pub fn sync_system_caret(
 
     // Convert logical cursor coordinates to visual pixel coordinates.
     let visual_y = buffer.get_visual_row(cursor_pos.1);
+    let visual_x = buffer.get_visual_column(cursor_pos.0, cursor_pos.1);
+
     let relative_y = visual_y.unwrap_or_else(|| {
         // Fallback if cursor is off-screen (should not happen for active IME)
         cursor_pos.1.saturating_sub(buffer.get_viewport_offset())
@@ -143,7 +145,13 @@ pub fn sync_system_caret(
     // Otherwise fall back to grid calculation to stay up-to-date with recent app movements.
     let pixel_pos = renderer
         .get_last_cursor_pixel_pos(cursor_pos)
-        .or_else(|| renderer.cell_to_pixel(cursor_pos.0, relative_y));
+        .or_else(|| {
+            let metrics = renderer.get_metrics()?;
+            Some((
+                visual_x as i32 * metrics.base_width,
+                relative_y as i32 * metrics.char_height,
+            ))
+        });
 
     if let Some((mut pixel_x, mut pixel_y)) = pixel_pos {
         // Detailed logging for coordinate verification
@@ -153,8 +161,8 @@ pub fn sync_system_caret(
         }
 
         log::info!(
-            "Syncing IME: client_pos=({}, {}), cursor=({:?}), v_offset={}, buffer_len={}, buf_height={}, client_rect={:?}, visible={}, alt_screen={}, font={}",
-            pixel_x, pixel_y, cursor_pos, buffer.get_viewport_offset(), buffer.get_buffer_line_count(), buffer.get_height(), client_rect, is_visible, buffer.is_alternate_screen(), font_face
+            "Syncing IME: client_pos=({}, {}), cursor=({:?}), visual=({:?}, {:?}), v_offset={}, buffer_len={}, buf_height={}, client_rect={:?}, visible={}, alt_screen={}, font={}",
+            pixel_x, pixel_y, cursor_pos, visual_x, visual_y, buffer.get_viewport_offset(), buffer.get_buffer_line_count(), buffer.get_height(), client_rect, is_visible, buffer.is_alternate_screen(), font_face
         );
 
         // If client_rect has an offset, we MUST include it for IMM32/Caret to align with BitBlt.
