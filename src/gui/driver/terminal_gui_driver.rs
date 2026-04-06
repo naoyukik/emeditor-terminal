@@ -383,14 +383,17 @@ impl TerminalGuiDriver {
                 (buffer_cursor_x, buffer_cursor_y)
             };
 
+            let render_cursor_visual_y = render_cursor_y.checked_sub(viewport_offset);
+
             for visual_row in 0..buffer.get_height() {
+                let is_cursor_row = Some(visual_row) == render_cursor_visual_y;
                 let mut x_offset = 0;
                 let mut cursor_pixel_x = None;
 
                 if let Some(line) = buffer.get_line_at_visual_row(visual_row) {
                     let mut cell_idx = 0;
                     while cell_idx < buffer.get_width() {
-                        if visual_row == render_cursor_y && cell_idx == render_cursor_x {
+                        if is_cursor_row && cell_idx == render_cursor_x {
                             cursor_pixel_x = Some(x_offset);
                         }
 
@@ -420,7 +423,7 @@ impl TerminalGuiDriver {
                             if &c.attribute != start_attr {
                                 break;
                             }
-                            if visual_row == render_cursor_y && cell_idx == render_cursor_x && cell_idx != run_start_idx {
+                            if is_cursor_row && cell_idx == render_cursor_x && cell_idx != run_start_idx {
                                 break;
                             }
 
@@ -501,7 +504,7 @@ impl TerminalGuiDriver {
                     }
                 }
 
-                if viewport_offset == 0 && visual_row == render_cursor_y {
+                if is_cursor_row {
                     let safe_cursor_x = std::cmp::min(render_cursor_x, buffer.get_width().saturating_sub(1));
                     let cursor_pixel_x = cursor_pixel_x.unwrap_or_else(|| safe_cursor_x as i32 * base_width);
                     self.last_cursor_pixel_pos = Some((cursor_pixel_x, current_y));

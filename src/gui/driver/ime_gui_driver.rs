@@ -2,12 +2,12 @@ use std::ffi::c_void;
 use std::mem::size_of;
 use windows::Win32::Foundation::{HWND, LPARAM, POINT, RECT};
 use windows::Win32::UI::Input::Ime::{
-    ImmGetCompositionStringW, ImmGetContext, ImmReleaseContext, ImmSetCandidateWindow,
-    ImmSetCompositionWindow, CANDIDATEFORM, COMPOSITIONFORM, GCS_COMPSTR,
-    GCS_RESULTSTR,
+    ImmAssociateContext, ImmGetCompositionStringW, ImmGetContext, ImmReleaseContext,
+    ImmSetCandidateWindow, ImmSetCompositionWindow, CANDIDATEFORM, COMPOSITIONFORM,
+    GCS_COMPSTR, GCS_RESULTSTR,
 };
 use windows::Win32::UI::Input::KeyboardAndMouse::GetFocus;
-use windows::Win32::UI::WindowsAndMessaging::{CreateCaret, DestroyCaret, SetCaretPos};
+use windows::Win32::UI::WindowsAndMessaging::{CreateCaret, DestroyCaret, SetCaretPos, ShowCaret};
 
 use crate::gui::driver::terminal_gui_driver::TerminalGuiDriver;
 
@@ -34,7 +34,14 @@ impl CaretHandle {
         let thread_id = unsafe { windows::Win32::System::Threading::GetCurrentThreadId() };
         let created = unsafe {
             // Create a caret matching character dimensions
-            CreateCaret(hwnd, None, width, height).is_ok()
+            if CreateCaret(hwnd, None, width, height).is_ok() {
+                // Showing the caret can help some IMEs realize there's an active input focus.
+                // It will be drawn by the system over our custom-rendered cursor.
+                let _ = ShowCaret(hwnd);
+                true
+            } else {
+                false
+            }
         };
         if !created {
             log::error!("Failed to create system caret for HWND {:?}", hwnd);
@@ -80,6 +87,21 @@ impl Drop for CaretHandle {
                 // We cannot call DestroyCaret safely on another thread as it's thread-local.
                 // This indicates a bug in lifecycle management.
             }
+        }
+    }
+}
+
+/// Ensures the window has a valid IME context associated with it.
+/// Required for some child windows in hosted environments like EmEditor.
+pub fn associate_ime_context(hwnd: HWND) {
+    unsafe {
+        let himc = ImmGetContext(hwnd);
+        if !himc.0.is_null() {
+            log::info!("Associating IME context for HWND {:?}", hwnd);
+            let _ = ImmAssociateContext(hwnd, himc);
+            let _ = ImmReleaseContext(hwnd, himc);
+        } else {
+            log::warn!("Failed to get IME context for associate_ime_context(HWND {:?})", hwnd);
         }
     }
 }
@@ -155,9 +177,10 @@ pub fn sync_system_caret(
                 log::info!("OS Caret Position: {:?}", os_caret_pos);
 
                 // 1. Set the font size for the composition window
+                // A negative lfHeight is often preferred for specifying pixel height.
                 let mut lf = windows::Win32::Graphics::Gdi::LOGFONTW {
-                    lfHeight: metrics.char_height,
-                    lfWidth: metrics.base_width,
+                    lfHeight: -metrics.char_height,
+                    lfWidth: 0, // 0 for automatic aspect ratio
                     lfCharSet: windows::Win32::Graphics::Gdi::DEFAULT_CHARSET,
                     lfWeight: 400,
                     ..Default::default()

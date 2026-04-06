@@ -145,6 +145,9 @@ pub fn on_set_focus(hwnd: HWND) -> LRESULT {
         // Create RAII system caret handle with proper dimensions
         window_data.caret = Some(CaretHandle::new(hwnd, char_width, char_height));
 
+        // Ensure proper IME context association
+        crate::gui::driver::ime_gui_driver::associate_ime_context(hwnd);
+
         KeyboardGuiDriver::install(hwnd);
     }
 
