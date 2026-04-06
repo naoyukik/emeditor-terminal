@@ -123,6 +123,11 @@ impl TerminalGuiDriver {
         }
     }
 
+    pub fn reset_cursor_cache(&mut self) {
+        self.last_cursor_pixel_pos = None;
+        self.last_cursor_logical_pos = None;
+    }
+
     pub fn get_last_cursor_pixel_pos(&self, logical_pos: (usize, usize)) -> Option<(i32, i32)> {
         if self.last_cursor_logical_pos == Some(logical_pos) {
             self.last_cursor_pixel_pos

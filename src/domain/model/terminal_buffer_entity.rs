@@ -123,14 +123,8 @@ pub struct TerminalBufferEntity {
 
 impl TerminalBufferEntity {
     pub fn new(width: usize, height: usize) -> Self {
-        let mut lines = VecDeque::with_capacity(height);
-        let mut alt_lines = VecDeque::with_capacity(height);
-        for _ in 0..height {
-            lines.push_back(vec![Cell::default(); width]);
-            alt_lines.push_back(vec![Cell::default(); width]);
-        }
         Self {
-            lines,
+            lines: VecDeque::new(),
             width,
             height,
             cursor: Cursor::default(),
@@ -146,8 +140,24 @@ impl TerminalBufferEntity {
             pending_reply: String::new(),
             is_alternate_screen: false,
             normal_screen_cursor: (0, 0),
-            alt_lines,
+            alt_lines: VecDeque::new(),
             last_valid_cursor_pos: (0, 0),
+        }
+    }
+
+    fn ensure_row(&mut self, y: usize) {
+        if y >= self.height {
+            return;
+        }
+        let empty_cell = self.get_empty_cell();
+        if self.is_alternate_screen {
+            while self.alt_lines.len() <= y {
+                self.alt_lines.push_back(vec![empty_cell.clone(); self.width]);
+            }
+        } else {
+            while self.lines.len() <= y {
+                self.lines.push_back(vec![empty_cell.clone(); self.width]);
+            }
         }
     }
 
@@ -217,6 +227,7 @@ impl TerminalBufferEntity {
             self.scroll_up();
         } else if self.cursor.y < self.height - 1 {
             self.cursor.y += 1;
+            self.ensure_row(self.cursor.y);
         }
     }
 
@@ -436,7 +447,8 @@ impl TerminalBufferEntity {
         let x = self.cursor.x;
         let y = self.cursor.y;
 
-        if y >= self.lines.len() || x >= self.width {
+        self.ensure_row(y);
+        if y >= (if self.is_alternate_screen { self.alt_lines.len() } else { self.lines.len() }) || x >= self.width {
             return;
         }
 
@@ -613,15 +625,13 @@ impl TerminalBufferEntity {
             line.resize(new_width, Cell::default());
         }
 
-        if new_height > self.height {
-            for _ in 0..(new_height - self.height) {
-                self.lines.push_back(vec![Cell::default(); new_width]);
-                self.alt_lines.push_back(vec![Cell::default(); new_width]);
-            }
-        } else if new_height < self.height {
+        if new_height < self.lines.len() {
             self.lines.truncate(new_height);
+        }
+        if new_height < self.alt_lines.len() {
             self.alt_lines.truncate(new_height);
         }
+
         self.width = new_width;
         self.height = new_height;
         self.scroll_top = 0;

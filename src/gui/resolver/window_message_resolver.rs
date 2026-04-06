@@ -289,6 +289,7 @@ pub fn on_size(hwnd: HWND, lparam: LPARAM) -> LRESULT {
 
         log::info!("Resizing ConptyIoDriver to cols={}, rows={}", cols, rows);
         window_data.service.resize(cols as usize, rows as usize);
+        window_data.renderer.reset_cursor_cache();
     }
 
     update_window_scroll_info(hwnd);
