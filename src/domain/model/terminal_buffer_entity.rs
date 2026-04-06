@@ -503,7 +503,6 @@ impl TerminalBufferEntity {
     pub fn get_visual_row(&self, abs_y: usize) -> Option<usize> {
         let visual_y = if self.is_alternate_screen {
             // 代替スクリーンの場合、0-indexed の絶対座標がそのまま画面座標になる。
-            // 画面高さを超える場合は無効。
             if abs_y < self.height {
                 abs_y as i32
             } else {
@@ -511,8 +510,15 @@ impl TerminalBufferEntity {
             }
         } else {
             // 通常スクリーンの場合、下詰め（バッファの最後が画面の下端にくる）レンダリングを行う。
-            // visual_y = abs_y - lines_len + height + viewport_offset
-            (abs_y as i32) - (self.lines.len() as i32) + (self.height as i32) + (self.viewport_offset as i32)
+            // レンダラーのロジックと一致させる: 
+            // 画面の下端から数えた行数 (dist_from_bottom) を計算し、それを y 座標に変換する。
+            let lines_len = self.lines.len();
+            if abs_y < lines_len {
+                let dist_from_bottom = (lines_len - 1 - abs_y) as i32 + (self.viewport_offset as i32);
+                (self.height as i32 - 1) - dist_from_bottom
+            } else {
+                return None;
+            }
         };
 
         if visual_y >= 0 && visual_y < (self.height as i32) {

@@ -7,7 +7,7 @@ use windows::Win32::UI::Input::Ime::{
     GCS_COMPSTR, GCS_RESULTSTR,
 };
 use windows::Win32::UI::Input::KeyboardAndMouse::GetFocus;
-use windows::Win32::UI::WindowsAndMessaging::{CreateCaret, DestroyCaret, SetCaretPos, ShowCaret};
+use windows::Win32::UI::WindowsAndMessaging::{CreateCaret, DestroyCaret, SetCaretPos};
 
 use crate::domain::model::terminal_buffer_entity::TerminalBufferEntity;
 use crate::gui::driver::terminal_gui_driver::TerminalGuiDriver;
@@ -36,9 +36,8 @@ impl CaretHandle {
         let created = unsafe {
             // Create a caret matching character dimensions
             if CreateCaret(hwnd, None, width, height).is_ok() {
-                // Showing the caret can help some IMEs realize there's an active input focus.
-                // It will be drawn by the system over our custom-rendered cursor.
-                let _ = ShowCaret(hwnd);
+                // We DON'T call ShowCaret here to avoid interfering with our custom cursor.
+                // The system caret is only used as a reference point for IME positioning.
                 true
             } else {
                 false
@@ -147,10 +146,9 @@ pub fn sync_system_caret(
         .get_last_cursor_pixel_pos(cursor_pos)
         .or_else(|| {
             let metrics = renderer.get_metrics()?;
-            Some((
-                visual_x as i32 * metrics.base_width,
-                relative_y as i32 * metrics.char_height,
-            ))
+            let py = relative_y as i32 * metrics.char_height;
+            let px = visual_x as i32 * metrics.base_width;
+            Some((px, py))
         });
 
     if let Some((mut pixel_x, mut pixel_y)) = pixel_pos {
