@@ -330,7 +330,8 @@ pub fn on_ime_start_composition(hwnd: HWND) -> LRESULT {
         // anchor_pos comes from get_last_valid_cursor_pos(), which is only set when the cursor
         // is visible. So we can always treat it as visible here, even if the TUI app has
         // temporarily hidden the cursor between paint frames.
-        // Sync IME position at the very beginning of composition
+        // Sync IME position at the very beginning of composition to prime the position.
+        // We use CFS_FORCE_POSITION in sync_system_caret to ensure this is applied.
         let buffer = window_data.service.get_buffer();
         sync_system_caret(
             hwnd,

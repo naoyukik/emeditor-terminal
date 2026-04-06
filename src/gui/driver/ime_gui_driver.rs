@@ -209,9 +209,9 @@ pub fn sync_system_caret(
                 let res_font = windows::Win32::UI::Input::Ime::ImmSetCompositionFontW(himc, &lf);
 
                 // 2. Set the composition window position
-                // Use CFS_POINT with Client coordinates for maximum compatibility.
+                // Use CFS_POINT | CFS_FORCE_POSITION for maximum compatibility and to force position.
                 let comp_form = COMPOSITIONFORM {
-                    dwStyle: windows::Win32::UI::Input::Ime::CFS_POINT,
+                    dwStyle: windows::Win32::UI::Input::Ime::CFS_POINT | windows::Win32::UI::Input::Ime::CFS_FORCE_POSITION,
                     ptCurrentPos: pt_client,
                     rcArea: RECT::default(),
                 };
