@@ -490,6 +490,10 @@ impl TerminalBufferEntity {
         self.height
     }
 
+    pub fn get_buffer_line_count(&self) -> usize {
+        self.lines.len()
+    }
+
     pub fn get_history_len(&self) -> usize {
         self.history.len()
     }

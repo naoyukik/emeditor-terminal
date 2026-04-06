@@ -113,6 +113,8 @@ pub fn on_paint(hwnd: HWND) -> LRESULT {
             sync_pos,
             is_visible,
             service.get_buffer().get_viewport_offset(),
+            service.get_buffer().get_buffer_line_count(),
+            service.get_buffer().get_height(),
             renderer,
             caret.as_ref(),
             service.get_font_face(),
@@ -332,11 +334,14 @@ pub fn on_ime_start_composition(hwnd: HWND) -> LRESULT {
         // is visible. So we can always treat it as visible here, even if the TUI app has
         // temporarily hidden the cursor between paint frames.
         // Sync IME position at the very beginning of composition
+        let buffer = window_data.service.get_buffer();
         sync_system_caret(
             hwnd,
             anchor_pos,
             true,
             viewport_offset,
+            buffer.get_buffer_line_count(),
+            buffer.get_height(),
             &window_data.renderer,
             window_data.caret.as_ref(),
             &font_face,
@@ -351,6 +356,10 @@ pub fn on_ime_composition(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM) 
     let result = {
         let data_arc = get_terminal_data();
         let mut window_data = data_arc.lock().unwrap();
+        let buffer = window_data.service.get_buffer();
+        let buffer_line_count = buffer.get_buffer_line_count();
+        let buffer_height = buffer.get_height();
+
         let TerminalWindowResolver {
             ref mut service,
             ref renderer,
@@ -367,6 +376,8 @@ pub fn on_ime_composition(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM) 
             lparam,
             sync_pos,
             service.get_buffer().get_viewport_offset(),
+            buffer_line_count,
+            buffer_height,
             renderer,
             caret.as_ref(),
             service.get_font_face(),
@@ -463,12 +474,15 @@ pub fn on_app_repaint(hwnd: HWND) -> LRESULT {
 
         // During IME composition, always treat cursor as visible (same rationale as on_paint).
         let is_visible = ime_anchor.is_some() || service.get_buffer().is_cursor_visible();
+        let buffer = service.get_buffer();
 
         sync_system_caret(
             hwnd,
             sync_pos,
             is_visible,
-            service.get_buffer().get_viewport_offset(),
+            buffer.get_viewport_offset(),
+            buffer.get_buffer_line_count(),
+            buffer.get_height(),
             renderer,
             caret.as_ref(),
             service.get_font_face(),

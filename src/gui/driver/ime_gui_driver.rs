@@ -112,6 +112,8 @@ pub fn sync_system_caret(
     cursor_pos: (usize, usize),
     is_visible: bool,
     viewport_offset: usize,
+    buffer_line_count: usize,
+    buffer_height: usize,
     renderer: &TerminalGuiDriver,
     caret: Option<&CaretHandle>,
     font_face: &str,
@@ -131,7 +133,14 @@ pub fn sync_system_caret(
     }
 
     // Convert absolute cursor Y to screen-relative Y (used as fallback)
-    let relative_y = cursor_pos.1.saturating_sub(viewport_offset);
+    // visual_row = abs_y - buf_len + view_h + v_off
+    let visual_y = (cursor_pos.1 as i32) - (buffer_line_count as i32) + (buffer_height as i32) + (viewport_offset as i32);
+    let relative_y = if visual_y >= 0 && visual_y < (buffer_height as i32) {
+        visual_y as usize
+    } else {
+        // If out of bounds, use simple sub as fallback but it might be off
+        cursor_pos.1.saturating_sub(viewport_offset)
+    };
 
     // Prefer renderer's measured pixel position (accurate for variable-width chars)
     // ONLY if the logical position matches what was rendered.
@@ -261,6 +270,8 @@ pub fn handle_composition(
     lparam: LPARAM,
     cursor_pos: (usize, usize),
     viewport_offset: usize,
+    buffer_line_count: usize,
+    buffer_height: usize,
     renderer: &TerminalGuiDriver,
     caret: Option<&CaretHandle>,
     font_face: &str,
@@ -292,7 +303,17 @@ pub fn handle_composition(
 
     if (lparam.0 as u32 & GCS_COMPSTR.0) != 0 {
         // When composing, we always treat the cursor as visible to ensure synchronization.
-        sync_system_caret(hwnd, cursor_pos, true, viewport_offset, renderer, caret, font_face);
+        sync_system_caret(
+            hwnd,
+            cursor_pos,
+            true,
+            viewport_offset,
+            buffer_line_count,
+            buffer_height,
+            renderer,
+            caret,
+            font_face,
+        );
 
         unsafe {
             let himc = ImmGetContext(hwnd);
