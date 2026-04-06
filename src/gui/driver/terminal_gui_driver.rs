@@ -104,6 +104,7 @@ pub struct TerminalGuiDriver {
     fonts: HashMap<u32, SendHFONT>,
     pub(crate) metrics: Option<TerminalMetrics>,
     last_cursor_pixel_pos: Option<(i32, i32)>,
+    last_cursor_logical_pos: Option<(usize, usize)>,
 }
 
 impl Default for TerminalGuiDriver {
@@ -118,11 +119,16 @@ impl TerminalGuiDriver {
             fonts: HashMap::new(),
             metrics: None,
             last_cursor_pixel_pos: None,
+            last_cursor_logical_pos: None,
         }
     }
 
-    pub fn get_last_cursor_pixel_pos(&self) -> Option<(i32, i32)> {
-        self.last_cursor_pixel_pos
+    pub fn get_last_cursor_pixel_pos(&self, logical_pos: (usize, usize)) -> Option<(i32, i32)> {
+        if self.last_cursor_logical_pos == Some(logical_pos) {
+            self.last_cursor_pixel_pos
+        } else {
+            None
+        }
     }
 
     fn rgb_to_colorref(rgb: &crate::domain::model::color_theme_value::RgbColor) -> COLORREF {
@@ -508,6 +514,7 @@ impl TerminalGuiDriver {
                     let safe_cursor_x = std::cmp::min(render_cursor_x, buffer.get_width().saturating_sub(1));
                     let cursor_pixel_x = cursor_pixel_x.unwrap_or_else(|| safe_cursor_x as i32 * base_width);
                     self.last_cursor_pixel_pos = Some((cursor_pixel_x, current_y));
+                    self.last_cursor_logical_pos = Some((render_cursor_x, render_cursor_y));
 
                     if let Some(comp) = composition {
                         let ctx = RenderContext {

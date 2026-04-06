@@ -133,15 +133,29 @@ pub fn sync_system_caret(
     // Convert absolute cursor Y to screen-relative Y (used as fallback)
     let relative_y = cursor_pos.1.saturating_sub(viewport_offset);
 
-    // Prefer renderer's measured pixel position (accurate for variable-width chars).
-    // Fall back to cell-based calculation when renderer hasn't painted yet.
+    // Prefer renderer's measured pixel position (accurate for variable-width chars)
+    // ONLY if the logical position matches what was rendered.
+    // Otherwise fall back to grid calculation to stay up-to-date with recent app movements.
     let pixel_pos = renderer
-        .get_last_cursor_pixel_pos()
+        .get_last_cursor_pixel_pos(cursor_pos)
         .or_else(|| renderer.cell_to_pixel(cursor_pos.0, relative_y));
 
-    if let Some((pixel_x, pixel_y)) = pixel_pos {
+    if let Some((mut pixel_x, mut pixel_y)) = pixel_pos {
         // Detailed logging for coordinate verification
-        log::info!("Syncing IME: client=({}, {}), cursor=({:?}), visible={}, font={}", pixel_x, pixel_y, cursor_pos, is_visible, font_face);
+        let mut client_rect = RECT::default();
+        unsafe {
+            let _ = windows::Win32::UI::WindowsAndMessaging::GetClientRect(hwnd, &mut client_rect);
+        }
+
+        log::info!(
+            "Syncing IME: client_pos=({}, {}), cursor=({:?}), v_offset={}, client_rect={:?}, visible={}, font={}",
+            pixel_x, pixel_y, cursor_pos, viewport_offset, client_rect, is_visible, font_face
+        );
+
+        // If client_rect has an offset, we MUST include it for IMM32/Caret to align with BitBlt.
+        // Although GetClientRect usually returns 0,0, this handles hosted scenarios.
+        pixel_x += client_rect.left;
+        pixel_y += client_rect.top;
 
         // 1. Update system caret position (Always uses client coordinates)
         if let Some(c) = caret {
@@ -153,22 +167,11 @@ pub fn sync_system_caret(
             let himc = ImmGetContext(hwnd);
             if !himc.0.is_null() {
                 let metrics = renderer.get_metrics().cloned().unwrap_or(crate::gui::driver::terminal_gui_driver::TerminalMetrics { char_height: 16, base_width: 8 });
-                log::info!("Metrics: height={}, width={}", metrics.char_height, metrics.base_width);
 
                 // Use CLIENT coordinates for IMM32.
-                // Using CFS_RECT to allow candidate window positioning relative to the composition area.
                 let pt_client = POINT {
                     x: pixel_x,
                     y: pixel_y,
-                };
-
-                // Use a rectangle representing the current character cell for IME positioning.
-                // This helps the Candidate Window to appear below the character.
-                let rc_area = RECT {
-                    left: pt_client.x,
-                    top: pt_client.y,
-                    right: pt_client.x + metrics.base_width,
-                    bottom: pt_client.y + metrics.char_height,
                 };
 
                 // Log actual OS caret position to verify SetCaretPos success
@@ -195,11 +198,11 @@ pub fn sync_system_caret(
                 let res_font = windows::Win32::UI::Input::Ime::ImmSetCompositionFontW(himc, &lf);
 
                 // 2. Set the composition window position
-                // Use CFS_RECT with Client coordinates for better candidate placement.
+                // Use CFS_POINT with Client coordinates for maximum compatibility.
                 let comp_form = COMPOSITIONFORM {
-                    dwStyle: windows::Win32::UI::Input::Ime::CFS_RECT,
+                    dwStyle: windows::Win32::UI::Input::Ime::CFS_POINT,
                     ptCurrentPos: pt_client,
-                    rcArea: rc_area,
+                    rcArea: RECT::default(),
                 };
                 let res_comp = ImmSetCompositionWindow(himc, &comp_form);
 
@@ -225,6 +228,8 @@ pub fn sync_system_caret(
                 log::warn!("ImmGetContext returned NULL himc for HWND {:?}", hwnd);
             }
         }
+    } else {
+        log::warn!("Could not determine pixel position for cursor {:?} (relative_y={})", cursor_pos, relative_y);
     }
 }
 
