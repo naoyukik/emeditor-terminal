@@ -140,10 +140,10 @@ pub fn sync_system_caret(
     });
 
     // Prefer renderer's measured pixel position (accurate for variable-width chars)
-    // ONLY if the logical position matches what was rendered.
-    // Otherwise fall back to grid calculation to stay up-to-date with recent app movements.
+    // We rely purely on the last *visible* pixel drawn by the renderer to filter out
+    // "parked" cursor movements that TUI apps often perform invisibly.
     let pixel_pos = renderer
-        .get_last_cursor_pixel_pos(cursor_pos)
+        .get_last_cursor_pixel_pos()
         .or_else(|| {
             let metrics = renderer.get_metrics()?;
             let py = relative_y as i32 * metrics.char_height;
