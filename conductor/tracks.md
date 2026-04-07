@@ -9,7 +9,7 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 ---
 
-- [ ] **Track: システムキャレットの常時同期による IME 候補ウィンドウ表示位置の解決 (Issue #132)**
+- [~] **Track: システムキャレットの常時同期による IME 候補ウィンドウ表示位置の解決 (Issue #132)**
 *Link: [./tracks/132_system_caret_sync_20260403/](./tracks/132_system_caret_sync_20260403/)*
 
 

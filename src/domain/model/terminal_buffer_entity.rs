@@ -150,14 +150,8 @@ impl TerminalBufferEntity {
             return;
         }
         let empty_cell = self.get_empty_cell();
-        if self.is_alternate_screen {
-            while self.alt_lines.len() <= y {
-                self.alt_lines.push_back(vec![empty_cell.clone(); self.width]);
-            }
-        } else {
-            while self.lines.len() <= y {
-                self.lines.push_back(vec![empty_cell.clone(); self.width]);
-            }
+        while self.lines.len() <= y {
+            self.lines.push_back(vec![empty_cell.clone(); self.width]);
         }
     }
 
@@ -448,7 +442,7 @@ impl TerminalBufferEntity {
         let y = self.cursor.y;
 
         self.ensure_row(y);
-        if y >= (if self.is_alternate_screen { self.alt_lines.len() } else { self.lines.len() }) || x >= self.width {
+        if y >= self.lines.len() || x >= self.width {
             return;
         }
 
@@ -479,17 +473,21 @@ impl TerminalBufferEntity {
     }
 
     pub fn get_line_at_visual_row(&self, visual_row: usize) -> Option<&Vec<Cell>> {
-        let dist_from_bottom = (self.height - 1 - visual_row) + self.viewport_offset;
-        if dist_from_bottom < self.lines.len() {
-            let idx = self.lines.len() - 1 - dist_from_bottom;
-            self.lines.get(idx)
+        if self.is_alternate_screen {
+            self.alt_lines.get(visual_row)
         } else {
-            let dist_in_history = dist_from_bottom - self.lines.len();
-            if dist_in_history < self.history.len() {
-                let idx = self.history.len() - 1 - dist_in_history;
-                self.history.get(idx)
+            let dist_from_bottom = (self.height - 1 - visual_row) + self.viewport_offset;
+            if dist_from_bottom < self.lines.len() {
+                let idx = self.lines.len() - 1 - dist_from_bottom;
+                self.lines.get(idx)
             } else {
-                None
+                let dist_in_history = dist_from_bottom - self.lines.len();
+                if dist_in_history < self.history.len() {
+                    let idx = self.history.len() - 1 - dist_in_history;
+                    self.history.get(idx)
+                } else {
+                    None
+                }
             }
         }
     }
@@ -521,9 +519,6 @@ impl TerminalBufferEntity {
                 return None;
             }
         } else {
-            // 通常スクリーンの場合、下詰め（バッファの最後が画面の下端にくる）レンダリングを行う。
-            // レンダラーのロジックと一致させる: 
-            // 画面の下端から数えた行数 (dist_from_bottom) を計算し、それを y 座標に変換する。
             let lines_len = self.lines.len();
             if abs_y < lines_len {
                 let dist_from_bottom = (lines_len - 1 - abs_y) as i32 + (self.viewport_offset as i32);
@@ -543,12 +538,8 @@ impl TerminalBufferEntity {
     /// 指定された絶対座標 (abs_x, abs_y) における画面上の表示セル位置 (visual_column) を算出する。
     /// 全角文字などによる表示幅の差異を考慮する。
     pub fn get_visual_column(&self, abs_x: usize, abs_y: usize) -> usize {
-        // 対象の行を取得
-        let line = if self.is_alternate_screen {
-            self.alt_lines.get(abs_y)
-        } else {
-            self.lines.get(abs_y)
-        };
+        // self.lines は常に現在アクティブなバッファ（表または裏）を指す
+        let line = self.lines.get(abs_y);
 
         let Some(line) = line else {
             return abs_x; // 行が見つからない場合はフォールバック
@@ -912,7 +903,10 @@ impl Perform for TerminalBufferEntity {
             }
             'n' => {
                 if self.get_param(params, 0, 0) == 6 {
-                    let reply = format!("\x1b[{};{}R", self.cursor.y + 1, self.cursor.x + 1);
+                    // DSR 6n MUST report the VISUAL cursor position (screen relative 1-based),
+                    // NOT the absolute buffer position.
+                    let visual_y = self.get_visual_row(self.cursor.y).unwrap_or(0);
+                    let reply = format!("\x1b[{};{}R", visual_y + 1, self.cursor.x + 1);
                     self.pending_reply.push_str(&reply);
                 }
             }
