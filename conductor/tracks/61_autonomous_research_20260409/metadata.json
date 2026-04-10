@@ -1,0 +1,8 @@
+{
+  "track_id": "61_autonomous_research_20260409",
+  "type": "chore",
+  "status": "new",
+  "created_at": "2026-04-09T00:00:00Z",
+  "updated_at": "2026-04-09T00:00:00Z",
+  "description": "GitHub Issue 61をautonomous-researcherスキルを使用し徹底的に調査してください。実装は行わず、調査が目標となるタスクです。"
+}
