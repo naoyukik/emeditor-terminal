@@ -1,14 +1,63 @@
-# Evidence Report Template
+# Evidence Report Template (Pre-Implementation)
 
-このファイルは、`autonomous-researcher` スキルを使用する際に、実装提案の冒頭に記述すべきレポートのテンプレートである。
+`autonomous-researcher` の Phase 1-4 を完了した後に提出する実装前レポートのテンプレートである。
 
-## 調査レポート (Evidence Report)
+## 1. Discovery Summary (Phase 1)
 
-- **[Source URL]**: (参照した公式ドキュメント、GitHub Issue、RFC等のURL)
-- **[Context]**: (何を知るために調査したか。例: Win32 API `CreatePseudoConsole` のエラーコード `0x80070057` の原因調査)
-- **[Key Findings]**: 
-  - (調査で得られた主要な事実)
-  - (技術的な制約や落とし穴)
-- **[Constraint Alignment]**:
-  - (プロジェクト規約 `conductor/code_styleguides/` との整合性)
-  - (採用する設計判断の根拠)
+- **[Problem Statement]**:
+- **[Scope]**:
+- **[Non-Goals]**:
+- **[Constraints]**:
+- **[Success Criteria]**:
+
+## 2. Codebase Findings (Phase 2)
+
+- **[Similar Implementations]**:
+  - `[path/to/file.ext:line]`:
+- **[Architecture and Dependency Notes]**:
+- **[Reusable Components]**:
+- **[Estimated Impact Area]**:
+
+## 3. Clarifying Questions (Phase 3)
+
+- **[Open Questions]**:
+  1. ...
+- **[User Answers / Delegations]**:
+  1. ...
+- **[Unresolved Items]**:
+
+## 4. Architecture Options (Phase 4)
+
+### Option A: Minimal Changes
+- **[Change Targets]**:
+- **[Pros]**:
+- **[Cons/Risks]**:
+- **[Validation Plan]**:
+
+### Option B: Clean Architecture
+- **[Change Targets]**:
+- **[Pros]**:
+- **[Cons/Risks]**:
+- **[Validation Plan]**:
+
+### Option C: Pragmatic Balance
+- **[Change Targets]**:
+- **[Pros]**:
+- **[Cons/Risks]**:
+- **[Validation Plan]**:
+
+- **[Recommended Option]**:
+- **[Reason]**:
+
+## 5. Evidence and Alignment
+
+- **[Source URLs]**:
+  - URL:
+  - URL:
+- **[Research Date]**: YYYY-MM-DD
+- **[Key Findings]**:
+  - ...
+- **[Local Constraint Alignment]**:
+  - `conductor/code_styleguides/` との整合:
+- **[Potential Regressions]**:
+- **[Residual Risks / Unknowns]**:
