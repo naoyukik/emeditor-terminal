@@ -26,7 +26,11 @@
   1. ...
 - **[Unresolved Items]**:
 
-## 4. Architecture Options (Phase 4)
+## 4. 将来の修正で期待される挙動 (Expected Behavior)
+本調査結果に基づき、将来的な修正（実装トラック）において実現すべき挙動を定義する。
+（例：正常系のフォーカス制御、異常系のクリーンアップ手順など）
+
+## 5. Architecture Options (Phase 4)
 
 ### Option A: Minimal Changes
 - **[Change Targets]**:
@@ -49,7 +53,12 @@
 - **[Recommended Option]**:
 - **[Reason]**:
 
-## 5. Evidence and Alignment
+## 6. 推奨される実装方針 (Implementation Strategy)
+- **[Architecture Alignment]**: 規約に沿ったコンポーネントの配置案
+- **[Logic Changes]**: 核心ロジックの変更点
+- **[Validation Plan]**: 修正後の検証手法
+
+## 7. Evidence and Alignment
 
 - **[Source URLs]**:
   - URL:
