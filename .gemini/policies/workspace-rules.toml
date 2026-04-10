@@ -1,12 +1,12 @@
 # Workspace level policies for emeditor-terminal
 
-# 1. Base rule to ask user for most tools (matches existing behavior)
+# Base rule to ask user for most tools (matches existing behavior)
 [[rule]]
 toolName = "*"
 decision = "ask_user"
 priority = 10
 
-# 2. Automatically allow read-only tools from JetBrains MCP
+# Automatically allow read-only tools from JetBrains MCP
 [[rule]]
 mcpName = "jetbrains"
 toolName = [
@@ -34,7 +34,7 @@ toolName = [
 decision = "allow"
 priority = 50
 
-# 2. Automatically allow read-only tools from Learn Microsoft MCP
+# Automatically allow read-only tools from Learn Microsoft MCP
 [[rule]]
 mcpName = "learn-microsoft"
 toolName = [
@@ -43,40 +43,40 @@ toolName = [
 decision = "allow"
 priority = 50
 
-# 2.1 Automatically allow built-in read-only tools
+# Automatically allow built-in read-only tools
 [[rule]]
 toolName = ["read_file", "list_directory", "glob", "grep_search"]
 decision = "allow"
 priority = 50
 
-# 3. Automatically allow standard skill activation
+# Automatically allow standard skill activation
 [[rule]]
 toolName = "activate_skill"
 decision = "allow"
 priority = 50
 
-# 4. Automatically allow safe git commands
+# Automatically allow safe git commands
 [[rule]]
 toolName = "run_shell_command"
 commandPrefix = ["git status", "git diff", "git log", "git rev-parse", "git config --get", "git branch --show-current"]
 decision = "allow"
 priority = 100
 
-# 5. Automatically allow safe build/check commands
+# Automatically allow safe build/check commands
 [[rule]]
 toolName = "run_shell_command"
 commandPrefix = ["cargo check", "cargo clippy", "cargo fmt", "cargo test", "cargo build"]
 decision = "allow"
 priority = 100
 
-# 6. Automatically allow common utility commands
+# Automatically allow common utility commands
 [[rule]]
 toolName = "run_shell_command"
 commandPrefix = ["ls ", "dir ", "cat ", "tail ", "mkdir ", "Test-Path", "Get-Content", "Get-Item"]
 decision = "allow"
 priority = 100
 
-# 7. Automatically allow standard GitHub read operations
+# Automatically allow standard GitHub read operations
 [[rule]]
 mcpName = "github"
 toolName = [
@@ -92,20 +92,26 @@ toolName = [
 decision = "allow"
 priority = 100
 
-# 4. Automatically allow safe git commands
+# Automatically allow safe git commands
 [[rule]]
 toolName = "run_shell_command"
 commandPrefix = ["gh issue view", "gh pr view", "gh repo view"]
 decision = "allow"
 priority = 100
 
-# 8. Automatically allow memory operations
+# Automatically allow memory operations
 [[rule]]
 mcpName = "memory"
 decision = "allow"
 priority = 100
 
-# 9. Explicitly deny forbidden patterns (Legacy exclude behavior)
+# Automatically allow memory operations
+[[rule]]
+mcpName = "mempalace"
+decision = "allow"
+priority = 100
+
+# Explicitly deny forbidden patterns (Legacy exclude behavior)
 [[rule]]
 toolName = "run_shell_command"
 commandRegex = "git add (\\.|-A)"
