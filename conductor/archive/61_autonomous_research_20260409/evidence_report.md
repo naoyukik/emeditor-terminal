@@ -25,7 +25,7 @@
 
 ### 3.2 アーキテクチャ規約との整合性
 - **現状**: `gui/window/mod.rs` が状態管理（`window_handle`）と Win32 操作を混在させている。
-- **理想**: ウィンドウの生存確認やハンドルの有効性チェックは `Driver` 層（`ImeGuiDriver` や `KeyboardGuiDriver` と同様の `WindowGuiDriver` 等）に抽出し、`Resolver` はその安全な抽象化のみを扱うべきである。
+- **理想**: ウィンドウの生存確認、フォーカス制御、破棄操作は `Driver` 層（`ImeGuiDriver` や `KeyboardGuiDriver` と同様の `WindowGuiDriver` 等）に抽出し、`Resolver` や `gui/window/mod.rs` はその安全な抽象化のみを扱うべきである。
 
 ## 4. 将来の修正で期待される挙動 (Expected Behavior)
 本調査結果に基づき、将来的な修正において実現すべき挙動を以下に定義する。
@@ -35,10 +35,23 @@
 - **堅牢なクリーンアップと再試行**:
     ConPTY の起動やウィンドウ作成の過程でエラーが発生した場合は、作成途中のリソース（HWND 等）を完全に破棄し、グローバルな状態管理（`window_handle`）を `None` にリセットする。これにより、無効なハンドルを参照してクラッシュすることを防ぎ、ユーザーによる再起動操作を正常に受け付けられるようにする。
 
-## 5. 修正に向けた推奨事項 (Recommendations)
-- **安全性強化**: `SetFocus` 前に `IsWindow` 関数によるハンドルの生存確認を必須とする。
-- **トランザクション的初期化**: `start_conpty_and_reader_thread` が失敗した場合は、直ちに `DestroyWindow` を呼び出し、`window_handle` を `None` にリセットするガードロジックを実装する。
-- **ウィンドウ識別子の導入**: `window_handle` を管理する際に、親ウィンドウ（`hwnd_editor`）の ID と紐付け、別ウィンドウからの誤参照を防ぐ。
+## 5. 推奨される修正詳細 (Implementation Recommendations)
+
+### 5.1 `WindowGuiDriver` の導入
+`src/gui/driver/window_gui_driver.rs` を新設し、以下の機能をカプセル化する：
+- `focus_existing_window(hwnd: HWND) -> bool`: `IsWindow` で生存を確認した上で `SetFocus` を実行。
+- `destroy_window(hwnd: HWND)`: 安全にウィンドウを破棄し、必要に応じて状態をリセット。
+- `register_class(h_instance: HINSTANCE)`: ウィンドウクラス登録ロジックの分離。
+
+### 5.2 トランザクション的初期化の実現
+`open_custom_bar` のロジックを以下のようにリファクタリングする：
+1. `WindowGuiDriver` を介して既存ウィンドウを確認。有効ならフォーカスして終了。
+2. 無効なハンドルが残っている場合は、`WindowGuiDriver` でクリア。
+3. `CreateWindowExW` 実行。
+4. `start_conpty_and_reader_thread` 実行。**失敗した場合は、エラーを返す前に `WindowGuiDriver::destroy_window` を確実に呼び出し、`window_handle` を `None` に戻す。**
+
+### 5.3 マルチウィンドウ対応の検討 (Future Scope)
+`TERMINAL_DATA` (Global State) を `HashMap<WindowId, Arc<Mutex<TerminalWindowResolver>>>` のように拡張し、EmEditor の親ウィンドウ ID ごとに独立した状態を保持させることで、マルチウィンドウ環境下での競合を根絶する。
 
 ## 6. 証拠 (Evidence)
 - `src/gui/window/mod.rs` L160-167: ロック取得後の早期リターンにおけるハンドル検証の欠如。
