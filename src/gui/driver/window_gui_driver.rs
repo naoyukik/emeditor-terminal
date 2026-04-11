@@ -9,7 +9,7 @@ impl WindowGuiDriver {
     /// 既存のウィンドウが存在し有効な場合、フォーカスを当てる。
     ///
     /// # Returns
-    /// ウィンドウが存在し、正常にフォーカスできた場合は `true` を返す。
+    /// ウィンドウが存在し、フォーカスを試行した場合は `true` を返す。
     pub(crate) fn focus_existing_window(hwnd: HWND) -> bool {
         // SAFETY: HWND が有効であることを IsWindow で確認してから操作を行う。
         unsafe {
