@@ -5,9 +5,9 @@ This file tracks all major tracks for the project. Each track has its own detail
 ---
 
 - [~] **Track: feat: カラーテーマ設定の外部化と永続化 (Issue #76)**
-*Link: [./tracks/76_color_theme_externalization/](./tracks/76_color_theme_externalization/)*
+  *Link: [./tracks/76_color_theme_externalization/](./tracks/76_color_theme_externalization/)*
 
 ---
 
-- [ ] **Track: PR 139 に対する Copilot レビューコメントの修正対応**
-*Link: [./tracks/139_pr_review_fixes/](./tracks/139_pr_review_fixes/)*
+- [~] **Track: PR 139 に対する Copilot レビューコメントの修正対応**
+  *Link: [./tracks/139_pr_review_fixes/](./tracks/139_pr_review_fixes/)*
