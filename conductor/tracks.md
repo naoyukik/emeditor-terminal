@@ -9,5 +9,5 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 ---
 
-- [~] **Track: PR 139 に対する Copilot レビューコメントの修正対応**
+- [x] **Track: PR 139 に対する Copilot レビューコメントの修正対応**
   *Link: [./tracks/139_pr_review_fixes/](./tracks/139_pr_review_fixes/)*
