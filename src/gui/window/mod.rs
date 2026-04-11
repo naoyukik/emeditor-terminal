@@ -14,6 +14,7 @@ use windows::Win32::UI::WindowsAndMessaging::{
 
 use crate::domain::model::window_id_value::WindowId;
 use crate::gui::common::SendHWND;
+use crate::gui::driver::window_gui_driver::WindowGuiDriver;
 use crate::gui::resolver::terminal_window_resolver::get_terminal_data;
 use crate::infra::driver::conpty_io_driver::{ConptyIoDriver, SendHandle};
 use crate::infra::driver::emeditor_io_driver::{
@@ -24,7 +25,7 @@ use std::mem::size_of;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread;
 use windows::Win32::Storage::FileSystem::ReadFile;
-use windows::Win32::UI::Input::KeyboardAndMouse::{SetFocus, VK_ESCAPE, VK_F4, VK_SPACE, VK_TAB};
+use windows::Win32::UI::Input::KeyboardAndMouse::{VK_ESCAPE, VK_F4, VK_SPACE, VK_TAB};
 
 use crate::gui::resolver::window_message_resolver as handlers;
 
@@ -160,10 +161,16 @@ pub fn open_custom_bar(hwnd_editor: HWND) -> bool {
         // Check if already open
         let data_arc = get_terminal_data();
         {
-            let window_data = data_arc.lock().unwrap();
+            let mut window_data = data_arc.lock().unwrap();
             if let Some(h) = window_data.window_handle {
-                let _ = SetFocus(h.0);
-                return false;
+                if WindowGuiDriver::focus_existing_window(h.0) {
+                    return false; // Already open and focused
+                } else {
+                    // Invalid handle, clear it and proceed to recreate
+                    log::warn!("Invalid window handle detected. Cleaning up.");
+                    WindowGuiDriver::destroy_window(h.0);
+                    window_data.window_handle = None;
+                }
             }
         }
 
@@ -216,8 +223,8 @@ pub fn open_custom_bar(hwnd_editor: HWND) -> bool {
                     // Double check if another window was created concurrently (unlikely in UI thread but safe)
                     if let Some(h) = window_data.window_handle {
                         // Another window exists, destroy this one and focus the existing one
-                        let _ = windows::Win32::UI::WindowsAndMessaging::DestroyWindow(hwnd_client);
-                        let _ = SetFocus(h.0);
+                        WindowGuiDriver::destroy_window(hwnd_client);
+                        WindowGuiDriver::focus_existing_window(h.0);
                         return false;
                     }
                     window_data.window_handle = Some(SendHWND(hwnd_client));
@@ -263,7 +270,23 @@ pub fn open_custom_bar(hwnd_editor: HWND) -> bool {
                     (80, 25)
                 };
 
-                start_conpty_and_reader_thread(hwnd_client, hwnd_editor, initial_cols, initial_rows)
+                if start_conpty_and_reader_thread(
+                    hwnd_client,
+                    hwnd_editor,
+                    initial_cols,
+                    initial_rows,
+                ) {
+                    true
+                } else {
+                    log::error!("Failed to initialize terminal process. Destroying window.");
+                    WindowGuiDriver::destroy_window(hwnd_client);
+                    // Clear window_handle status
+                    {
+                        let mut window_data = data_arc.lock().unwrap();
+                        window_data.window_handle = None;
+                    }
+                    false
+                }
             }
             Err(e) => {
                 log::error!("Failed to create custom bar window: {}", e);

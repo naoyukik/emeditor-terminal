@@ -4,10 +4,11 @@ use crate::gui::driver::ime_gui_driver::{
 };
 use crate::gui::driver::keyboard_gui_driver::KeyboardGuiDriver;
 use crate::gui::driver::scroll_gui_driver::{update_window_scroll_info, ScrollAction};
+use crate::gui::driver::window_gui_driver::WindowGuiDriver;
 use crate::gui::resolver::terminal_window_resolver::{get_terminal_data, TerminalWindowResolver};
 use windows::Win32::Foundation::{BOOL, HWND, LPARAM, LRESULT, WPARAM};
 use windows::Win32::Graphics::Gdi::{BeginPaint, EndPaint, InvalidateRect, PAINTSTRUCT};
-use windows::Win32::UI::Input::KeyboardAndMouse::{SetFocus, VK_MENU};
+use windows::Win32::UI::Input::KeyboardAndMouse::VK_MENU;
 use windows::Win32::UI::WindowsAndMessaging::{DefWindowProcW, DLGC_WANTALLKEYS};
 
 const ISC_SHOWUICOMPOSITIONWINDOW: u32 = 0x80000000;
@@ -111,9 +112,7 @@ pub fn on_paint(hwnd: HWND) -> LRESULT {
 
 pub fn on_lbuttondown(hwnd: HWND) -> LRESULT {
     log::info!("WM_LBUTTONDOWN: Setting focus");
-    unsafe {
-        let _ = SetFocus(hwnd);
-    }
+    WindowGuiDriver::focus_existing_window(hwnd);
     LRESULT(0)
 }
 
