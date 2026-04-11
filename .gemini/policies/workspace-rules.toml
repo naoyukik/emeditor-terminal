@@ -19,7 +19,6 @@ toolName = [
     "get_project_dependencies",
     "get_project_modules",
     "get_repositories",
-    "get_run_configurations",
     "get_symbol_info",
     "list_directory_tree",
     "open_file_in_editor",
@@ -102,12 +101,14 @@ priority = 100
 # Automatically allow memory operations
 [[rule]]
 mcpName = "memory"
+toolName = ["*"]
 decision = "allow"
 priority = 100
 
 # Automatically allow memory operations
 [[rule]]
 mcpName = "mempalace"
+toolName = ["*"]
 decision = "allow"
 priority = 100
 
@@ -116,5 +117,5 @@ priority = 100
 toolName = "run_shell_command"
 commandRegex = "git add (\\.|-A)"
 decision = "deny"
-deny_message = "git add . または -A の使用はプロジェクト規約により厳禁されている。ファイルを個別に指定せよ。"
+denyMessage = "git add . または -A の使用はプロジェクト規約により厳禁されている。ファイルを個別に指定せよ。"
 priority = 999
