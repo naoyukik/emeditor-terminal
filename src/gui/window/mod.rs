@@ -160,17 +160,20 @@ pub fn open_custom_bar(hwnd_editor: HWND) -> bool {
 
         // Check if already open
         let data_arc = get_terminal_data();
-        {
-            let mut window_data = data_arc.lock().unwrap();
-            if let Some(h) = window_data.window_handle {
-                if WindowGuiDriver::focus_existing_window(h.0) {
-                    return false; // Already open and focused
-                } else {
-                    // Invalid handle, clear it and proceed to recreate
-                    log::warn!("Invalid window handle detected. Cleaning up.");
-                    WindowGuiDriver::destroy_window(h.0);
-                    window_data.window_handle = None;
-                }
+        let existing_hwnd = {
+            let window_data = data_arc.lock().unwrap();
+            window_data.window_handle.map(|h| h.0)
+        };
+
+        if let Some(hwnd) = existing_hwnd {
+            if WindowGuiDriver::focus_existing_window(hwnd) {
+                return false; // Already open and focused
+            } else {
+                // Invalid handle, clear it and proceed to recreate
+                log::warn!("Invalid window handle detected. Cleaning up.");
+                WindowGuiDriver::destroy_window(hwnd);
+                let mut window_data = data_arc.lock().unwrap();
+                window_data.window_handle = None;
             }
         }
 
@@ -218,16 +221,21 @@ pub fn open_custom_bar(hwnd_editor: HWND) -> bool {
                 }
 
                 // Store window handle immediately
-                {
+                let existing_hwnd = {
                     let mut window_data = data_arc.lock().unwrap();
-                    // Double check if another window was created concurrently (unlikely in UI thread but safe)
                     if let Some(h) = window_data.window_handle {
-                        // Another window exists, destroy this one and focus the existing one
-                        WindowGuiDriver::destroy_window(hwnd_client);
-                        WindowGuiDriver::focus_existing_window(h.0);
-                        return false;
+                        Some(h.0)
+                    } else {
+                        window_data.window_handle = Some(SendHWND(hwnd_client));
+                        None
                     }
-                    window_data.window_handle = Some(SendHWND(hwnd_client));
+                };
+
+                if let Some(h) = existing_hwnd {
+                    // Another window exists, destroy this one and focus the existing one
+                    WindowGuiDriver::destroy_window(hwnd_client);
+                    WindowGuiDriver::focus_existing_window(h);
+                    return false;
                 }
 
                 let mut info = CUSTOM_BAR_INFO {
