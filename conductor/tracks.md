@@ -9,5 +9,5 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 ---
 
-- [ ] **Track: Issue 61の実装（ターミナル二重起動時のクラッシュ修正）**
+- [x] **Track: Issue 61の実装（ターミナル二重起動時のクラッシュ修正）**
   *Link: [./tracks/61_crash_fix_20260411/](./tracks/61_crash_fix_20260411/)*
