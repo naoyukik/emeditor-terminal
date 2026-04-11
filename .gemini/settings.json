@@ -26,6 +26,13 @@
         "dlx",
         "@modelcontextprotocol/server-sequential-thinking"
       ]
+    },
+    "mempalace": {
+      "command": "$VENV_PYTHON_PATH",
+      "args": [
+        "-m",
+        "mempalace.mcp_server"
+      ]
     }
   },
   "model": {
@@ -120,6 +127,31 @@
             "type": "command",
             "command": "$PYTHON_COMMAND $GEMINI_PROJECT_DIR/.gemini/hooks/init_memory.py",
             "description": "汎用的なメモリロード・フック"
+          }
+        ]
+      }
+    ],
+    "AfterAgent": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "name": "mempal_save_hook",
+            "type": "command",
+            "command": "$PYTHON_COMMAND $GEMINI_PROJECT_DIR/.gemini/hooks/mempal_save_hook.py",
+            "description": "セッション終了時にMempalaceにメモリを保存する"
+          }
+        ]
+      }
+    ],
+    "PreCompress": [
+      {
+        "hooks": [
+          {
+            "name": "mempal_precompact_hook",
+            "type": "command",
+            "command": "$PYTHON_COMMAND $GEMINI_PROJECT_DIR/.gemini/hooks/mempal_precompact_hook.py",
+            "description": "セッション圧縮直前にMempalaceへメモリを保存する"
           }
         ]
       }
