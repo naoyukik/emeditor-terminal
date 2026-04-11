@@ -55,4 +55,4 @@
 
 ## 6. 証拠 (Evidence)
 - `src/gui/window/mod.rs` L160-167: ロック取得後の早期リターンにおけるハンドル検証の欠如。
-- `src/gui/window/mod.rs` L236: `start_conpty_and_reader_thread` 失敗時のクリーンアップ処理の欠落。
+- `src/gui/window/mod.rs` L266: `start_conpty_and_reader_thread` 失敗時のクリーンアップ処理の欠落。
