@@ -211,7 +211,10 @@ impl ConfigurationRepository for EmEditorConfigRepositoryImpl {
         results.push(self.set_string("ShellPath", &config.shell_path));
 
         if results.iter().any(|&r| r != 0) {
-            let err_msg = format!("One or more settings failed to save. Return codes: {:?}", results);
+            let err_msg = format!(
+                "One or more settings failed to save. Return codes: {:?}",
+                results
+            );
             log::error!("{}", err_msg);
             return Err(ConfigError::SaveFailed(err_msg));
         }

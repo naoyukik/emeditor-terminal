@@ -1,6 +1,6 @@
 use windows::core::PCWSTR;
 use windows::Win32::Foundation::{HWND, LPARAM, WPARAM};
-pub use windows::Win32::UI::WindowsAndMessaging::{MessageBoxW, MB_ICONERROR, MB_OK, SendMessageW};
+pub use windows::Win32::UI::WindowsAndMessaging::{MessageBoxW, SendMessageW, MB_ICONERROR, MB_OK};
 
 #[allow(dead_code)]
 const WM_USER: u32 = 0x0400;

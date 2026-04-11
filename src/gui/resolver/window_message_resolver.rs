@@ -355,7 +355,9 @@ pub fn on_ime_composition(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM) 
             let data_arc = get_terminal_data();
             let mut window_data = data_arc.lock().unwrap();
             window_data.composition =
-                Some(crate::gui::driver::terminal_gui_driver::CompositionInfo { text: text.clone() });
+                Some(crate::gui::driver::terminal_gui_driver::CompositionInfo {
+                    text: text.clone(),
+                });
             unsafe {
                 let _ = InvalidateRect(hwnd, None, BOOL(0));
             }

@@ -30,7 +30,12 @@ impl CaretHandle {
     /// Creates a new invisible system caret for the specified window with given dimensions.
     /// Matching the caret size to the actual font dimensions helps IME to position correctly.
     pub fn new(hwnd: HWND, width: i32, height: i32) -> Self {
-        log::info!("Creating system caret handle for HWND {:?} size {}x{}", hwnd, width, height);
+        log::info!(
+            "Creating system caret handle for HWND {:?} size {}x{}",
+            hwnd,
+            width,
+            height
+        );
         let thread_id = unsafe { windows::Win32::System::Threading::GetCurrentThreadId() };
         let created = unsafe {
             // Create a caret matching character dimensions
@@ -115,12 +120,17 @@ pub fn sync_system_caret(
         unsafe {
             let himc = ImmGetContext(hwnd);
             if !himc.0.is_null() {
-                let metrics = renderer.get_metrics().cloned().unwrap_or(crate::gui::driver::terminal_gui_driver::TerminalMetrics { char_height: 16, base_width: 8 });
+                let metrics = renderer.get_metrics().cloned().unwrap_or(
+                    crate::gui::driver::terminal_gui_driver::TerminalMetrics {
+                        char_height: 16,
+                        base_width: 8,
+                    },
+                );
                 let pt_current_pos = POINT {
                     x: pixel_x,
                     y: pixel_y,
                 };
-                
+
                 // The exclusion area is the rectangle we want the IME list to AVOID covering.
                 // For Japanese input, we should at least exclude 2 columns (full-width).
                 let rc_exclude = RECT {
