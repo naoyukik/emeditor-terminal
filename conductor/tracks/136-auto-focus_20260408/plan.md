@@ -27,21 +27,21 @@ Issue #136 は、Issue #61（ターミナル起動中の再実行クラッシュ
 ## Phase 1: フォーカス設定ロジックの実装
 調査結果に基づき、`open_custom_bar` 内で一貫したフォーカス制御を実現する。
 
-- [ ] Task: `src/gui/window/mod.rs` の `open_custom_bar` への `SetFocus` 呼び出し追加
-    - [ ] `start_conpty_and_reader_thread` 成功直後、`WindowGuiDriver::focus_existing_window(hwnd_client)` を実行して新規作成されたウィンドウにフォーカスを当てる。
-    - [ ] 既にウィンドウが存在する場合 (`existing_hwnd` が有効な場合)、既に `focus_existing_window` が呼ばれているため、その挙動が期待通りであることをログ等で確認する。
-- [ ] Task: `WindowGuiDriver` のフォーカス制御の堅牢化
-    - [ ] `src/gui/driver/window_gui_driver.rs` の `focus_existing_window` において、`SetFocus` の戻り値をログ出力するように修正。
-- [ ] Task: `cargo clippy` & `cargo fmt` の実行
-- [ ] Task: `git commit` (feat: 起動時の自動フォーカス設定を実装)
+- [x] Task: `src/gui/window/mod.rs` の `open_custom_bar` への `SetFocus` 呼び出し追加
+    - [x] `start_conpty_and_reader_thread` 成功直後、`WindowGuiDriver::focus_existing_window(hwnd_client)` を実行して新規作成されたウィンドウにフォーカスを当てる。
+    - [x] 既にウィンドウが存在する場合 (`existing_hwnd` が有効な場合)、既に `focus_existing_window` が呼ばれているため、その挙動が期待通りであることをログ等で確認する。
+- [x] Task: `WindowGuiDriver` のフォーカス制御の堅牢化
+    - [x] `src/gui/driver/window_gui_driver.rs` の `focus_existing_window` において、`SetFocus` の戻り値をログ出力するように修正。
+- [x] Task: `cargo clippy` & `cargo fmt` の実行
+- [x] Task: `git commit` (feat: 起動時の自動フォーカス設定を実装)
 - [ ] Task: Conductor - ユーザー手動検証 'Phase 1' (Protocol in workflow.md)
 
 ## Phase 2: 最終検証と堅牢化
 実機での詳細な動作確認と、副作用（他の UI 要素との競合）の排除。
 
-- [ ] Task: 影響調査と副作用の確認
-    - [ ] 起動時に他の UI 要素（メニューやダイアログ）と競合しないか、実機で徹底確認。
-    - [ ] `IsWindow` チェックが適切に機能し、クラッシュしないことを確認。
-- [ ] Task: `cargo clippy` & `cargo fmt` の実行
-- [ ] Task: `git commit` (fix/refactor: フォーカス管理の堅牢化とクリーンアップ)
-- [ ] Task: Conductor - ユーザー手動検証 'Phase 2' (Protocol in workflow.md)
+- [x] Task: 影響調査と副作用の確認
+    - [x] 起動時に他の UI 要素（メニューやダイアログ）と競合しないか、実機で徹底確認。
+    - [x] `IsWindow` チェックが適切に機能し、クラッシュしないことを確認。
+- [x] Task: `cargo clippy` & `cargo fmt` の実行
+- [x] Task: `git commit` (fix/refactor: フォーカス管理の堅牢化とクリーンアップ)
+- [x] Task: Conductor - ユーザー手動検証 'Phase 2' (Protocol in workflow.md)
