@@ -10,7 +10,7 @@
 
 ## Libraries & Frameworks (Rust Crates)
 - **windows-rs / winapi**: Windows API へのアクセス。
-  - `Win32_UI_WindowsAndMessaging`: メッセージ送信、ウィンドウプロシージャによるシステムメッセージ (`WM_SYSCOMMAND`, `WM_SYSKEYDOWN`, `WM_ERASEBKGND`) の捕捉と抑制、ダイアログ表示、キャレット制御。
+  - `Win32_UI_WindowsAndMessaging`: メッセージ送信、ウィンドウプロシージャによるシステムメッセージ (`WM_SYSCOMMAND`, `WM_SYSKEYDOWN`, `WM_ERASEBKGND`) の捕捉と抑制、ダイアログ表示、キャレット制御、**ウィンドウ生存確認と破棄 (`IsWindow`, `DestroyWindow`)**。
   - `Win32_Graphics_Gdi`: メモリ DC と互換ビットマップを用いたダブルバッファリング描画の実装。
   - `Win32_Globalization`: 文字コード変換 (CP932 <-> UTF-8)。
   - `Win32_UI_Input_Ime`: IME制御 (Composition String, Candidate Window)。
@@ -47,5 +47,6 @@
 - **Presentation / GUI 層 (`src/gui/`)**:
     - **Resolver**: `_resolver.rs` (OSメッセージ解釈・変換)
     - **GUI Driver**: `_gui_driver.rs` (描画・IME・Win32操作を封印)
+      - **`window_gui_driver.rs`**: ウィンドウの生存確認、フォーカス、破棄を専門に扱う低層ドライバ。
 - **FFI 境界 (`src/lib.rs`)**: EmEditor SDK と Rust の仲介役。
 
