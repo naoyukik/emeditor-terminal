@@ -8,13 +8,14 @@ from datetime import datetime
 # === CONFIGURATION ===
 SAVE_INTERVAL = 15  # N回の人間のメッセージごとに保存を促す
 STATE_DIR = Path.home() / ".mempalace" / "hook_state"
-STATE_DIR.mkdir(parents=True, exist_ok=True)
 LOG_FILE = STATE_DIR / "hook.log"
 
 # オプション: 自動インジェストを行いたいディレクトリがあれば設定する
 MEMPAL_DIR = ""
 
 def log(message):
+    if not STATE_DIR.exists():
+        return
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     try:
         with open(LOG_FILE, "a", encoding="utf-8") as f:
@@ -62,6 +63,13 @@ def is_stop_hook_active(value):
     return False
 
 def main():
+    # 状態ディレクトリの準備
+    try:
+        STATE_DIR.mkdir(parents=True, exist_ok=True)
+    except OSError:
+        # ディレクトリが作成できない環境（権限不足等）ではログ出力を諦める
+        pass
+
     # stdin から JSON を読み込む
     try:
         input_data = json.load(sys.stdin)

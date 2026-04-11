@@ -8,7 +8,6 @@ from pathlib import Path
 
 
 STATE_DIR = Path.home() / ".mempalace" / "hook_state"
-STATE_DIR.mkdir(parents=True, exist_ok=True)
 LOG_FILE = STATE_DIR / "hook.log"
 
 # Optional: set to the directory you want auto-ingested before compaction.
@@ -17,6 +16,8 @@ MEMPAL_DIR = ""
 
 
 def log(message):
+    if not STATE_DIR.exists():
+        return
     timestamp = datetime.now().strftime("%H:%M:%S")
     try:
         with open(LOG_FILE, "a", encoding="utf-8") as f:
@@ -26,6 +27,13 @@ def log(message):
 
 
 def main():
+    # Prepare state directory
+    try:
+        STATE_DIR.mkdir(parents=True, exist_ok=True)
+    except OSError:
+        # Silently fail if directory cannot be created
+        pass
+
     try:
         input_data = json.load(sys.stdin)
     except Exception:
