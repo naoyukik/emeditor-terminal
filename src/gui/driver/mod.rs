@@ -4,3 +4,4 @@ pub(crate) mod keyboard_gui_driver;
 pub(crate) mod resource;
 pub(crate) mod scroll_gui_driver;
 pub(crate) mod terminal_gui_driver;
+pub(crate) mod window_gui_driver;
