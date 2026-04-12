@@ -284,6 +284,8 @@ pub fn open_custom_bar(hwnd_editor: HWND) -> bool {
                     initial_cols,
                     initial_rows,
                 ) {
+                    // 自動フォーカス設定: 初期化成功時にターミナルウィンドウへフォーカスを当てる
+                    WindowGuiDriver::focus_existing_window(hwnd_client);
                     true
                 } else {
                     log::error!("Failed to initialize terminal process. Destroying window.");

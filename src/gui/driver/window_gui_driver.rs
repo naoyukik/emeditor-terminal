@@ -14,7 +14,12 @@ impl WindowGuiDriver {
         // SAFETY: HWND が有効であることを IsWindow で確認してから操作を行う。
         unsafe {
             if IsWindow(hwnd).as_bool() {
-                let _ = SetFocus(hwnd);
+                let prev_focus = SetFocus(hwnd);
+                log::debug!(
+                    "focus_existing_window: SetFocus called for HWND {:?}. Previous focus was {:?}",
+                    hwnd,
+                    prev_focus
+                );
                 true
             } else {
                 false
