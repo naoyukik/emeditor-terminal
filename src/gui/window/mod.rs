@@ -42,12 +42,15 @@ pub fn is_ime_composing(hwnd: HWND) -> bool {
     crate::gui::driver::ime_gui_driver::is_composing(hwnd)
 }
 
-fn start_conpty_and_reader_thread(
-    hwnd_client: HWND,
-    hwnd_editor: HWND,
-    cols: i16,
-    rows: i16,
-) -> bool {
+pub fn ensure_conpty_started(hwnd_client: HWND, hwnd_editor: HWND, cols: i16, rows: i16) -> bool {
+    let data_arc = get_terminal_data();
+    {
+        let window_data = data_arc.lock().unwrap();
+        if window_data.is_conpty_started {
+            return true;
+        }
+    }
+
     let config_repo = crate::infra::repository::emeditor_config_repository_impl::EmEditorConfigRepositoryImpl::new(
         WindowId(hwnd_editor.0 as isize),
     );
@@ -69,7 +72,6 @@ fn start_conpty_and_reader_thread(
                 rows
             );
 
-            let data_arc = get_terminal_data();
             let output_handle: SendHandle = conpty.get_output_handle();
             // ConptyIoDriver retains ownership of the handle and closes it on drop.
             // SendHandle is Copy, so we can pass a copy to the thread.
@@ -96,6 +98,7 @@ fn start_conpty_and_reader_thread(
                     ),
                     is_dark,
                 );
+                window_data.is_conpty_started = true;
             }
 
             let send_hwnd = SendHWND(hwnd_client);
@@ -125,14 +128,6 @@ fn start_conpty_and_reader_thread(
                     }
 
                     let raw_bytes = &buffer[..bytes_read as usize];
-                    let hex_output: String =
-                        raw_bytes.iter().map(|b| format!("{:02X} ", b)).collect();
-                    log::debug!(
-                        "ConptyIoDriver Raw Output ({} bytes): {}",
-                        bytes_read,
-                        hex_output
-                    );
-
                     {
                         let mut window_data = data_arc.lock().unwrap();
                         window_data.service.process_output(raw_bytes);
@@ -253,69 +248,10 @@ pub fn open_custom_bar(hwnd_editor: HWND) -> bool {
                     LPARAM(&mut info as *mut _ as isize),
                 );
 
-                // EmEditor側での配置完了後、物理サイズとフォントメトリクスを厳密に取得
-                let (initial_cols, initial_rows) = {
-                    let mut client_rect = windows::Win32::Foundation::RECT::default();
-                    let _ = windows::Win32::UI::WindowsAndMessaging::GetClientRect(
-                        hwnd_client,
-                        &mut client_rect,
-                    );
-                    let width_px = client_rect.right - client_rect.left;
-                    let height_px = client_rect.bottom - client_rect.top;
-
-                    if width_px > 0 && height_px > 0 {
-                        use windows::Win32::Graphics::Gdi::{GetDC, ReleaseDC};
-                        let hdc = GetDC(hwnd_client);
-
-                        let config_repo = crate::infra::repository::emeditor_config_repository_impl::EmEditorConfigRepositoryImpl::new(
-                            WindowId(hwnd_editor.0 as isize),
-                        );
-                        let config = crate::domain::repository::configuration_repository::ConfigurationRepository::load(
-                            &config_repo,
-                        );
-
-                        let mut window_data = data_arc.lock().unwrap();
-
-                        // 起動時の正確なメトリクスを計算
-                        window_data.renderer.update_metrics(hdc, &config);
-
-                        let (char_width, char_height) =
-                            if let Some(metrics) = window_data.renderer.get_metrics() {
-                                (metrics.base_width, metrics.char_height)
-                            } else {
-                                (8, 16) // Should not happen
-                            };
-
-                        let _ = ReleaseDC(hwnd_client, hdc);
-
-                        (
-                            (width_px / char_width).max(1) as i16,
-                            (height_px / char_height).max(1) as i16,
-                        )
-                    } else {
-                        (80, 25)
-                    }
-                };
-
-                if start_conpty_and_reader_thread(
-                    hwnd_client,
-                    hwnd_editor,
-                    initial_cols,
-                    initial_rows,
-                ) {
-                    // 自動フォーカス設定: 初期化成功時にターミナルウィンドウへフォーカスを当てる
-                    WindowGuiDriver::focus_existing_window(hwnd_client);
-                    true
-                } else {
-                    log::error!("Failed to initialize terminal process. Destroying window.");
-                    WindowGuiDriver::destroy_window(hwnd_client);
-                    // Clear window_handle status
-                    {
-                        let mut window_data = data_arc.lock().unwrap();
-                        window_data.window_handle = None;
-                    }
-                    false
-                }
+                // ConPTYの起動はWM_SIZE（配置確定後）に任せるため、ここではウィンドウ作成のみ行う
+                // 自動フォーカス設定: 初期化成功時にターミナルウィンドウへフォーカスを当てる
+                WindowGuiDriver::focus_existing_window(hwnd_client);
+                true
             }
             Err(e) => {
                 log::error!("Failed to create custom bar window: {}", e);

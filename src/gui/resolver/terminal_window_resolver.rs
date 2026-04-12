@@ -18,6 +18,7 @@ pub struct TerminalWindowResolver {
     pub composition: Option<CompositionInfo>,
     pub scroll_manager: ScrollGuiDriver,
     pub caret: Option<CaretHandle>,
+    pub is_conpty_started: bool,
 }
 
 impl TerminalWindowResolver {
@@ -29,6 +30,7 @@ impl TerminalWindowResolver {
         )));
         self.service = TerminalWorkflow::new(80, 25, output_repo, config_repo_for_service, true);
         self.caret = None;
+        self.is_conpty_started = false;
     }
 }
 
@@ -47,6 +49,7 @@ pub fn get_terminal_data() -> Arc<Mutex<TerminalWindowResolver>> {
                 composition: None,
                 scroll_manager: ScrollGuiDriver::new(),
                 caret: None,
+                is_conpty_started: false,
             }))
         })
         .clone()

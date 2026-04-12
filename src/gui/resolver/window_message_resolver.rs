@@ -260,17 +260,67 @@ pub fn on_size(hwnd: HWND, lparam: LPARAM) -> LRESULT {
         let data_arc = get_terminal_data();
         let mut window_data = data_arc.lock().unwrap();
 
-        let (char_width, char_height) = if let Some(metrics) = window_data.renderer.get_metrics() {
-            (metrics.base_width, metrics.char_height)
+        if !window_data.is_conpty_started {
+            // 初期起動時の正確なメトリクスを確保するため、一時的にロックを解除して
+            // 親ウィンドウ（エディタ）から設定をロードする
+            drop(window_data);
+
+            use windows::Win32::UI::WindowsAndMessaging::GetParent;
+            let hwnd_editor = match unsafe { GetParent(hwnd) } {
+                Ok(h) => h,
+                Err(e) => {
+                    log::error!("Failed to get parent window for {:?}: {:?}", hwnd, e);
+                    return LRESULT(0);
+                }
+            };
+
+            let config_repo = crate::infra::repository::emeditor_config_repository_impl::EmEditorConfigRepositoryImpl::new(
+                crate::domain::model::window_id_value::WindowId(hwnd_editor.0 as isize),
+            );
+            let config =
+                crate::domain::repository::configuration_repository::ConfigurationRepository::load(
+                    &config_repo,
+                );
+
+            // ロックを再取得してメトリクスを更新
+            let mut window_data = data_arc.lock().unwrap();
+            use windows::Win32::Graphics::Gdi::GetDC;
+            use windows::Win32::Graphics::Gdi::ReleaseDC;
+            let hdc = unsafe { GetDC(hwnd) };
+            window_data.renderer.update_metrics(hdc, &config);
+            unsafe {
+                let _ = ReleaseDC(hwnd, hdc);
+            }
+
+            let (char_width, char_height) =
+                if let Some(metrics) = window_data.renderer.get_metrics() {
+                    (metrics.base_width, metrics.char_height)
+                } else {
+                    (8, 16)
+                };
+
+            let cols = (width / char_width).max(1) as i16;
+            let rows = (height / char_height).max(1) as i16;
+
+            // コンテキストを一度手放してから起動処理を呼ぶ（デッドロック防止）
+            drop(window_data);
+            if crate::gui::window::ensure_conpty_started(hwnd, hwnd_editor, cols, rows) {
+                log::info!("ConPTY started in on_size with {}x{}", cols, rows);
+            }
         } else {
-            (8, 16)
-        };
+            let (char_width, char_height) =
+                if let Some(metrics) = window_data.renderer.get_metrics() {
+                    (metrics.base_width, metrics.char_height)
+                } else {
+                    (8, 16)
+                };
 
-        let cols = (width / char_width).max(1) as i16;
-        let rows = (height / char_height).max(1) as i16;
+            let cols = (width / char_width).max(1) as i16;
+            let rows = (height / char_height).max(1) as i16;
 
-        log::info!("Resizing ConptyIoDriver to cols={}, rows={}", cols, rows);
-        window_data.service.resize(cols as usize, rows as usize);
+            log::info!("Resizing ConptyIoDriver to cols={}, rows={}", cols, rows);
+            window_data.service.resize(cols as usize, rows as usize);
+        }
     }
 
     update_window_scroll_info(hwnd);
