@@ -45,3 +45,17 @@ Issue #136 は、Issue #61（ターミナル起動中の再実行クラッシュ
 - [x] Task: `cargo clippy` & `cargo fmt` の実行
 - [x] Task: `git commit` (fix/refactor: フォーカス管理の堅牢化とクリーンアップ)
 - [x] Task: Conductor - ユーザー手動検証 'Phase 2' (Protocol in workflow.md)
+
+## Phase: Review Fixes
+PRレビュー指摘事項に基づき、実装とドキュメントの最終調整を行う。
+
+- [x] Task: `spec.md` の要件緩和修正
+    - [x] 「モーダル表示中のフォーカス奪取抑止」要件を、現実の挙動（ユーザー操作による起動時は即座にフォーカス）に合わせて修正。
+- [x] Task: `src/gui/driver/window_gui_driver.rs` のログレベル変更
+    - [x] `log::info!` を `log::debug!` に変更し、クリック時のログ過剰出力を防止。
+- [x] Task: プロジェクト管理ファイルの修正
+    - [x] `conductor/tracks/136-auto-focus_20260408/metadata.json` の `status` を `completed` に更新。
+    - [x] `conductor/tracks.md` のリンク行のインデントを他トラックと揃える。
+- [x] Task: `cargo clippy` & `cargo fmt` の実行
+- [ ] Task: Conductor - ユーザー手動検証 'Review Fixes' (Protocol in workflow.md)
+- [x] Task: `git commit` (fix(gui): Apply PR review suggestions for issue #136)

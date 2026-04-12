@@ -15,7 +15,7 @@ impl WindowGuiDriver {
         unsafe {
             if IsWindow(hwnd).as_bool() {
                 let prev_focus = SetFocus(hwnd);
-                log::info!(
+                log::debug!(
                     "focus_existing_window: SetFocus called for HWND {:?}. Previous focus was {:?}",
                     hwnd,
                     prev_focus
