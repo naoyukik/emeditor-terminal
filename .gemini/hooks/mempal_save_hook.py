@@ -4,9 +4,8 @@ import os
 import sys
 from pathlib import Path
 from datetime import datetime
-
 # === CONFIGURATION ===
-SAVE_INTERVAL = 15  # N回の人間のメッセージごとに保存を促す
+SAVE_INTERVAL = 10  # N回の人間のメッセージごとに保存を促す
 STATE_DIR = Path.home() / ".mempalace" / "hook_state"
 LOG_FILE = STATE_DIR / "hook.log"
 
@@ -26,27 +25,28 @@ def log(message):
 def count_human_messages(transcript_path):
     if not transcript_path:
         return 0
-    
+
     path = Path(os.path.expanduser(transcript_path))
     if not path.exists():
         return 0
-    
+
     count = 0
     try:
         with open(path, "r", encoding="utf-8") as f:
-            for line in f:
-                try:
-                    entry = json.loads(line)
-                    # Transcript の形式に合わせて role が user かつ 
-                    # コマンドメッセージでないものをカウント
-                    msg = entry.get("message", {})
-                    if isinstance(msg, dict) and msg.get("role") == "user":
-                        content = msg.get("content", "")
-                        if isinstance(content, str) and "<command-message>" in content:
-                            continue
-                        count += 1
-                except (json.JSONDecodeError, KeyError):
-                    continue
+            data = json.load(f)
+            messages = data.get("messages", [])
+            for msg in messages:
+                if msg.get("type") == "user":
+                    content = msg.get("content", "")
+                    # content がリスト形式の場合の処理
+                    if isinstance(content, list):
+                        text = "".join(c.get("text", "") for c in content if isinstance(c, dict))
+                    else:
+                        text = str(content)
+
+                    if "<command-message>" in text:
+                        continue
+                    count += 1
     except Exception as e:
         log(f"Error reading transcript: {e}")
     return count
