@@ -57,5 +57,5 @@ PRレビュー指摘事項に基づき、実装とドキュメントの最終調
     - [x] `conductor/tracks/136-auto-focus_20260408/metadata.json` の `status` を `completed` に更新。
     - [x] `conductor/tracks.md` のリンク行のインデントを他トラックと揃える。
 - [x] Task: `cargo clippy` & `cargo fmt` の実行
-- [ ] Task: Conductor - ユーザー手動検証 'Review Fixes' (Protocol in workflow.md)
+- [x] Task: Conductor - ユーザー手動検証 'Review Fixes' (Protocol in workflow.md)
 - [x] Task: `git commit` (fix(gui): Apply PR review suggestions for issue #136)

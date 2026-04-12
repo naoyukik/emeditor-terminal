@@ -9,5 +9,5 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 ---
 
-- [~] **Track: feat: 起動時にターミナルへ自動的にフォーカスを当てる**
+- [x] **Track: feat: 起動時にターミナルへ自動的にフォーカスを当てる**
   *Link: [./tracks/136-auto-focus_20260408/](./tracks/136-auto-focus_20260408/)*
