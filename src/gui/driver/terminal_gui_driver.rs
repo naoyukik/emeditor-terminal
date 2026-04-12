@@ -142,6 +142,10 @@ impl TerminalGuiDriver {
         config: &crate::domain::model::terminal_config_value::TerminalConfig,
     ) {
         let h_font = self.get_font_for_style(hdc, 0, config);
+        // SAFETY:
+        // - hdc は有効なデバイスコンテキストハンドルであることを前提とする。
+        // - SelectObject でのフォント切り替えとメトリクス取得は同期的に行われ、
+        //   SelectedObjectGuard (RAII) により確実に元の状態に復元される。
         unsafe {
             let old_font = SelectObject(hdc, HGDIOBJ(h_font.0));
             let _font_guard = SelectedObjectGuard::new(hdc, old_font);

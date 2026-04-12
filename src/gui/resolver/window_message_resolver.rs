@@ -286,6 +286,9 @@ pub fn on_size(hwnd: HWND, lparam: LPARAM) -> LRESULT {
             let mut window_data = data_arc.lock().unwrap();
             use windows::Win32::Graphics::Gdi::GetDC;
             use windows::Win32::Graphics::Gdi::ReleaseDC;
+            // SAFETY:
+            // - hwnd は有効なウィンドウハンドルであることを前提とする。
+            // - 取得した hdc は ReleaseDC により確実に解放される。
             let hdc = unsafe { GetDC(hwnd) };
             window_data.renderer.update_metrics(hdc, &config);
             unsafe {
