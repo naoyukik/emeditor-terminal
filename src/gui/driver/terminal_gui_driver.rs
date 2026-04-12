@@ -136,6 +136,32 @@ impl TerminalGuiDriver {
         self.metrics.as_ref()
     }
 
+    pub fn update_metrics(
+        &mut self,
+        hdc: HDC,
+        config: &crate::domain::model::terminal_config_value::TerminalConfig,
+    ) {
+        let h_font = self.get_font_for_style(hdc, 0, config);
+        unsafe {
+            let old_font = SelectObject(hdc, HGDIOBJ(h_font.0));
+            let _font_guard = SelectedObjectGuard::new(hdc, old_font);
+            let mut tm = TEXTMETRICW::default();
+            let _ = GetTextMetricsW(hdc, &mut tm);
+            let zero_utf16: &[u16] = &[0x0030];
+            let mut size = SIZE::default();
+            let _ = GetTextExtentPoint32W(hdc, zero_utf16, &mut size);
+            self.metrics = Some(TerminalMetrics {
+                char_height: tm.tmHeight,
+                base_width: size.cx,
+            });
+            log::info!(
+                "TerminalGuiDriver: Metrics updated: char_height={}, base_width={}",
+                tm.tmHeight,
+                size.cx
+            );
+        }
+    }
+
     /// Converts virtual cell coordinates to client pixel coordinates.
     pub fn cell_to_pixel(&self, x: usize, y: usize) -> Option<(i32, i32)> {
         let metrics = self.metrics.as_ref()?;
@@ -210,20 +236,6 @@ impl TerminalGuiDriver {
                 }
                 // デフォルトフォント作成失敗時の無限再帰を防止
                 return HFONT::default();
-            }
-
-            if self.metrics.is_none() {
-                let old_font = SelectObject(hdc, HGDIOBJ(h_font.0));
-                let _font_guard = SelectedObjectGuard::new(hdc, old_font);
-                let mut tm = TEXTMETRICW::default();
-                let _ = GetTextMetricsW(hdc, &mut tm);
-                let zero_utf16: &[u16] = &[0x0030];
-                let mut size = SIZE::default();
-                let _ = GetTextExtentPoint32W(hdc, zero_utf16, &mut size);
-                self.metrics = Some(TerminalMetrics {
-                    char_height: tm.tmHeight,
-                    base_width: size.cx,
-                });
             }
 
             self.fonts.insert(style_mask, SendHFONT(h_font));
@@ -354,7 +366,7 @@ impl TerminalGuiDriver {
             }
         }
 
-        let _ = self.get_font_for_style(hdc, 0, config);
+        self.update_metrics(hdc, config);
         let metrics = match &self.metrics {
             Some(m) => m,
             None => return,

@@ -253,29 +253,48 @@ pub fn open_custom_bar(hwnd_editor: HWND) -> bool {
                     LPARAM(&mut info as *mut _ as isize),
                 );
 
-                // Calculate initial size
-                let mut client_rect = windows::Win32::Foundation::RECT::default();
-                let _ = windows::Win32::UI::WindowsAndMessaging::GetClientRect(
-                    hwnd_client,
-                    &mut client_rect,
-                );
-                let width_px = client_rect.right - client_rect.left;
-                let height_px = client_rect.bottom - client_rect.top;
+                // EmEditor側での配置完了後、物理サイズとフォントメトリクスを厳密に取得
+                let (initial_cols, initial_rows) = {
+                    let mut client_rect = windows::Win32::Foundation::RECT::default();
+                    let _ = windows::Win32::UI::WindowsAndMessaging::GetClientRect(
+                        hwnd_client,
+                        &mut client_rect,
+                    );
+                    let width_px = client_rect.right - client_rect.left;
+                    let height_px = client_rect.bottom - client_rect.top;
 
-                let (initial_cols, initial_rows) = if width_px > 0 && height_px > 0 {
-                    let window_data = data_arc.lock().unwrap();
-                    let (char_width, char_height) =
-                        if let Some(metrics) = window_data.renderer.get_metrics() {
-                            (metrics.base_width, metrics.char_height)
-                        } else {
-                            (8, 16) // Fallback
-                        };
-                    (
-                        (width_px / char_width).max(1) as i16,
-                        (height_px / char_height).max(1) as i16,
-                    )
-                } else {
-                    (80, 25)
+                    if width_px > 0 && height_px > 0 {
+                        use windows::Win32::Graphics::Gdi::{GetDC, ReleaseDC};
+                        let hdc = GetDC(hwnd_client);
+
+                        let config_repo = crate::infra::repository::emeditor_config_repository_impl::EmEditorConfigRepositoryImpl::new(
+                            WindowId(hwnd_editor.0 as isize),
+                        );
+                        let config = crate::domain::repository::configuration_repository::ConfigurationRepository::load(
+                            &config_repo,
+                        );
+
+                        let mut window_data = data_arc.lock().unwrap();
+
+                        // 起動時の正確なメトリクスを計算
+                        window_data.renderer.update_metrics(hdc, &config);
+
+                        let (char_width, char_height) =
+                            if let Some(metrics) = window_data.renderer.get_metrics() {
+                                (metrics.base_width, metrics.char_height)
+                            } else {
+                                (8, 16) // Should not happen
+                            };
+
+                        let _ = ReleaseDC(hwnd_client, hdc);
+
+                        (
+                            (width_px / char_width).max(1) as i16,
+                            (height_px / char_height).max(1) as i16,
+                        )
+                    } else {
+                        (80, 25)
+                    }
                 };
 
                 if start_conpty_and_reader_thread(
