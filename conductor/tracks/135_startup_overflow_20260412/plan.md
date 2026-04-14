@@ -23,8 +23,8 @@
 
 ## Phase: Review Fixes
 - [x] Task: Apply review suggestions 6c4055f
-- [ ] Task: PR #142 レビュー指摘に基づく堅牢性と性能の改善
-    - [ ] Sub-task: `update_metrics` において Win32 API の成功を確認し、不正なメトリクス（0等）によるゼロ除算を防止する。
-    - [ ] Sub-task: `on_size` 内で `GetDC` の戻り値をチェックし、ConPTY 起動失敗時のウィンドウ破棄・状態リセットを実装する。
-    - [ ] Sub-task: `render_internal` での `update_metrics` 呼び出し頻度を制限（未取得時または設定変更時のみ）し、ログレベルを調整する。
-    - [ ] Sub-task: `spec.md` および `plan.md` を最終的な実装（Option B 採用）に合わせて更新する。
+- [x] Task: PR #142 レビュー指摘に基づく堅牢性と性能の改善 69d1c25
+    - [x] Sub-task: `update_metrics` において Win32 API の成功を確認し、不正なメトリクス（0等）によるゼロ除算を防止する。
+    - [x] Sub-task: `on_size` 内で `GetDC` の戻り値をチェックし、ConPTY 起動失敗時のウィンドウ破棄・状態リセットを実装する。
+    - [x] Sub-task: `render_internal` での `update_metrics` 呼び出し頻度を制限（未取得時または設定変更時のみ）し、ログレベルを調整する。
+    - [x] Sub-task: `spec.md` および `plan.md` を最終的な実装（Option B 採用）に合わせて更新する。
