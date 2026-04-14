@@ -98,6 +98,12 @@ commandPrefix = ["gh issue view", "gh pr view", "gh repo view"]
 decision = "allow"
 priority = 100
 
+# Automatically allow safe git commands
+[[rule]]
+toolName = "cli_help"
+decision = "allow"
+priority = 100
+
 # Automatically allow memory operations
 [[rule]]
 mcpName = "memory"

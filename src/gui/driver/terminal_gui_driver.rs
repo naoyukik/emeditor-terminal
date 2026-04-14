@@ -129,11 +129,67 @@ impl TerminalGuiDriver {
                 let _ = DeleteObject(HGDIOBJ(send_h_font.0 .0));
             }
         }
-        log::info!("TerminalGuiDriver: All cached font handles deleted");
+        self.metrics = None;
+        log::info!("TerminalGuiDriver: All cached font handles and metrics cleared");
     }
 
     pub fn get_metrics(&self) -> Option<&TerminalMetrics> {
         self.metrics.as_ref()
+    }
+
+    pub fn update_metrics(
+        &mut self,
+        hdc: HDC,
+        config: &crate::domain::model::terminal_config_value::TerminalConfig,
+    ) -> bool {
+        if hdc.0.is_null() {
+            return false;
+        }
+        let h_font = self.get_font_for_style(hdc, 0, config);
+        if h_font.0.is_null() {
+            return false;
+        }
+        // SAFETY:
+        // - hdc は有効なデバイスコンテキストハンドルであることを前提とする。
+        // - SelectObject でのフォント切り替えとメトリクス取得は同期的に行われ、
+        //   SelectedObjectGuard (RAII) により確実に元の状態に復元される。
+        unsafe {
+            let old_font = SelectObject(hdc, HGDIOBJ(h_font.0));
+            let _font_guard = SelectedObjectGuard::new(hdc, old_font);
+            let mut tm = TEXTMETRICW::default();
+            if !GetTextMetricsW(hdc, &mut tm).as_bool() {
+                return false;
+            }
+            let zero_utf16: &[u16] = &[0x0030];
+            let mut size = SIZE::default();
+            if !GetTextExtentPoint32W(hdc, zero_utf16, &mut size).as_bool() {
+                return false;
+            }
+
+            if tm.tmHeight <= 0 || size.cx <= 0 {
+                log::error!(
+                    "TerminalGuiDriver: Invalid metrics obtained: height={}, width={}",
+                    tm.tmHeight,
+                    size.cx
+                );
+                return false;
+            }
+
+            let new_metrics = TerminalMetrics {
+                char_height: tm.tmHeight,
+                base_width: size.cx,
+            };
+
+            if self.metrics != Some(new_metrics) {
+                self.metrics = Some(new_metrics);
+                log::debug!(
+                    "TerminalGuiDriver: Metrics updated: char_height={}, base_width={}",
+                    tm.tmHeight,
+                    size.cx
+                );
+            }
+            true
+        }
     }
 
     /// Converts virtual cell coordinates to client pixel coordinates.
@@ -210,20 +266,6 @@ impl TerminalGuiDriver {
                 }
                 // デフォルトフォント作成失敗時の無限再帰を防止
                 return HFONT::default();
-            }
-
-            if self.metrics.is_none() {
-                let old_font = SelectObject(hdc, HGDIOBJ(h_font.0));
-                let _font_guard = SelectedObjectGuard::new(hdc, old_font);
-                let mut tm = TEXTMETRICW::default();
-                let _ = GetTextMetricsW(hdc, &mut tm);
-                let zero_utf16: &[u16] = &[0x0030];
-                let mut size = SIZE::default();
-                let _ = GetTextExtentPoint32W(hdc, zero_utf16, &mut size);
-                self.metrics = Some(TerminalMetrics {
-                    char_height: tm.tmHeight,
-                    base_width: size.cx,
-                });
             }
 
             self.fonts.insert(style_mask, SendHFONT(h_font));
@@ -354,7 +396,9 @@ impl TerminalGuiDriver {
             }
         }
 
-        let _ = self.get_font_for_style(hdc, 0, config);
+        if self.metrics.is_none() {
+            self.update_metrics(hdc, config);
+        }
         let metrics = match &self.metrics {
             Some(m) => m,
             None => return,

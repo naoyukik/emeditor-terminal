@@ -1,0 +1,8 @@
+{
+  "track_id": "135_startup_overflow_20260412",
+  "type": "bug",
+  "status": "new",
+  "created_at": "2026-04-12T00:00:00Z",
+  "updated_at": "2026-04-12T00:00:00Z",
+  "description": "GitHub Issue 135: Gemini CLI起動直後の右端・下部のはみ出し（サイズ計算の不整合）修正"
+}

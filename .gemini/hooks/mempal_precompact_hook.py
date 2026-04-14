@@ -56,13 +56,7 @@ def main():
             log(f"Failed to run auto-ingest: {e}")
 
     response = {
-        "decision": "block",
-        "reason": (
-            "COMPACTION IMMINENT. Save ALL topics, decisions, quotes, code, and important context "
-            "from this session to your memory system. Be thorough — after compaction, detailed "
-            "context will be lost. Organize into appropriate categories. Use verbatim quotes where "
-            "possible. Save everything, then allow compaction to proceed."
-        ),
+        "systemMessage": "⚠️  [Gemini CLI] COMPACTION IMMINENT: Context summary is about to occur. Detailed session history may be lost. Please save important topics, decisions, or code to MemPalace manually before continuing if necessary."
     }
     print(json.dumps(response))
 
