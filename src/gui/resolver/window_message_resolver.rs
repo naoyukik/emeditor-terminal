@@ -290,6 +290,10 @@ pub fn on_size(hwnd: HWND, lparam: LPARAM) -> LRESULT {
             // - hwnd は有効なウィンドウハンドルであることを前提とする。
             // - 取得した hdc は ReleaseDC により確実に解放される。
             let hdc = unsafe { GetDC(hwnd) };
+            if hdc.0.is_null() {
+                log::error!("on_size: GetDC failed");
+                return LRESULT(0);
+            }
             window_data.renderer.update_metrics(hdc, &config);
             unsafe {
                 let _ = ReleaseDC(hwnd, hdc);
@@ -302,6 +306,11 @@ pub fn on_size(hwnd: HWND, lparam: LPARAM) -> LRESULT {
                     (8, 16)
                 };
 
+            if char_width <= 0 || char_height <= 0 {
+                log::error!("on_size: Invalid metrics ({}x{})", char_width, char_height);
+                return LRESULT(0);
+            }
+
             let cols = (width / char_width).max(1) as i16;
             let rows = (height / char_height).max(1) as i16;
 
@@ -309,6 +318,13 @@ pub fn on_size(hwnd: HWND, lparam: LPARAM) -> LRESULT {
             drop(window_data);
             if crate::gui::window::ensure_conpty_started(hwnd, hwnd_editor, cols, rows) {
                 log::info!("ConPTY started in on_size with {}x{}", cols, rows);
+            } else {
+                log::error!("Failed to start ConPTY. Destroying window.");
+                WindowGuiDriver::destroy_window(hwnd);
+                // 状態をリセットするために再度ロックを取得
+                let mut window_data = data_arc.lock().unwrap();
+                window_data.window_handle = None;
+                return LRESULT(0);
             }
         } else {
             let (char_width, char_height) =
