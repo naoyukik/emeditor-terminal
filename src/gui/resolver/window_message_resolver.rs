@@ -476,6 +476,7 @@ pub fn on_get_dlg_code() -> LRESULT {
 }
 
 pub fn on_app_repaint(hwnd: HWND) -> LRESULT {
+    log::debug!("on_app_repaint: triggered");
     update_window_scroll_info(hwnd);
     let data_arc = get_terminal_data();
     {

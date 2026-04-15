@@ -100,7 +100,13 @@ pub fn sync_system_caret(
     // CRITICAL: Only sync if this window actually has focus.
     // This prevents interfering with the parent EmEditor window's IME.
     unsafe {
-        if GetFocus() != hwnd {
+        let focus_hwnd = GetFocus();
+        if focus_hwnd != hwnd {
+            log::debug!(
+                "sync_system_caret: Skipped sync. hwnd={:?}, focus_hwnd={:?}",
+                hwnd,
+                focus_hwnd
+            );
             return;
         }
     }
@@ -109,7 +115,14 @@ pub fn sync_system_caret(
     let relative_y = cursor_pos.1.saturating_sub(viewport_offset);
 
     if let Some((pixel_x, pixel_y)) = renderer.cell_to_pixel(cursor_pos.0, relative_y) {
-        log::debug!("Syncing system caret: pixel=({}, {})", pixel_x, pixel_y);
+        log::info!(
+            "sync_system_caret: cell=({}, {}), pixel=({}, {}), offset={}",
+            cursor_pos.0,
+            cursor_pos.1,
+            pixel_x,
+            pixel_y,
+            viewport_offset
+        );
 
         // 1. Update system caret position (for IME anchoring)
         if let Some(c) = caret {
