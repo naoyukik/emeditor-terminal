@@ -102,8 +102,8 @@ pub fn sync_system_caret(
     unsafe {
         let focus_hwnd = GetFocus();
         if focus_hwnd != hwnd {
-            log::debug!(
-                "sync_system_caret: Skipped sync. hwnd={:?}, focus_hwnd={:?}",
+            log::info!(
+                "sync_system_caret: Skipped sync (No Focus). hwnd={:?}, focus_hwnd={:?}",
                 hwnd,
                 focus_hwnd
             );
@@ -116,12 +116,14 @@ pub fn sync_system_caret(
 
     if let Some((pixel_x, pixel_y)) = renderer.cell_to_pixel(cursor_pos.0, relative_y) {
         log::info!(
-            "sync_system_caret: cell=({}, {}), pixel=({}, {}), offset={}",
+            "sync_system_caret: cell=({},{}), rel_y={}, view_off={}, pixel=({}, {}), hwnd={:?}",
             cursor_pos.0,
             cursor_pos.1,
+            relative_y,
+            viewport_offset,
             pixel_x,
             pixel_y,
-            viewport_offset
+            hwnd
         );
 
         // 1. Update system caret position (for IME anchoring)
@@ -210,7 +212,7 @@ pub fn handle_composition(
     renderer: &TerminalGuiDriver,
     caret: Option<&CaretHandle>,
 ) -> ImeResult {
-    log::debug!("WM_IME_COMPOSITION: lparam={:?}", lparam);
+    log::info!("WM_IME_COMPOSITION: lparam={:?}, cursor_pos={:?}", lparam, cursor_pos);
 
     let mut result = ImeResult::NotHandled;
 

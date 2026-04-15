@@ -361,6 +361,7 @@ pub fn on_ime_set_context(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM) 
 }
 
 pub fn on_ime_start_composition(hwnd: HWND) -> LRESULT {
+    log::info!("WM_IME_STARTCOMPOSITION: hwnd={:?}", hwnd);
     handle_start_composition(hwnd);
     let data_arc = get_terminal_data();
     {
