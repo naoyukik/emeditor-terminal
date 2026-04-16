@@ -408,7 +408,11 @@ impl TerminalGuiDriver {
             let char_height = metrics.char_height;
             let base_width = metrics.base_width;
             let mut current_y = 0;
-            let (cursor_x, cursor_y) = buffer.get_cursor_pos();
+            let (cursor_x, cursor_y) = if composition.is_some() {
+                buffer.get_ime_anchor_pos()
+            } else {
+                buffer.get_cursor_pos()
+            };
             let viewport_offset = buffer.get_viewport_offset();
 
             for visual_row in 0..buffer.get_height() {

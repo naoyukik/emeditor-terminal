@@ -98,6 +98,7 @@ pub struct TerminalBufferEntity {
     scroll_top: usize,
     scroll_bottom: usize,
     is_origin_mode: bool,
+    last_inverse_render_pos: Option<(usize, usize)>,
     saved_cursor: Option<(usize, usize)>,
 
     history: VecDeque<Vec<Cell>>,
@@ -123,6 +124,7 @@ impl TerminalBufferEntity {
             scroll_top: 0,
             scroll_bottom: height.saturating_sub(1),
             is_origin_mode: false,
+            last_inverse_render_pos: None,
             saved_cursor: None,
             history: VecDeque::new(),
             viewport_offset: 0,
@@ -489,6 +491,18 @@ impl TerminalBufferEntity {
     pub fn get_cursor_pos(&self) -> (usize, usize) {
         (self.cursor.x, self.cursor.y)
     }
+    /// Returns the best guess for the IME input position.
+    /// - If the hardware cursor is VISIBLE, we trust it absolutely (standard behavior).
+    /// - If it's HIDDEN, we check if we have a "logical" cursor position from the last
+    ///   inverse-video render (typical for TUI apps like Gemini CLI).
+    pub fn get_ime_anchor_pos(&self) -> (usize, usize) {
+        if self.cursor.is_visible {
+            (self.cursor.x, self.cursor.y)
+        } else {
+            self.last_inverse_render_pos
+                .unwrap_or((self.cursor.x, self.cursor.y))
+        }
+    }
     pub fn get_cursor_style(&self) -> CursorStyle {
         self.cursor.style
     }
@@ -524,6 +538,11 @@ impl TerminalBufferEntity {
 
 impl Perform for TerminalBufferEntity {
     fn print(&mut self, c: char) {
+        if self.cursor.x < self.width && self.cursor.y < self.height {
+            if self.current_attribute.is_inverse {
+                self.last_inverse_render_pos = Some((self.cursor.x, self.cursor.y));
+            }
+        }
         self.process_normal_char(c);
     }
 
@@ -633,8 +652,19 @@ impl Perform for TerminalBufferEntity {
                 } else {
                     row.saturating_sub(1)
                 };
+                let old_x = self.cursor.x;
+                let old_y = self.cursor.y;
                 self.cursor.y = std::cmp::min(self.height.saturating_sub(1), target_row);
                 self.cursor.x = std::cmp::min(self.width.saturating_sub(1), col.saturating_sub(1));
+                if self.cursor.x != old_x || self.cursor.y != old_y {
+                    log::debug!(
+                        "Cursor moved via CUP: ({}, {}) -> ({}, {})",
+                        old_x,
+                        old_y,
+                        self.cursor.x,
+                        self.cursor.y
+                    );
+                }
             }
             'J' => {
                 let mode = self.get_param(params, 0, 0);
@@ -700,8 +730,16 @@ impl Perform for TerminalBufferEntity {
                                     self.is_origin_mode = true;
                                     self.cursor.y = self.scroll_top;
                                     self.cursor.x = 0;
+                                    log::debug!("Origin Mode: ON at (0, {})", self.scroll_top);
                                 }
-                                25 => self.cursor.is_visible = true,
+                                25 => {
+                                    self.cursor.is_visible = true;
+                                    log::debug!(
+                                        "Cursor set to VISIBLE at ({}, {})",
+                                        self.cursor.x,
+                                        self.cursor.y
+                                    );
+                                }
                                 _ => {}
                             }
                         }
@@ -717,8 +755,16 @@ impl Perform for TerminalBufferEntity {
                                     self.is_origin_mode = false;
                                     self.cursor.y = 0;
                                     self.cursor.x = 0;
+                                    log::debug!("Origin Mode: OFF");
                                 }
-                                25 => self.cursor.is_visible = false,
+                                25 => {
+                                    self.cursor.is_visible = false;
+                                    log::debug!(
+                                        "Cursor set to HIDDEN (Last pos: {}, {})",
+                                        self.cursor.x,
+                                        self.cursor.y
+                                    );
+                                }
                                 _ => {}
                             }
                         }
@@ -826,16 +872,18 @@ impl TerminalBufferEntity {
                 1 => self.current_attribute.is_bold = true,
                 2 => self.current_attribute.is_dim = true,
                 3 => self.current_attribute.is_italic = true,
-                4 => self.current_attribute.is_underline = true,
                 7 => self.current_attribute.is_inverse = true,
+                27 => self.current_attribute.is_inverse = false,
+
                 9 => self.current_attribute.is_strikethrough = true,
                 22 => {
                     self.current_attribute.is_bold = false;
                     self.current_attribute.is_dim = false;
                 }
                 23 => self.current_attribute.is_italic = false,
-                24 => self.current_attribute.is_underline = false,
+                7 => self.current_attribute.is_inverse = true,
                 27 => self.current_attribute.is_inverse = false,
+
                 29 => self.current_attribute.is_strikethrough = false,
                 30..=37 => self.current_attribute.fg = TerminalColor::Ansi((p - 30) as u8),
                 38 => {

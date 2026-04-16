@@ -7,7 +7,9 @@ use crate::gui::driver::scroll_gui_driver::{update_window_scroll_info, ScrollAct
 use crate::gui::driver::window_gui_driver::WindowGuiDriver;
 use crate::gui::resolver::terminal_window_resolver::{get_terminal_data, TerminalWindowResolver};
 use windows::Win32::Foundation::{BOOL, HWND, LPARAM, LRESULT, WPARAM};
-use windows::Win32::Graphics::Gdi::{BeginPaint, EndPaint, InvalidateRect, PAINTSTRUCT};
+use windows::Win32::Graphics::Gdi::{
+    BeginPaint, EndPaint, InvalidateRect, UpdateWindow, PAINTSTRUCT,
+};
 use windows::Win32::UI::Input::KeyboardAndMouse::VK_MENU;
 use windows::Win32::UI::WindowsAndMessaging::{DefWindowProcW, DLGC_WANTALLKEYS};
 
@@ -99,7 +101,7 @@ pub fn on_paint(hwnd: HWND) -> LRESULT {
         // Always sync system caret position with virtual cursor during paint
         sync_system_caret(
             hwnd,
-            service.get_buffer().get_cursor_pos(),
+            service.get_buffer().get_ime_anchor_pos(),
             service.get_buffer().get_viewport_offset(),
             renderer,
             caret.as_ref(),
@@ -314,10 +316,18 @@ pub fn on_size(hwnd: HWND, lparam: LPARAM) -> LRESULT {
             let cols = (width / char_width).max(1) as i16;
             let rows = (height / char_height).max(1) as i16;
 
+            log::debug!(
+                "on_size: metrics={}x{}, calculated cols={}, rows={}",
+                char_width,
+                char_height,
+                cols,
+                rows
+            );
+
             // コンテキストを一度手放してから起動処理を呼ぶ（デッドロック防止）
             drop(window_data);
             if crate::gui::window::ensure_conpty_started(hwnd, hwnd_editor, cols, rows) {
-                log::info!("ConPTY started in on_size with {}x{}", cols, rows);
+                log::debug!("ConPTY started in on_size with {}x{}", cols, rows);
             } else {
                 log::error!("Failed to start ConPTY. Destroying window.");
                 WindowGuiDriver::destroy_window(hwnd);
@@ -337,7 +347,7 @@ pub fn on_size(hwnd: HWND, lparam: LPARAM) -> LRESULT {
             let cols = (width / char_width).max(1) as i16;
             let rows = (height / char_height).max(1) as i16;
 
-            log::info!("Resizing ConptyIoDriver to cols={}, rows={}", cols, rows);
+            log::debug!("Resizing ConptyIoDriver to cols={}, rows={}", cols, rows);
             window_data.service.resize(cols as usize, rows as usize);
         }
     }
@@ -378,7 +388,7 @@ pub fn on_ime_start_composition(hwnd: HWND) -> LRESULT {
         // Sync IME position at the very beginning of composition
         sync_system_caret(
             hwnd,
-            service.get_buffer().get_cursor_pos(),
+            service.get_buffer().get_ime_anchor_pos(),
             service.get_buffer().get_viewport_offset(),
             renderer,
             caret.as_ref(),
@@ -494,14 +504,17 @@ pub fn on_app_repaint(hwnd: HWND) -> LRESULT {
         // even during composition, as TUI apps may move the cursor.
         sync_system_caret(
             hwnd,
-            service.get_buffer().get_cursor_pos(),
+            service.get_buffer().get_ime_anchor_pos(),
             service.get_buffer().get_viewport_offset(),
             renderer,
             caret.as_ref(),
         );
     }
     unsafe {
+        // Force the OS to update the window and caret position immediately.
+        // This is crucial for TUI apps where the cursor moves frequently via ConPTY.
         let _ = InvalidateRect(hwnd, None, BOOL(0));
+        let _ = UpdateWindow(hwnd);
     }
     LRESULT(0)
 }
