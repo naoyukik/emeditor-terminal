@@ -7,9 +7,7 @@ use crate::gui::driver::scroll_gui_driver::{update_window_scroll_info, ScrollAct
 use crate::gui::driver::window_gui_driver::WindowGuiDriver;
 use crate::gui::resolver::terminal_window_resolver::{get_terminal_data, TerminalWindowResolver};
 use windows::Win32::Foundation::{BOOL, HWND, LPARAM, LRESULT, WPARAM};
-use windows::Win32::Graphics::Gdi::{
-    BeginPaint, EndPaint, InvalidateRect, UpdateWindow, PAINTSTRUCT,
-};
+use windows::Win32::Graphics::Gdi::{BeginPaint, EndPaint, InvalidateRect, PAINTSTRUCT};
 use windows::Win32::UI::Input::KeyboardAndMouse::VK_MENU;
 use windows::Win32::UI::WindowsAndMessaging::{DefWindowProcW, DLGC_WANTALLKEYS};
 
@@ -514,7 +512,7 @@ pub fn on_app_repaint(hwnd: HWND) -> LRESULT {
         // Force the OS to update the window and caret position immediately.
         // This is crucial for TUI apps where the cursor moves frequently via ConPTY.
         let _ = InvalidateRect(hwnd, None, BOOL(0));
-        let _ = UpdateWindow(hwnd);
     }
+    WindowGuiDriver::update_window(hwnd);
     LRESULT(0)
 }

@@ -1106,4 +1106,43 @@ mod tests {
         parser.advance(&mut buffer, b"\x1b[1P");
         assert_eq!(buffer.lines[0][0].text, " ");
     }
+
+    #[test]
+    fn test_ime_anchor_pos_logic() {
+        let mut buffer = TerminalBufferEntity::new(10, 5);
+        let mut parser = Parser::new();
+
+        // 1. Initial state: visible cursor at (0,0)
+        assert!(buffer.cursor.is_visible);
+        assert_eq!(buffer.get_ime_anchor_pos(), (0, 0));
+
+        // 2. Standard typing with visible cursor
+        parser.advance(&mut buffer, b"abc");
+        buffer.flush_pending_cluster();
+        assert_eq!(buffer.get_ime_anchor_pos(), (3, 0));
+
+        // 3. TUI-like behavior: Draw custom cursor using inverse video at (5, 2)
+        // Set cursor to (5, 2)
+        parser.advance(&mut buffer, b"\x1b[3;6H");
+        assert_eq!(buffer.get_cursor_pos(), (5, 2));
+        // Turn on inverse
+        parser.advance(&mut buffer, b"\x1b[7m");
+        // Print space (custom cursor)
+        parser.advance(&mut buffer, b" ");
+        buffer.flush_pending_cluster();
+        assert_eq!(buffer.last_inverse_render_pos, Some((5, 2)));
+
+        // 4. TUI-like behavior: Park hardware cursor at (9, 4) and hide it
+        parser.advance(&mut buffer, b"\x1b[5;10H\x1b[?25l");
+        assert!(!buffer.cursor.is_visible);
+        assert_eq!(buffer.get_cursor_pos(), (9, 4));
+
+        // 5. Verify IME anchor: Should prioritize last inverse render position (5, 2)
+        assert_eq!(buffer.get_ime_anchor_pos(), (5, 2));
+
+        // 6. Restore visibility: Should prioritize hardware cursor again
+        parser.advance(&mut buffer, b"\x1b[?25h");
+        assert!(buffer.cursor.is_visible);
+        assert_eq!(buffer.get_ime_anchor_pos(), (9, 4));
+    }
 }
