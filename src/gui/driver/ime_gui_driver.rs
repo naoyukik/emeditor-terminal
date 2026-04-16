@@ -3,9 +3,10 @@ use std::mem::size_of;
 use windows::Win32::Foundation::{HWND, LPARAM, POINT, RECT};
 use windows::Win32::UI::Input::Ime::{
     ImmGetCompositionStringW, ImmGetContext, ImmReleaseContext, ImmSetCandidateWindow,
-    ImmSetCompositionWindow, CANDIDATEFORM, CFS_CANDIDATEPOS, CFS_EXCLUDE, CFS_RECT,
-    COMPOSITIONFORM, GCS_COMPSTR, GCS_RESULTSTR,
+    ImmSetCompositionWindow, CANDIDATEFORM, CFS_EXCLUDE, CFS_RECT, COMPOSITIONFORM, GCS_COMPSTR,
+    GCS_RESULTSTR,
 };
+
 use windows::Win32::UI::Input::KeyboardAndMouse::GetFocus;
 use windows::Win32::UI::WindowsAndMessaging::{CreateCaret, DestroyCaret, SetCaretPos};
 

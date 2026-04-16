@@ -538,10 +538,11 @@ impl TerminalBufferEntity {
 
 impl Perform for TerminalBufferEntity {
     fn print(&mut self, c: char) {
-        if self.cursor.x < self.width && self.cursor.y < self.height {
-            if self.current_attribute.is_inverse {
-                self.last_inverse_render_pos = Some((self.cursor.x, self.cursor.y));
-            }
+        if self.cursor.x < self.width
+            && self.cursor.y < self.height
+            && self.current_attribute.is_inverse
+        {
+            self.last_inverse_render_pos = Some((self.cursor.x, self.cursor.y));
         }
         self.process_normal_char(c);
     }
@@ -881,8 +882,7 @@ impl TerminalBufferEntity {
                     self.current_attribute.is_dim = false;
                 }
                 23 => self.current_attribute.is_italic = false,
-                7 => self.current_attribute.is_inverse = true,
-                27 => self.current_attribute.is_inverse = false,
+                24 => self.current_attribute.is_underline = false,
 
                 29 => self.current_attribute.is_strikethrough = false,
                 30..=37 => self.current_attribute.fg = TerminalColor::Ansi((p - 30) as u8),
