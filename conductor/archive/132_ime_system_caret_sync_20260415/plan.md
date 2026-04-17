@@ -24,3 +24,10 @@
 
 ## Phase: Review Fixes
 - [x] Task: Apply review suggestions 6c6033e
+- [x] Task: Restore SGR 4 (Underline) handler in terminal_buffer_entity.rs 83891e3
+- [x] Task: Add IsWindow check to WindowGuiDriver::update_window for safety 0da881c
+- [x] Task: Implement clamping in get_ime_anchor_pos to handle resize safely 1a9ecc4
+- [x] Task: Update on_ime_composition to use get_ime_anchor_pos a3caa0f
+- [x] Task: Optimize UpdateWindow: call only during IME composition or when position changes 992dbe9
+- [x] Task: Lower log levels for IME/Composition messages from info to debug 8fbd7a1
+- [x] Task: Final verification and push updated branch 8fbd7a1
