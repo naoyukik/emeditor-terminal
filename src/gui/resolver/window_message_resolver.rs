@@ -412,7 +412,7 @@ pub fn on_ime_composition(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM) 
         handle_composition(
             hwnd,
             lparam,
-            service.get_buffer().get_cursor_pos(),
+            service.get_buffer().get_ime_anchor_pos(),
             service.get_buffer().get_viewport_offset(),
             renderer,
             caret.as_ref(),
