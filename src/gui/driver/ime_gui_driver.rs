@@ -211,7 +211,7 @@ pub fn handle_composition(
     renderer: &TerminalGuiDriver,
     caret: Option<&CaretHandle>,
 ) -> ImeResult {
-    log::info!(
+    log::debug!(
         "WM_IME_COMPOSITION: lparam={:?}, cursor_pos={:?}",
         lparam,
         cursor_pos

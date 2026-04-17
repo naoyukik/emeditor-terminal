@@ -369,7 +369,7 @@ pub fn on_ime_set_context(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM) 
 }
 
 pub fn on_ime_start_composition(hwnd: HWND) -> LRESULT {
-    log::info!("WM_IME_STARTCOMPOSITION: hwnd={:?}", hwnd);
+    log::debug!("WM_IME_STARTCOMPOSITION: hwnd={:?}", hwnd);
     handle_start_composition(hwnd);
     let data_arc = get_terminal_data();
     {
@@ -398,7 +398,7 @@ pub fn on_ime_start_composition(hwnd: HWND) -> LRESULT {
 }
 
 pub fn on_ime_composition(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
-    log::info!("WM_IME_COMPOSITION: hwnd={:?}, lparam={:x}", hwnd, lparam.0);
+    log::debug!("WM_IME_COMPOSITION: hwnd={:?}, lparam={:x}", hwnd, lparam.0);
     let result = {
         let data_arc = get_terminal_data();
         let mut window_data = data_arc.lock().unwrap();
