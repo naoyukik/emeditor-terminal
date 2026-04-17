@@ -10,7 +10,7 @@
 
 ## Libraries & Frameworks (Rust Crates)
 - **windows-rs / winapi**: Windows API へのアクセス。
-  - `Win32_UI_WindowsAndMessaging`: メッセージ送信、ウィンドウプロシージャによるシステムメッセージ (`WM_SYSCOMMAND`, `WM_SYSKEYDOWN`, `WM_ERASEBKGND`) の捕捉と抑制、ダイアログ表示、キャレット制御、**ウィンドウ生存確認と破棄 (`IsWindow`, `DestroyWindow`)**。
+  - `Win32_UI_WindowsAndMessaging`: メッセージ送信、ウィンドウプロシージャによるシステムメッセージ (`WM_SYSCOMMAND`, `WM_SYSKEYDOWN`, `WM_ERASEBKGND`) の捕捉と抑制、ダイアログ表示、キャレット制御、**ウィンドウ同期 (`UpdateWindow`)**、**生存確認と破棄 (`IsWindow`, `DestroyWindow`)**。
   - `Win32_Graphics_Gdi`: メモリ DC と互換ビットマップを用いたダブルバッファリング描画の実装。
   - `Win32_Globalization`: 文字コード変換 (CP932 <-> UTF-8)。
   - `Win32_UI_Input_Ime`: IME制御 (Composition String, Candidate Window)。
