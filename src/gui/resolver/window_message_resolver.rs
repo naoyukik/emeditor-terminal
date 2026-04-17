@@ -43,6 +43,7 @@ pub fn on_vscroll(hwnd: HWND, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
     }
 
     update_window_scroll_info(hwnd);
+    // SAFETY: hwnd は有効なウィンドウハンドルであり、再描画の無効化領域の指定は安全。
     unsafe {
         let _ = InvalidateRect(Some(hwnd), None, BOOL(0).into());
     }
@@ -62,6 +63,7 @@ pub fn on_mousewheel(hwnd: HWND, wparam: WPARAM) -> LRESULT {
     }
 
     update_window_scroll_info(hwnd);
+    // SAFETY: hwnd は有効なウィンドウハンドルであり、再描画の無効化領域の指定は安全。
     unsafe {
         let _ = InvalidateRect(Some(hwnd), None, BOOL(0).into());
     }
@@ -69,6 +71,8 @@ pub fn on_mousewheel(hwnd: HWND, wparam: WPARAM) -> LRESULT {
 }
 
 pub fn on_paint(hwnd: HWND) -> LRESULT {
+    // SAFETY: hwnd は有効なウィンドウハンドルであり、BeginPaint と EndPaint はペアで呼び出され、
+    // 描画処理 (renderer.render) は有効な HDC に対して行われる。
     unsafe {
         let mut ps = PAINTSTRUCT::default();
         let hdc = BeginPaint(hwnd, &mut ps);
@@ -117,6 +121,7 @@ pub fn on_lbuttondown(hwnd: HWND) -> LRESULT {
     LRESULT(0)
 }
 
+
 pub fn on_set_focus(hwnd: HWND) -> LRESULT {
     log::info!("WM_SETFOCUS: Focus received, installing keyboard hook and system caret");
 
@@ -152,6 +157,7 @@ pub fn on_kill_focus() -> LRESULT {
 pub fn on_keydown(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
     let vk_code = wparam.0 as u16;
     log::debug!("WM_KEYDOWN received: 0x{:04X}", vk_code);
+    // SAFETY: hwnd は有効なウィンドウハンドルであり、メッセージパラメータはそのまま OS に委ねる。
     unsafe { DefWindowProcW(hwnd, msg, wparam, lparam) }
 }
 
@@ -160,6 +166,7 @@ pub fn on_syskeydown(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM) -> LR
     log::debug!("WM_SYSKEYDOWN received: 0x{:04X}", vk_code);
 
     if crate::gui::window::is_system_shortcut(vk_code, true) {
+        // SAFETY: システムショートカットの場合は OS に標準処理を委ねる。
         return unsafe { DefWindowProcW(hwnd, msg, wparam, lparam) };
     }
 
@@ -167,6 +174,7 @@ pub fn on_syskeydown(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM) -> LR
         return LRESULT(0);
     }
 
+    // SAFETY: その他のシステムキーは OS に標準処理を委ねる。
     unsafe { DefWindowProcW(hwnd, msg, wparam, lparam) }
 }
 
@@ -179,6 +187,7 @@ pub fn on_syskeyup(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM) -> LRES
         return LRESULT(0);
     }
 
+    // SAFETY: HWND は有効であり、標準のキーアップ処理を OS に委ねる。
     unsafe { DefWindowProcW(hwnd, msg, wparam, lparam) }
 }
 
@@ -187,6 +196,7 @@ pub fn on_keyup(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM) -> LRESULT
     if vk_code == VK_MENU.0 {
         log::debug!("WM_KEYUP received for VK_MENU (Alt)");
     }
+    // SAFETY: HWND は有効であり、標準のキーアップ処理を OS に委ねる。
     unsafe { DefWindowProcW(hwnd, msg, wparam, lparam) }
 }
 
@@ -195,6 +205,7 @@ pub fn on_syschar(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM) -> LRESU
     log::debug!("WM_SYSCHAR received: 0x{:04X}", char_code);
 
     if char_code == 0x0020 {
+        // SAFETY: Alt+Space 等の標準メニュー操作は OS に委ねる。
         return unsafe { DefWindowProcW(hwnd, msg, wparam, lparam) };
     }
 
@@ -208,14 +219,17 @@ pub fn on_syscommand(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM) -> LR
         let key_char = (lparam.0 & 0xFFFF) as u16;
         if key_char == 0x0020 {
             log::debug!("SC_KEYMENU from Alt+Space: passing to DefWindowProcW");
+            // SAFETY: システムメニューの表示は OS に委ねる。
             return unsafe { DefWindowProcW(hwnd, msg, wparam, lparam) };
         }
 
         log::debug!("SC_KEYMENU received (Menu activation blocked)");
         return LRESULT(0);
     }
+    // SAFETY: その他のシステムコマンドは OS に標準処理を委ねる。
     unsafe { DefWindowProcW(hwnd, msg, wparam, lparam) }
 }
+
 
 pub fn on_char(hwnd: HWND, wparam: WPARAM) -> LRESULT {
     let char_code = wparam.0 as u16;
@@ -366,6 +380,7 @@ pub fn on_ime_set_context(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM) 
     );
     let mut lparam = lparam;
     lparam.0 &= !(ISC_SHOWUICOMPOSITIONWINDOW as isize);
+    // SAFETY: HWND は有効であり、IME コンテキストの設定を OS に委ねる。
     unsafe { DefWindowProcW(hwnd, msg, wparam, lparam) }
 }
 
@@ -445,6 +460,7 @@ pub fn on_ime_composition(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM) 
     }
 
     if let ImeResult::NotHandled = result {
+        // SAFETY: IME メッセージが処理されなかった場合、OS の標準処理に委ねる。
         unsafe { DefWindowProcW(hwnd, msg, wparam, lparam) }
     } else {
         LRESULT(0)
@@ -511,6 +527,7 @@ pub fn on_app_repaint(hwnd: HWND) -> LRESULT {
         );
         composition.is_some()
     };
+    // SAFETY: HWND は有効であり、再描画の無効化領域の指定は安全。
     unsafe {
         // This is crucial for TUI apps where the cursor moves frequently via ConPTY.
         let _ = InvalidateRect(Some(hwnd), None, BOOL(0).into());

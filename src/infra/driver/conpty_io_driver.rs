@@ -48,6 +48,9 @@ impl ConptyIoDriver {
             Vec::new()
         };
 
+        // SAFETY: Win32 API を使用してプロセス間通信用のパイプを作成し、
+        // 擬似コンソール (ConPTY) を初期化する。すべてのハンドルは成功時に所有権が
+        // 管理され、失敗時には適切にクローズされる。
         unsafe {
             if CreatePipe(&mut h_pipe_pt_in, &mut h_pipe_in_write, None, 0).is_err() {
                 return Err("Failed to create input pipe".to_string());
@@ -176,6 +179,9 @@ impl ConptyIoDriver {
                 PCWSTR(current_dir_w.as_ptr())
             };
 
+            // SAFETY: プロセス作成に際してワイド文字列のコマンドラインポインタを
+            // 渡し、プロセスの起動に成功した場合は情報を取得する。属性リストは
+            // 呼び出し後に確実に破棄される。
             let success = CreateProcessW(
                 None,
                 Some(PWSTR(cmd_line_w.as_mut_ptr())),
@@ -227,6 +233,7 @@ impl ConptyIoDriver {
             X: width,
             Y: height,
         };
+        // SAFETY: コンソールハンドルは生存しており、リサイズ要求は安全。
         unsafe {
             ResizePseudoConsole(self.pseudo_console_handle.0, size)
                 .map_err(|e| format!("Failed to resize pseudo console: {}", e))
@@ -240,6 +247,8 @@ unsafe impl Sync for ConptyIoDriver {}
 impl Drop for ConptyIoDriver {
     fn drop(&mut self) {
         log::info!("ConptyIoDriver dropping... closing handles.");
+        // SAFETY: 保持しているプロセス、スレッド、コンソール、およびパイプの
+        // ハンドルを確実にクローズし、リソースリークを防ぐ。
         unsafe {
             if self.process_handle.0 != INVALID_HANDLE_VALUE {
                 let _ = CloseHandle(self.process_handle.0);
