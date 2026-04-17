@@ -1,0 +1,17 @@
+{
+  "name": "terminal-for-emeditor",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "danger": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "naoyukik",
+  "license": "MIT",
+  "private": true,
+  "devDependencies": {
+    "danger": "^13.0.7",
+    "keep-a-changelog": "^3.0.2"
+  }
+}
