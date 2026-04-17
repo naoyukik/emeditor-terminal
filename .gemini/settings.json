@@ -143,18 +143,6 @@
           }
         ]
       }
-    ],
-    "PreCompress": [
-      {
-        "hooks": [
-          {
-            "name": "mempal_precompact_hook",
-            "type": "command",
-            "command": "$PYTHON_COMMAND $GEMINI_PROJECT_DIR/.gemini/hooks/mempal_precompact_hook.py",
-            "description": "セッション圧縮直前にMempalaceへメモリを保存する"
-          }
-        ]
-      }
     ]
   },
   "skills": {
