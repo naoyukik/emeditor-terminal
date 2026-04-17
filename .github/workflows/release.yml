@@ -29,7 +29,6 @@ jobs:
 
       - name: Export Properties
         id: properties
-        shell: bash
         run: |
           VERSION="$(cat ./Cargo.toml | grep "^version = " | cut -f3- -d ' ' | tr -d '"')"
           ./node_modules/.bin/changelog --release $VERSION
