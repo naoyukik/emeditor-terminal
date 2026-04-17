@@ -1,4 +1,4 @@
-# Project Context Index
+﻿# Project Context Index
 
 - [Product Definition](./product.md)
 - [Tech Stack](./tech-stack.md)
