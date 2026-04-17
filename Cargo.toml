@@ -35,9 +35,10 @@ windows = { version = "0.62", features = [
     "Win32_System_Registry",
 ] }
 windows-core = "0.62"
-windows-result = "0.2"
-windows-strings = "0.3"
+windows-registry = "0.6"
+windows-result = "0.4"
+windows-strings = "0.5"
 
 [build-dependencies]
 embed-resource = "2.5"
-windows-link = "0.1"
+windows-link = "0.2"

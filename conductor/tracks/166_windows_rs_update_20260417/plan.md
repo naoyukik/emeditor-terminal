@@ -14,30 +14,26 @@
 - [x] Task: `cargo clippy` および `cargo fmt` の実行。
 - [x] Task: `@arch-auditor` によるレビューを実施。
 - [x] Task: Conductor - ユーザー手動検証 'フェーズ 2' (基盤刷新の動作確認)
+- [x] Task: フェーズ成果物のコミット
+
+## フェーズ 3: マイルストーン B - Safe API 刷新と Windows-Link 完全移行
+- **主な変更**: `windows-link` への完全移行、`windows-registry` による Safe レジストリ操作への刷新。
+- [x] Task: `windows-targets` への依存を完全に排除し、`windows-link` によるリンク方式を標準化。
+- [x] Task: `src/infra/repository/emeditor_config_repository_impl.rs` 等のレジストリ操作を `windows-registry` クレートへ移行。
+- [x] Task: コンパイル確認 (`cargo check`)。
+- [x] Task: `@arch-auditor` によるレビューを実施（Win32 API 隔離状況の確認）。
+- [x] Task: `cargo clippy` および `cargo fmt` の実行。
+- [x] Task: Conductor - ユーザー手動検証 'フェーズ 3' (レジストリ操作とビルドの安定性確認)
 - [ ] Task: フェーズ成果物のコミット
 
-## フェーズ 3: マイルストーン B - コード生成とリンク方式の標準化 (v0.62 -> v0.69)
-- **主な変更**: `BOOLEAN` -> `bool` リマップ, `Ref`/`OutRef` 導入, `windows-link` 完全移行。
-- [ ] Task: `Cargo.toml` を v0.69 相当へ更新。
-- [ ] Task: `windows-targets` から `windows-link` への完全移行。
-- [ ] Task: COM インターフェース引数の `Ref`/`OutRef` 対応。
-- [ ] Task: レジストリ操作を `windows-registry` クレート (Safe API) へ移行開始。
+## フェーズ 4: マイルストーン C - アーキテクチャ是正 (arch-auditor 指摘対応)
+- **主な変更**: Resolver 層の Win32 隠蔽、Domain 層のプロトコル解析分離。
+- [ ] Task: `window_message_resolver.rs` 内の Win32 API 呼び出し（`BeginPaint`, `GetDC` 等）を `_gui_driver.rs` へカプセル化。
+- [ ] Task: `terminal_buffer_entity.rs` から `vte::Perform` 実装と解析ロジックを `terminal_protocol_handler.rs` (仮) へ隔離。
 - [ ] Task: コンパイル確認 (`cargo check`)。
+- [ ] Task: `@arch-auditor` による最終アーキテクチャ監査。
 - [ ] Task: `cargo clippy` および `cargo fmt` の実行。
-- [ ] Task: `@arch-auditor` によるレビューを実施。
-- [ ] Task: Conductor - ユーザー手動検証 'フェーズ 3' (標準化後の動作確認)
-- [ ] Task: フェーズ成果物のコミット
-
-## フェーズ 4: マイルストーン C - 最終アップデートと厳密化 (v0.69 -> v0.73)
-- **主な変更**: ポインタ型の厳密化 (`*const`/`*mut`), `Display` トレイト削除への対応。
-- [ ] Task: `Cargo.toml` を v0.73 (最新) へ更新。
-- [ ] Task: Win32 API 呼び出し箇所のポインタ型整合の修正。
-- [ ] Task: `log!` 等における `HSTRING`/`BSTR` の明示的な `.to_string()` 変換。
-- [ ] Task: レジストリ操作の Safe API 移行を完了。
-- [ ] Task: `cargo check` および全テスト実行。
-- [ ] Task: `cargo clippy` および `cargo fmt` の実行。
-- [ ] Task: `@arch-auditor` によるレビューを実施。
-- [ ] Task: Conductor - ユーザー手動検証 'フェーズ 4' (最新版での全機能確認)
+- [ ] Task: Conductor - ユーザー手動検証 'フェーズ 4' (リファクタリング後の全機能確認)
 - [ ] Task: フェーズ成果物のコミット
 
 ## フェーズ 5: 仕上げと最終検証 (Finalization & Verification)

@@ -1,12 +1,7 @@
 use crate::domain::model::terminal_config_value::{TerminalConfig, ThemeType};
 use crate::domain::model::window_id_value::WindowId;
 use crate::domain::repository::configuration_repository::{ConfigError, ConfigurationRepository};
-use crate::infra::driver::emeditor_io_driver::{
-    self, EEREG_EMEDITORPLUGIN, REG_DWORD, REG_QUERY_VALUE_INFO, REG_SZ,
-};
-use std::mem::size_of;
-use windows::core::w;
-use windows::Win32::Foundation::HWND;
+use crate::infra::driver::emeditor_io_driver;
 
 pub struct EmEditorConfigRepositoryImpl {
     hwnd: WindowId,
@@ -17,133 +12,20 @@ impl EmEditorConfigRepositoryImpl {
         Self { hwnd }
     }
 
-    fn get_hwnd(&self) -> HWND {
-        HWND(self.hwnd.0 as _)
-    }
-
     fn query_string(&self, value_name: &str, default: &str) -> String {
-        let mut buffer: Vec<u16> = vec![0u16; 260];
-        let value_name_wide: Vec<u16> = value_name
-            .encode_utf16()
-            .chain(std::iter::once(0))
-            .collect();
-
-        let mut attempt = 0;
-        const MAX_ATTEMPTS: usize = 4;
-
-        loop {
-            if attempt >= MAX_ATTEMPTS {
-                return default.to_string();
-            }
-            attempt += 1;
-
-            let mut cb_data = (buffer.len() * size_of::<u16>()) as u32;
-
-            let mut info = REG_QUERY_VALUE_INFO {
-                cbSize: size_of::<REG_QUERY_VALUE_INFO>(),
-                dwKey: EEREG_EMEDITORPLUGIN,
-                pszConfig: w!("Terminal"),
-                pszValue: windows::core::PCWSTR(value_name_wide.as_ptr()),
-                dwType: REG_SZ,
-                lpData: buffer.as_mut_ptr() as *mut u8,
-                lpcbData: &mut cb_data as *mut u32,
-                dwFlags: 0,
-            };
-
-            let ret = emeditor_io_driver::reg_query_value(self.get_hwnd(), &mut info);
-
-            if ret == 0 {
-                let len = (cb_data as usize / size_of::<u16>()).min(buffer.len());
-                let result = String::from_utf16_lossy(&buffer[..len]);
-                let result = result.trim_matches('\0').to_string();
-                if result.is_empty() {
-                    return default.to_string();
-                } else {
-                    return result;
-                }
-            } else {
-                let required_bytes = cb_data as usize;
-                let current_bytes = buffer.len() * size_of::<u16>();
-
-                if required_bytes > current_bytes && required_bytes > 0 {
-                    let required_u16 = (required_bytes + 1) / size_of::<u16>();
-                    let new_len = required_u16.max(buffer.len().saturating_mul(2));
-                    buffer = vec![0u16; new_len];
-                    continue;
-                } else {
-                    return default.to_string();
-                }
-            }
-        }
+        emeditor_io_driver::emeditor_query_string(self.hwnd, value_name, default)
     }
 
     fn query_dword(&self, value_name: &str, default: i32) -> i32 {
-        let mut data: u32 = 0;
-        let mut cb_data = size_of::<u32>() as u32;
-        let value_name_wide: Vec<u16> = value_name
-            .encode_utf16()
-            .chain(std::iter::once(0))
-            .collect();
-
-        let mut info = REG_QUERY_VALUE_INFO {
-            cbSize: size_of::<REG_QUERY_VALUE_INFO>(),
-            dwKey: EEREG_EMEDITORPLUGIN,
-            pszConfig: w!("Terminal"),
-            pszValue: windows::core::PCWSTR(value_name_wide.as_ptr()),
-            dwType: REG_DWORD,
-            lpData: &mut data as *mut u32 as *mut u8,
-            lpcbData: &mut cb_data as *mut u32,
-            dwFlags: 0,
-        };
-
-        if emeditor_io_driver::reg_query_value(self.get_hwnd(), &mut info) == 0 {
-            data as i32
-        } else {
-            default
-        }
+        emeditor_io_driver::emeditor_query_u32(self.hwnd, value_name, default as u32) as i32
     }
 
     fn set_string(&self, value_name: &str, value: &str) -> i32 {
-        // Allowing empty string to enable "reset to default" behavior
-        let value_wide: Vec<u16> = value.encode_utf16().chain(std::iter::once(0)).collect();
-        let value_name_wide: Vec<u16> = value_name
-            .encode_utf16()
-            .chain(std::iter::once(0))
-            .collect();
-
-        let info = emeditor_io_driver::REG_SET_VALUE_INFO {
-            cbSize: size_of::<emeditor_io_driver::REG_SET_VALUE_INFO>(),
-            dwKey: EEREG_EMEDITORPLUGIN,
-            pszConfig: w!("Terminal"),
-            pszValue: windows::core::PCWSTR(value_name_wide.as_ptr()),
-            dwType: emeditor_io_driver::REG_SZ,
-            lpData: value_wide.as_ptr() as *const u8,
-            cbData: (value_wide.len() * size_of::<u16>()) as u32,
-            dwFlags: 0,
-        };
-
-        emeditor_io_driver::reg_set_value(self.get_hwnd(), &info)
+        emeditor_io_driver::emeditor_set_string(self.hwnd, value_name, value)
     }
 
     fn set_dword(&self, value_name: &str, value: i32) -> i32 {
-        let data = value as u32;
-        let value_name_wide: Vec<u16> = value_name
-            .encode_utf16()
-            .chain(std::iter::once(0))
-            .collect();
-
-        let info = emeditor_io_driver::REG_SET_VALUE_INFO {
-            cbSize: size_of::<emeditor_io_driver::REG_SET_VALUE_INFO>(),
-            dwKey: EEREG_EMEDITORPLUGIN,
-            pszConfig: w!("Terminal"),
-            pszValue: windows::core::PCWSTR(value_name_wide.as_ptr()),
-            dwType: emeditor_io_driver::REG_DWORD,
-            lpData: &data as *const u32 as *const u8,
-            cbData: size_of::<u32>() as u32,
-            dwFlags: 0,
-        };
-
-        emeditor_io_driver::reg_set_value(self.get_hwnd(), &info)
+        emeditor_io_driver::emeditor_set_u32(self.hwnd, value_name, value as u32)
     }
 }
 
@@ -151,7 +33,7 @@ impl ConfigurationRepository for EmEditorConfigRepositoryImpl {
     fn load(&self) -> TerminalConfig {
         let default = TerminalConfig::default();
 
-        if self.get_hwnd().0.is_null() {
+        if self.hwnd.0 == 0 {
             return default;
         }
 
@@ -187,7 +69,7 @@ impl ConfigurationRepository for EmEditorConfigRepositoryImpl {
     }
 
     fn save(&self, config: &TerminalConfig) -> Result<(), ConfigError> {
-        if self.get_hwnd().0.is_null() {
+        if self.hwnd.0 == 0 {
             log::warn!("EmEditorConfigRepositoryImpl: HWND is NULL, skipping save.");
             return Err(ConfigError::SaveFailed("HWND is NULL".to_string()));
         }
