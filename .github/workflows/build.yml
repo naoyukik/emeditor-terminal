@@ -61,9 +61,9 @@ jobs:
           VERSION="$(cat ./Cargo.toml | grep "^version = " | cut -f3- -d ' ' | tr -d '"')"
           ./node_modules/.bin/changelog --release $VERSION
           CHANGELOG="$(./node_modules/.bin/changelog --latest-release-full)"
-          gh release create "$VERSION" \
+          gh release create "v$VERSION" \
             --draft \
-            --title "$VERSION" \
+            --title "v$VERSION" \
             --notes "$(cat <<EOM
           $CHANGELOG
           EOM
