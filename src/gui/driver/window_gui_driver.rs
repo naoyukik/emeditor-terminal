@@ -40,10 +40,11 @@ impl WindowGuiDriver {
 
     /// 指定されたウィンドウの更新を強制する（WM_PAINTメッセージを即座に処理させる）。
     pub(crate) fn update_window(hwnd: HWND) {
-        // SAFETY: HWND の有効性は上位レイヤーで管理されていることを前提とし、
-        // 描画更新の強制という非破壊的な操作を行う。
+        // SAFETY: IsWindow で存在を確認してから UpdateWindow を呼び出す。
         unsafe {
-            let _ = UpdateWindow(hwnd);
+            if IsWindow(hwnd).as_bool() {
+                let _ = UpdateWindow(hwnd);
+            }
         }
     }
 }
