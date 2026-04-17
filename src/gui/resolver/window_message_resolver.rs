@@ -489,12 +489,13 @@ pub fn on_app_repaint(hwnd: HWND) -> LRESULT {
     log::debug!("on_app_repaint: triggered");
     update_window_scroll_info(hwnd);
     let data_arc = get_terminal_data();
-    {
+    let is_composing = {
         let window_data = data_arc.lock().unwrap();
         let TerminalWindowResolver {
             ref service,
             ref renderer,
             ref caret,
+            ref composition,
             ..
         } = *window_data;
 
@@ -507,12 +508,16 @@ pub fn on_app_repaint(hwnd: HWND) -> LRESULT {
             renderer,
             caret.as_ref(),
         );
-    }
+        composition.is_some()
+    };
     unsafe {
-        // Force the OS to update the window and caret position immediately.
         // This is crucial for TUI apps where the cursor moves frequently via ConPTY.
         let _ = InvalidateRect(hwnd, None, BOOL(0));
     }
-    WindowGuiDriver::update_window(hwnd);
+    // Force the OS to update the window and caret position immediately ONLY during IME composition
+    // to reduce UI thread load while maintaining correct candidate window positioning.
+    if is_composing {
+        WindowGuiDriver::update_window(hwnd);
+    }
     LRESULT(0)
 }
