@@ -873,6 +873,7 @@ impl TerminalBufferEntity {
                 1 => self.current_attribute.is_bold = true,
                 2 => self.current_attribute.is_dim = true,
                 3 => self.current_attribute.is_italic = true,
+                4 => self.current_attribute.is_underline = true,
                 7 => self.current_attribute.is_inverse = true,
                 27 => self.current_attribute.is_inverse = false,
 
