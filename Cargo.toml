@@ -1,9 +1,10 @@
 [package]
-name = "emeditor-terminal"
-version = "0.1.0"
+name = "terminal-for-emeditor"
+version = "0.5.0"
 edition = "2021"
 
 [lib]
+name = "emeditor_terminal"
 crate-type = ["cdylib"]
 
 [dependencies]
