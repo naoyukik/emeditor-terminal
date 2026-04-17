@@ -52,6 +52,9 @@
 # IDE settings
 .idea/
 
+# npm package
+/node_modules
+
 # EmEditor settings
 /emeditor-terminal.eeWorkspace
 /emeditor-terminal.eesln
