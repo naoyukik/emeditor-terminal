@@ -13,9 +13,20 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  verify:
+    name: Verify build
+    runs-on: windows-latest
+    steps:
+      - name: Fetch Sources
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+
+      - name: Build
+        run: cargo build --locked
+
   releaseDraft:
     name: Release draft
-    if: github.event_name != 'pull_request'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: verify
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -50,9 +61,9 @@ jobs:
           VERSION="$(cat ./Cargo.toml | grep "^version = " | cut -f3- -d ' ' | tr -d '"')"
           ./node_modules/.bin/changelog --release $VERSION
           CHANGELOG="$(./node_modules/.bin/changelog --latest-release-full)"
-          gh release create "v$VERSION" \
+          gh release create "$VERSION" \
             --draft \
-            --title "v$VERSION" \
+            --title "$VERSION" \
             --notes "$(cat <<EOM
           $CHANGELOG
           EOM
