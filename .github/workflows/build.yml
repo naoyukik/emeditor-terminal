@@ -23,6 +23,27 @@ jobs:
       - name: Build
         run: cargo build --locked
 
+  changeloglint:
+    name: Verify build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fetch Sources
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+
+      - name: Use Node.js
+        uses: actions/setup-node@395ad3262231945c25e8478fd5baf05154b1d79f # v6.1.0
+        with:
+          node-version: 22
+
+      - name: Install pnpm
+        run: npm install -g pnpm
+
+      - name: Install dependencies
+        run: pnpm i --frozen-lockfile
+
+      - name: lint
+        run: ./node_modules/.bin/changelog
+
   releaseDraft:
     name: Release draft
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
