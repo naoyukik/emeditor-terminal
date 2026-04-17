@@ -71,13 +71,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - レイヤードアーキテクチャ境界の強化と可視性の適正化を実施
 - DDDに基づく命名規則を適用
 - Suffix Ruleに基づく物理構成の再編とGit運用の強化を実施
-
-### Documentation
-
 - コーディング規約および運用ガイドラインを導入
-
-### Chore
-
 - AIエージェント統制強化とドキュメント合理化を実施
 
 ## [0.2.0] - 2026-01-20
