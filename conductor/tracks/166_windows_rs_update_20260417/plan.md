@@ -12,6 +12,7 @@
 - [x] Task: `HSTRING` の `Deref` 実装に伴うコード簡略化。
 - [x] Task: コンパイル確認 (`cargo check`) とユニットテスト。
 - [x] Task: `cargo clippy` および `cargo fmt` の実行。
+- [x] Task: `@arch-auditor` によるレビューを実施。
 - [x] Task: Conductor - ユーザー手動検証 'フェーズ 2' (基盤刷新の動作確認)
 - [ ] Task: フェーズ成果物のコミット
 
@@ -23,6 +24,7 @@
 - [ ] Task: レジストリ操作を `windows-registry` クレート (Safe API) へ移行開始。
 - [ ] Task: コンパイル確認 (`cargo check`)。
 - [ ] Task: `cargo clippy` および `cargo fmt` の実行。
+- [ ] Task: `@arch-auditor` によるレビューを実施。
 - [ ] Task: Conductor - ユーザー手動検証 'フェーズ 3' (標準化後の動作確認)
 - [ ] Task: フェーズ成果物のコミット
 
@@ -34,6 +36,7 @@
 - [ ] Task: レジストリ操作の Safe API 移行を完了。
 - [ ] Task: `cargo check` および全テスト実行。
 - [ ] Task: `cargo clippy` および `cargo fmt` の実行。
+- [ ] Task: `@arch-auditor` によるレビューを実施。
 - [ ] Task: Conductor - ユーザー手動検証 'フェーズ 4' (最新版での全機能確認)
 - [ ] Task: フェーズ成果物のコミット
 
