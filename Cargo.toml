@@ -15,7 +15,7 @@ unicode-segmentation = "1.11"
 unicode-width = "0.1.13"
 which = "8.0"
 time = { version = "0.3", features = ["macros"] }
-windows = { version = "0.58", features = [
+windows = { version = "0.62", features = [
     "Win32_Foundation",
     "Win32_System_LibraryLoader",
     "Win32_UI_WindowsAndMessaging",
