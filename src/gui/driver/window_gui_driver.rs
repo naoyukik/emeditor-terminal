@@ -1,4 +1,5 @@
 use windows::Win32::Foundation::HWND;
+use windows::Win32::Graphics::Gdi::UpdateWindow;
 use windows::Win32::UI::Input::KeyboardAndMouse::SetFocus;
 use windows::Win32::UI::WindowsAndMessaging::{DestroyWindow, IsWindow};
 
@@ -33,6 +34,16 @@ impl WindowGuiDriver {
         unsafe {
             if IsWindow(hwnd).as_bool() {
                 let _ = DestroyWindow(hwnd);
+            }
+        }
+    }
+
+    /// 指定されたウィンドウの更新を強制する（WM_PAINTメッセージを即座に処理させる）。
+    pub(crate) fn update_window(hwnd: HWND) {
+        // SAFETY: IsWindow で存在を確認してから UpdateWindow を呼び出す。
+        unsafe {
+            if IsWindow(hwnd).as_bool() {
+                let _ = UpdateWindow(hwnd);
             }
         }
     }

@@ -3,9 +3,10 @@ use std::mem::size_of;
 use windows::Win32::Foundation::{HWND, LPARAM, POINT, RECT};
 use windows::Win32::UI::Input::Ime::{
     ImmGetCompositionStringW, ImmGetContext, ImmReleaseContext, ImmSetCandidateWindow,
-    ImmSetCompositionWindow, CANDIDATEFORM, CFS_EXCLUDE, CFS_POINT, COMPOSITIONFORM, GCS_COMPSTR,
+    ImmSetCompositionWindow, CANDIDATEFORM, CFS_EXCLUDE, CFS_RECT, COMPOSITIONFORM, GCS_COMPSTR,
     GCS_RESULTSTR,
 };
+
 use windows::Win32::UI::Input::KeyboardAndMouse::GetFocus;
 use windows::Win32::UI::WindowsAndMessaging::{CreateCaret, DestroyCaret, SetCaretPos};
 
@@ -100,7 +101,13 @@ pub fn sync_system_caret(
     // CRITICAL: Only sync if this window actually has focus.
     // This prevents interfering with the parent EmEditor window's IME.
     unsafe {
-        if GetFocus() != hwnd {
+        let focus_hwnd = GetFocus();
+        if focus_hwnd != hwnd {
+            log::debug!(
+                "sync_system_caret: Skipped sync (No Focus). hwnd={:?}, focus_hwnd={:?}",
+                hwnd,
+                focus_hwnd
+            );
             return;
         }
     }
@@ -109,7 +116,13 @@ pub fn sync_system_caret(
     let relative_y = cursor_pos.1.saturating_sub(viewport_offset);
 
     if let Some((pixel_x, pixel_y)) = renderer.cell_to_pixel(cursor_pos.0, relative_y) {
-        log::debug!("Syncing system caret: pixel=({}, {})", pixel_x, pixel_y);
+        log::debug!(
+            "sync_system_caret: cell=({},{}), pixel=({}, {})",
+            cursor_pos.0,
+            cursor_pos.1,
+            pixel_x,
+            pixel_y
+        );
 
         // 1. Update system caret position (for IME anchoring)
         if let Some(c) = caret {
@@ -132,7 +145,7 @@ pub fn sync_system_caret(
                 };
 
                 // The exclusion area is the rectangle we want the IME list to AVOID covering.
-                // For Japanese input, we should at least exclude 2 columns (full-width).
+                // We use the full character height and a reasonable width for the exclusion.
                 let rc_exclude = RECT {
                     left: pixel_x,
                     top: pixel_y,
@@ -141,10 +154,11 @@ pub fn sync_system_caret(
                 };
 
                 // Style for composition window
+                // Using CFS_RECT ensures the candidate window stays near the caret but avoids overlapping.
                 let comp_form = COMPOSITIONFORM {
-                    dwStyle: CFS_POINT,
+                    dwStyle: CFS_RECT,
                     ptCurrentPos: pt_current_pos,
-                    rcArea: RECT::default(),
+                    rcArea: rc_exclude,
                 };
                 let _ = ImmSetCompositionWindow(himc, &comp_form);
 
@@ -197,7 +211,11 @@ pub fn handle_composition(
     renderer: &TerminalGuiDriver,
     caret: Option<&CaretHandle>,
 ) -> ImeResult {
-    log::debug!("WM_IME_COMPOSITION: lparam={:?}", lparam);
+    log::debug!(
+        "WM_IME_COMPOSITION: lparam={:?}, cursor_pos={:?}",
+        lparam,
+        cursor_pos
+    );
 
     let mut result = ImeResult::NotHandled;
 

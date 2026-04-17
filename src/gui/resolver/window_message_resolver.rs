@@ -99,7 +99,7 @@ pub fn on_paint(hwnd: HWND) -> LRESULT {
         // Always sync system caret position with virtual cursor during paint
         sync_system_caret(
             hwnd,
-            service.get_buffer().get_cursor_pos(),
+            service.get_buffer().get_ime_anchor_pos(),
             service.get_buffer().get_viewport_offset(),
             renderer,
             caret.as_ref(),
@@ -314,10 +314,18 @@ pub fn on_size(hwnd: HWND, lparam: LPARAM) -> LRESULT {
             let cols = (width / char_width).max(1) as i16;
             let rows = (height / char_height).max(1) as i16;
 
+            log::debug!(
+                "on_size: metrics={}x{}, calculated cols={}, rows={}",
+                char_width,
+                char_height,
+                cols,
+                rows
+            );
+
             // コンテキストを一度手放してから起動処理を呼ぶ（デッドロック防止）
             drop(window_data);
             if crate::gui::window::ensure_conpty_started(hwnd, hwnd_editor, cols, rows) {
-                log::info!("ConPTY started in on_size with {}x{}", cols, rows);
+                log::debug!("ConPTY started in on_size with {}x{}", cols, rows);
             } else {
                 log::error!("Failed to start ConPTY. Destroying window.");
                 WindowGuiDriver::destroy_window(hwnd);
@@ -337,7 +345,7 @@ pub fn on_size(hwnd: HWND, lparam: LPARAM) -> LRESULT {
             let cols = (width / char_width).max(1) as i16;
             let rows = (height / char_height).max(1) as i16;
 
-            log::info!("Resizing ConptyIoDriver to cols={}, rows={}", cols, rows);
+            log::debug!("Resizing ConptyIoDriver to cols={}, rows={}", cols, rows);
             window_data.service.resize(cols as usize, rows as usize);
         }
     }
@@ -361,6 +369,7 @@ pub fn on_ime_set_context(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM) 
 }
 
 pub fn on_ime_start_composition(hwnd: HWND) -> LRESULT {
+    log::debug!("WM_IME_STARTCOMPOSITION: hwnd={:?}", hwnd);
     handle_start_composition(hwnd);
     let data_arc = get_terminal_data();
     {
@@ -377,7 +386,7 @@ pub fn on_ime_start_composition(hwnd: HWND) -> LRESULT {
         // Sync IME position at the very beginning of composition
         sync_system_caret(
             hwnd,
-            service.get_buffer().get_cursor_pos(),
+            service.get_buffer().get_ime_anchor_pos(),
             service.get_buffer().get_viewport_offset(),
             renderer,
             caret.as_ref(),
@@ -389,6 +398,7 @@ pub fn on_ime_start_composition(hwnd: HWND) -> LRESULT {
 }
 
 pub fn on_ime_composition(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
+    log::debug!("WM_IME_COMPOSITION: hwnd={:?}, lparam={:x}", hwnd, lparam.0);
     let result = {
         let data_arc = get_terminal_data();
         let mut window_data = data_arc.lock().unwrap();
@@ -402,7 +412,7 @@ pub fn on_ime_composition(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM) 
         handle_composition(
             hwnd,
             lparam,
-            service.get_buffer().get_cursor_pos(),
+            service.get_buffer().get_ime_anchor_pos(),
             service.get_buffer().get_viewport_offset(),
             renderer,
             caret.as_ref(),
@@ -476,14 +486,16 @@ pub fn on_get_dlg_code() -> LRESULT {
 }
 
 pub fn on_app_repaint(hwnd: HWND) -> LRESULT {
+    log::debug!("on_app_repaint: triggered");
     update_window_scroll_info(hwnd);
     let data_arc = get_terminal_data();
-    {
+    let is_composing = {
         let window_data = data_arc.lock().unwrap();
         let TerminalWindowResolver {
             ref service,
             ref renderer,
             ref caret,
+            ref composition,
             ..
         } = *window_data;
 
@@ -491,14 +503,21 @@ pub fn on_app_repaint(hwnd: HWND) -> LRESULT {
         // even during composition, as TUI apps may move the cursor.
         sync_system_caret(
             hwnd,
-            service.get_buffer().get_cursor_pos(),
+            service.get_buffer().get_ime_anchor_pos(),
             service.get_buffer().get_viewport_offset(),
             renderer,
             caret.as_ref(),
         );
-    }
+        composition.is_some()
+    };
     unsafe {
+        // This is crucial for TUI apps where the cursor moves frequently via ConPTY.
         let _ = InvalidateRect(hwnd, None, BOOL(0));
+    }
+    // Force the OS to update the window and caret position immediately ONLY during IME composition
+    // to reduce UI thread load while maintaining correct candidate window positioning.
+    if is_composing {
+        WindowGuiDriver::update_window(hwnd);
     }
     LRESULT(0)
 }

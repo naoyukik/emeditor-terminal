@@ -9,7 +9,7 @@ crate-type = ["cdylib"]
 [dependencies]
 log = "0.4"
 simplelog = "0.12"
-vte = "0.14"
+vte = "0.15.0"
 unicode-segmentation = "1.11"
 unicode-width = "0.1.13"
 which = "8.0"
