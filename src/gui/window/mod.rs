@@ -135,7 +135,8 @@ pub fn ensure_conpty_started(hwnd_client: HWND, hwnd_editor: HWND, cols: i16, ro
 
                     // Trigger repaint via PostMessage (thread-safe)
                     unsafe {
-                        let _ = PostMessageW(send_hwnd.0, WM_APP_REPAINT, WPARAM(0), LPARAM(0));
+                        let _ =
+                            PostMessageW(Some(send_hwnd.0), WM_APP_REPAINT, WPARAM(0), LPARAM(0));
                     }
                 }
                 log::info!("ConptyIoDriver output thread finished");
@@ -202,9 +203,9 @@ pub fn open_custom_bar(hwnd_editor: HWND) -> bool {
             0,
             0,
             0,
-            hwnd_editor,
+            Some(hwnd_editor),
             None,
-            h_instance,
+            Some(h_instance),
             None,
         );
 
@@ -244,8 +245,8 @@ pub fn open_custom_bar(hwnd_editor: HWND) -> bool {
                 SendMessageW(
                     hwnd_editor,
                     EE_CUSTOM_BAR_OPEN,
-                    WPARAM(0),
-                    LPARAM(&mut info as *mut _ as isize),
+                    Some(WPARAM(0)),
+                    Some(LPARAM(&mut info as *mut _ as isize)),
                 );
 
                 // ConPTYの起動はWM_SIZE（配置確定後）に任せるため、ここではウィンドウ作成のみ行う

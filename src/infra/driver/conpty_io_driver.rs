@@ -1,8 +1,7 @@
 use std::ffi::c_void;
 use std::mem::size_of;
-use std::ptr::null_mut;
 use windows::core::{PCWSTR, PWSTR};
-use windows::Win32::Foundation::{CloseHandle, BOOL, HANDLE, INVALID_HANDLE_VALUE};
+use windows::Win32::Foundation::{CloseHandle, HANDLE, INVALID_HANDLE_VALUE};
 use windows::Win32::System::Console::{
     ClosePseudoConsole, CreatePseudoConsole, ResizePseudoConsole, COORD, HPCON,
 };
@@ -92,18 +91,15 @@ impl ConptyIoDriver {
             startup_info_ex.StartupInfo.cb = size_of::<STARTUPINFOEXW>() as u32;
 
             let mut size: usize = 0;
-            let _ = InitializeProcThreadAttributeList(
-                LPPROC_THREAD_ATTRIBUTE_LIST(null_mut()),
-                1,
-                0,
-                &mut size,
-            );
+            let _ = InitializeProcThreadAttributeList(None, 1, Some(0), &mut size);
 
             let mut attr_list_buffer = vec![0u8; size];
             let lp_attribute_list =
                 LPPROC_THREAD_ATTRIBUTE_LIST(attr_list_buffer.as_mut_ptr() as *mut c_void);
 
-            if InitializeProcThreadAttributeList(lp_attribute_list, 1, 0, &mut size).is_err() {
+            if InitializeProcThreadAttributeList(Some(lp_attribute_list), 1, Some(0), &mut size)
+                .is_err()
+            {
                 ClosePseudoConsole(h_pcon);
                 let _ = CloseHandle(h_pipe_in_write);
                 let _ = CloseHandle(h_pipe_out_read);
@@ -182,10 +178,10 @@ impl ConptyIoDriver {
 
             let success = CreateProcessW(
                 None,
-                PWSTR(cmd_line_w.as_mut_ptr()),
+                Some(PWSTR(cmd_line_w.as_mut_ptr())),
                 None,
                 None,
-                BOOL(0),
+                false,
                 EXTENDED_STARTUPINFO_PRESENT,
                 None,
                 lp_current_directory,

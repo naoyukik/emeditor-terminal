@@ -1,6 +1,7 @@
 use crate::gui::resolver::terminal_window_resolver::get_terminal_data;
 use std::mem::size_of;
-use windows::Win32::Foundation::{BOOL, HWND};
+use windows::core::BOOL;
+use windows::Win32::Foundation::HWND;
 use windows::Win32::UI::WindowsAndMessaging::{
     SB_BOTTOM, SB_LINEDOWN, SB_LINEUP, SB_PAGEDOWN, SB_PAGEUP, SB_THUMBPOSITION, SB_THUMBTRACK,
     SB_TOP, SB_VERT, SCROLLBAR_COMMAND,

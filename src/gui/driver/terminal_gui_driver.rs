@@ -340,7 +340,7 @@ impl TerminalGuiDriver {
         }
 
         unsafe {
-            let h_mem_dc = CreateCompatibleDC(hdc);
+            let h_mem_dc = CreateCompatibleDC(Some(hdc));
             if h_mem_dc.0.is_null() {
                 return;
             }
@@ -361,7 +361,7 @@ impl TerminalGuiDriver {
                 client_rect.top,
                 width,
                 height,
-                h_mem_dc,
+                Some(h_mem_dc),
                 0,
                 0,
                 SRCCOPY,

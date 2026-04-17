@@ -44,12 +44,12 @@ pub(crate) fn show_settings_dialog(
     unsafe {
         // モーダルダイアログの表示
         let result = DialogBoxParamW(
-            instance,
+            Some(instance),
             windows::core::PCWSTR(IDD_SET_PROPERTIES as usize as *const u16),
             if parent_hwnd.0.is_null() {
-                view_hwnd
+                Some(view_hwnd)
             } else {
-                parent_hwnd
+                Some(parent_hwnd)
             },
             Some(settings_dlg_proc),
             LPARAM(0),
@@ -118,7 +118,7 @@ unsafe extern "system" fn settings_dlg_proc(
 
             // テーマコンボボックスの初期化
             if let Ok(combo_hwnd) =
-                windows::Win32::UI::WindowsAndMessaging::GetDlgItem(hwnd, IDC_COMBO_THEME)
+                windows::Win32::UI::WindowsAndMessaging::GetDlgItem(Some(hwnd), IDC_COMBO_THEME)
             {
                 if !combo_hwnd.0.is_null() {
                     for theme in ThemeType::all() {
@@ -130,16 +130,16 @@ unsafe extern "system" fn settings_dlg_proc(
                         let item_idx = SendMessageW(
                             combo_hwnd,
                             CB_ADDSTRING,
-                            WPARAM(0),
-                            LPARAM(wide_name.as_ptr() as isize),
+                            Some(WPARAM(0)),
+                            Some(LPARAM(wide_name.as_ptr() as isize)),
                         );
                         // インデックス値を明示的に紐付ける
                         if item_idx.0 >= 0 {
                             SendMessageW(
                                 combo_hwnd,
                                 windows::Win32::UI::WindowsAndMessaging::CB_SETITEMDATA,
-                                WPARAM(item_idx.0 as usize),
-                                LPARAM(theme.to_index() as isize),
+                                Some(WPARAM(item_idx.0 as usize)),
+                                Some(LPARAM(theme.to_index() as isize)),
                             );
                         }
                     }
@@ -150,8 +150,8 @@ unsafe extern "system" fn settings_dlg_proc(
                             let count = SendMessageW(
                                 combo_hwnd,
                                 windows::Win32::UI::WindowsAndMessaging::CB_GETCOUNT,
-                                WPARAM(0),
-                                LPARAM(0),
+                                Some(WPARAM(0)),
+                                Some(LPARAM(0)),
                             )
                             .0 as i32;
 
@@ -159,16 +159,16 @@ unsafe extern "system" fn settings_dlg_proc(
                                 let item_data = SendMessageW(
                                     combo_hwnd,
                                     windows::Win32::UI::WindowsAndMessaging::CB_GETITEMDATA,
-                                    WPARAM(i as usize),
-                                    LPARAM(0),
+                                    Some(WPARAM(i as usize)),
+                                    Some(LPARAM(0)),
                                 )
                                 .0 as i32;
                                 if item_data == target_val {
                                     SendMessageW(
                                         combo_hwnd,
                                         CB_SETCURSEL,
-                                        WPARAM(i as usize),
-                                        LPARAM(0),
+                                        Some(WPARAM(i as usize)),
+                                        Some(LPARAM(0)),
                                     );
                                     break;
                                 }
@@ -187,18 +187,24 @@ unsafe extern "system" fn settings_dlg_proc(
                     log::info!("Settings dialog: OK clicked.");
 
                     // コンボボックスからテーマを取得
-                    if let Ok(combo_hwnd) =
-                        windows::Win32::UI::WindowsAndMessaging::GetDlgItem(hwnd, IDC_COMBO_THEME)
-                    {
+                    if let Ok(combo_hwnd) = windows::Win32::UI::WindowsAndMessaging::GetDlgItem(
+                        Some(hwnd),
+                        IDC_COMBO_THEME,
+                    ) {
                         if !combo_hwnd.0.is_null() {
-                            let sel_idx =
-                                SendMessageW(combo_hwnd, CB_GETCURSEL, WPARAM(0), LPARAM(0)).0;
+                            let sel_idx = SendMessageW(
+                                combo_hwnd,
+                                CB_GETCURSEL,
+                                Some(WPARAM(0)),
+                                Some(LPARAM(0)),
+                            )
+                            .0;
                             if sel_idx != windows::Win32::UI::WindowsAndMessaging::CB_ERR as isize {
                                 let theme_val = SendMessageW(
                                     combo_hwnd,
                                     windows::Win32::UI::WindowsAndMessaging::CB_GETITEMDATA,
-                                    WPARAM(sel_idx as usize),
-                                    LPARAM(0),
+                                    Some(WPARAM(sel_idx as usize)),
+                                    Some(LPARAM(0)),
                                 )
                                 .0 as i32;
 

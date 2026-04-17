@@ -144,7 +144,8 @@ extern "system" fn keyboard_hook_proc(code: i32, wparam: WPARAM, lparam: LPARAM)
 
                             // 描画更新を通知（これは安全なPostMessage）
                             unsafe {
-                                let _ = PostMessageW(hwnd, WM_APP_REPAINT, WPARAM(0), LPARAM(0));
+                                let _ =
+                                    PostMessageW(Some(hwnd), WM_APP_REPAINT, WPARAM(0), LPARAM(0));
                             }
 
                             // キーを処理したことを示す
@@ -160,7 +161,7 @@ extern "system" fn keyboard_hook_proc(code: i32, wparam: WPARAM, lparam: LPARAM)
     KEYBOARD_HOOK.with(|hook| {
         let hook_ref = hook.borrow();
         if let Some(hhook) = *hook_ref {
-            unsafe { CallNextHookEx(hhook, code, wparam, lparam) }
+            unsafe { CallNextHookEx(Some(hhook), code, wparam, lparam) }
         } else {
             unsafe { CallNextHookEx(None, code, wparam, lparam) }
         }

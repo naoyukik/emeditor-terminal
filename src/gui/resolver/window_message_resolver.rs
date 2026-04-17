@@ -6,7 +6,8 @@ use crate::gui::driver::keyboard_gui_driver::KeyboardGuiDriver;
 use crate::gui::driver::scroll_gui_driver::{update_window_scroll_info, ScrollAction};
 use crate::gui::driver::window_gui_driver::WindowGuiDriver;
 use crate::gui::resolver::terminal_window_resolver::{get_terminal_data, TerminalWindowResolver};
-use windows::Win32::Foundation::{BOOL, HWND, LPARAM, LRESULT, WPARAM};
+use windows::core::BOOL;
+use windows::Win32::Foundation::{HWND, LPARAM, LRESULT, WPARAM};
 use windows::Win32::Graphics::Gdi::{BeginPaint, EndPaint, InvalidateRect, PAINTSTRUCT};
 use windows::Win32::UI::Input::KeyboardAndMouse::VK_MENU;
 use windows::Win32::UI::WindowsAndMessaging::{DefWindowProcW, DLGC_WANTALLKEYS};
@@ -43,7 +44,7 @@ pub fn on_vscroll(hwnd: HWND, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
 
     update_window_scroll_info(hwnd);
     unsafe {
-        let _ = InvalidateRect(hwnd, None, BOOL(0));
+        let _ = InvalidateRect(Some(hwnd), None, BOOL(0).into());
     }
     LRESULT(0)
 }
@@ -62,7 +63,7 @@ pub fn on_mousewheel(hwnd: HWND, wparam: WPARAM) -> LRESULT {
 
     update_window_scroll_info(hwnd);
     unsafe {
-        let _ = InvalidateRect(hwnd, None, BOOL(0));
+        let _ = InvalidateRect(Some(hwnd), None, BOOL(0).into());
     }
     LRESULT(0)
 }
@@ -241,7 +242,7 @@ pub fn on_char(hwnd: HWND, wparam: WPARAM) -> LRESULT {
     }
     update_window_scroll_info(hwnd);
     unsafe {
-        let _ = InvalidateRect(hwnd, None, BOOL(0));
+        let _ = InvalidateRect(Some(hwnd), None, BOOL(0).into());
     }
 
     LRESULT(0)
@@ -289,14 +290,14 @@ pub fn on_size(hwnd: HWND, lparam: LPARAM) -> LRESULT {
             // SAFETY:
             // - hwnd は有効なウィンドウハンドルであることを前提とする。
             // - 取得した hdc は ReleaseDC により確実に解放される。
-            let hdc = unsafe { GetDC(hwnd) };
-            if hdc.0.is_null() {
+            let hdc = unsafe { GetDC(Some(hwnd)) };
+            if hdc.is_invalid() {
                 log::error!("on_size: GetDC failed");
                 return LRESULT(0);
             }
             window_data.renderer.update_metrics(hdc, &config);
             unsafe {
-                let _ = ReleaseDC(hwnd, hdc);
+                let _ = ReleaseDC(Some(hwnd), hdc);
             }
 
             let (char_width, char_height) =
@@ -352,7 +353,7 @@ pub fn on_size(hwnd: HWND, lparam: LPARAM) -> LRESULT {
 
     update_window_scroll_info(hwnd);
     unsafe {
-        let _ = InvalidateRect(hwnd, None, BOOL(0));
+        let _ = InvalidateRect(Some(hwnd), None, BOOL(0).into());
     }
     LRESULT(0)
 }
@@ -426,7 +427,7 @@ pub fn on_ime_composition(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM) 
             let _ = window_data.service.send_input(text.as_bytes());
             window_data.composition = None;
             unsafe {
-                let _ = InvalidateRect(hwnd, None, BOOL(0));
+                let _ = InvalidateRect(Some(hwnd), None, BOOL(0).into());
             }
         }
         ImeResult::Composition(ref text) => {
@@ -437,7 +438,7 @@ pub fn on_ime_composition(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM) 
                     text: text.clone(),
                 });
             unsafe {
-                let _ = InvalidateRect(hwnd, None, BOOL(0));
+                let _ = InvalidateRect(Some(hwnd), None, BOOL(0).into());
             }
         }
         _ => {}
@@ -458,7 +459,7 @@ pub fn on_ime_end_composition(hwnd: HWND) -> LRESULT {
         window_data.composition = None;
     }
     unsafe {
-        let _ = InvalidateRect(hwnd, None, BOOL(0));
+        let _ = InvalidateRect(Some(hwnd), None, BOOL(0).into());
     }
     LRESULT(0)
 }
@@ -512,7 +513,7 @@ pub fn on_app_repaint(hwnd: HWND) -> LRESULT {
     };
     unsafe {
         // This is crucial for TUI apps where the cursor moves frequently via ConPTY.
-        let _ = InvalidateRect(hwnd, None, BOOL(0));
+        let _ = InvalidateRect(Some(hwnd), None, BOOL(0).into());
     }
     // Force the OS to update the window and caret position immediately ONLY during IME composition
     // to reduce UI thread load while maintaining correct candidate window positioning.

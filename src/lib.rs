@@ -3,7 +3,8 @@ use simplelog::{ConfigBuilder, WriteLogger};
 use std::ffi::c_void;
 use std::fs::File;
 use std::sync::OnceLock;
-use windows::Win32::Foundation::{BOOL, HINSTANCE, HWND, LPARAM, LRESULT, WPARAM};
+use windows::core::BOOL;
+use windows::Win32::Foundation::{HINSTANCE, HWND, LPARAM, LRESULT, WPARAM};
 use windows::Win32::System::SystemServices::{DLL_PROCESS_ATTACH, DLL_PROCESS_DETACH};
 
 mod application;

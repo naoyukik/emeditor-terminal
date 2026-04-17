@@ -14,13 +14,9 @@ impl WindowGuiDriver {
     pub(crate) fn focus_existing_window(hwnd: HWND) -> bool {
         // SAFETY: HWND が有効であることを IsWindow で確認してから操作を行う。
         unsafe {
-            if IsWindow(hwnd).as_bool() {
-                let prev_focus = SetFocus(hwnd);
-                log::debug!(
-                    "focus_existing_window: SetFocus called for HWND {:?}. Previous focus was {:?}",
-                    hwnd,
-                    prev_focus
-                );
+            if IsWindow(Some(hwnd)).as_bool() {
+                let _ = SetFocus(Some(hwnd));
+                log::debug!("focus_existing_window: SetFocus called for HWND {:?}", hwnd);
                 true
             } else {
                 false
@@ -32,7 +28,7 @@ impl WindowGuiDriver {
     pub(crate) fn destroy_window(hwnd: HWND) {
         // SAFETY: IsWindow で存在を確認してから DestroyWindow を呼び出す。
         unsafe {
-            if IsWindow(hwnd).as_bool() {
+            if IsWindow(Some(hwnd)).as_bool() {
                 let _ = DestroyWindow(hwnd);
             }
         }
@@ -42,7 +38,7 @@ impl WindowGuiDriver {
     pub(crate) fn update_window(hwnd: HWND) {
         // SAFETY: IsWindow で存在を確認してから UpdateWindow を呼び出す。
         unsafe {
-            if IsWindow(hwnd).as_bool() {
+            if IsWindow(Some(hwnd)).as_bool() {
                 let _ = UpdateWindow(hwnd);
             }
         }

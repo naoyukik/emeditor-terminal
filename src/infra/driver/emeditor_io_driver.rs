@@ -66,8 +66,8 @@ pub fn output_string(hwnd: HWND, text: &str) {
         let _ = SendMessageW(
             hwnd,
             EE_OUTPUT_STRING,
-            WPARAM(0),
-            LPARAM(wide_text.as_ptr() as isize),
+            Some(WPARAM(0)),
+            Some(LPARAM(wide_text.as_ptr() as isize)),
         );
     }
 }
@@ -77,8 +77,8 @@ pub fn reg_query_value(hwnd: HWND, info: &mut REG_QUERY_VALUE_INFO) -> i32 {
         let result = SendMessageW(
             hwnd,
             EE_REG_QUERY_VALUE,
-            WPARAM(0),
-            LPARAM(info as *mut _ as isize),
+            Some(WPARAM(0)),
+            Some(LPARAM(info as *mut _ as isize)),
         );
         let ret = result.0 as i32;
         log::debug!(
@@ -100,7 +100,7 @@ pub fn is_system_dark_mode() -> bool {
         windows::core::w!("Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize");
 
     unsafe {
-        if RegOpenKeyExW(HKEY_CURRENT_USER, sub_key, 0, KEY_READ, &mut h_key).is_ok() {
+        if RegOpenKeyExW(HKEY_CURRENT_USER, sub_key, Some(0), KEY_READ, &mut h_key).is_ok() {
             let mut data: u32 = 0;
             let mut cb_data = std::mem::size_of::<u32>() as u32;
             let value_name = windows::core::w!("AppsUseLightTheme");
@@ -131,8 +131,8 @@ pub fn reg_set_value(hwnd: HWND, info: &REG_SET_VALUE_INFO) -> i32 {
         let result = SendMessageW(
             hwnd,
             EE_REG_SET_VALUE,
-            WPARAM(0),
-            LPARAM(info as *const _ as isize),
+            Some(WPARAM(0)),
+            Some(LPARAM(info as *const _ as isize)),
         );
         let ret = result.0 as i32;
         log::debug!(
@@ -149,7 +149,7 @@ pub fn show_message_box(hwnd: HWND, text: &str, caption: &str, u_type: u32) -> i
     let wide_caption: Vec<u16> = caption.encode_utf16().chain(std::iter::once(0)).collect();
     unsafe {
         MessageBoxW(
-            hwnd,
+            Some(hwnd),
             PCWSTR(wide_text.as_ptr()),
             PCWSTR(wide_caption.as_ptr()),
             windows::Win32::UI::WindowsAndMessaging::MESSAGEBOX_STYLE(u_type),
