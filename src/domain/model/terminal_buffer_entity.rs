@@ -496,12 +496,17 @@ impl TerminalBufferEntity {
     /// - If it's HIDDEN, we check if we have a "logical" cursor position from the last
     ///   inverse-video render (typical for TUI apps like Gemini CLI).
     pub fn get_ime_anchor_pos(&self) -> (usize, usize) {
-        if self.cursor.is_visible {
+        let (x, y) = if self.cursor.is_visible {
             (self.cursor.x, self.cursor.y)
         } else {
             self.last_inverse_render_pos
                 .unwrap_or((self.cursor.x, self.cursor.y))
-        }
+        };
+
+        (
+            std::cmp::min(x, self.width.saturating_sub(1)),
+            std::cmp::min(y, self.height.saturating_sub(1)),
+        )
     }
     pub fn get_cursor_style(&self) -> CursorStyle {
         self.cursor.style
