@@ -6,7 +6,7 @@ on:
 jobs:
   release:
     name: Create Release CHANGELOG
-    runs-on: windows-latest
+    runs-on: ubuntu-latest
     permissions:
       contents: write
       pull-requests: write
@@ -38,14 +38,6 @@ jobs:
           echo "changelog<<EOF" >> $GITHUB_OUTPUT
           echo "$CHANGELOG" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
-
-      - name: Build Release
-        run: cargo build --release
-
-      - name: Upload Release Asset
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh release upload ${{ github.event.release.tag_name }} ./target/release/emeditor_terminal.dll#emeditor_terminal-${{ github.event.release.tag_name }}-x86_64.dll
 
       - name: Create Pull Request
         if: ${{ steps.properties.outputs.changelog != '' }}
