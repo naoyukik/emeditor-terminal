@@ -41,6 +41,8 @@ pub(crate) fn show_settings_dialog(
 
     let mut result_config = None;
 
+    // SAFETY: ダイアログの表示。インスタンスハンドル、リソースID、親ハンドル、
+    // およびプロシージャが正しく設定されており、モーダル実行は安全。
     unsafe {
         // モーダルダイアログの表示
         let result = DialogBoxParamW(
@@ -98,6 +100,8 @@ unsafe fn update_font_label(hwnd: HWND, config: &TerminalConfig) {
         .encode_utf16()
         .chain(std::iter::once(0))
         .collect();
+    
+    // SAFETY: 有効な HWND とコントロール ID を使用してテキストを設定する。
     let _ = SetDlgItemTextW(
         hwnd,
         IDC_STATIC_FONT_NAME,
@@ -112,6 +116,8 @@ unsafe extern "system" fn settings_dlg_proc(
     w_param: WPARAM,
     _l_param: LPARAM,
 ) -> isize {
+    // SAFETY: ダイアログプロシージャ内での Win32 API 呼び出し。
+    // メッセージ、パラメータ、およびハンドルの整合性は Windows 側によって担保される。
     match msg {
         windows::Win32::UI::WindowsAndMessaging::WM_INITDIALOG => {
             log::info!("WM_INITDIALOG: Initializing settings dialog.");

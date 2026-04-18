@@ -64,6 +64,8 @@ pub fn update_window_scroll_info(window_id: WindowId) {
         nTrackPos: 0,
     };
 
+    // SAFETY: hwnd は有効なウィンドウハンドルであり、si は正しく初期化された
+    // SCROLLINFO 構造体である。この呼び出しによりスクロールバーの状態が安全に更新される。
     unsafe {
         SetScrollInfo(hwnd, SB_VERT.0, &si, BOOL(1));
     }

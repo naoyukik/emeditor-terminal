@@ -24,12 +24,12 @@ pub struct KeyboardIoDriver {
 }
 
 impl KeyboardIoDriver {
-    /// 新しいフック管理インスタンスを作成する
     pub fn new(target_window_id: WindowId) -> Self {
-        Self { target_hwnd: HWND(target_window_id.0 as _) }
+        Self {
+            target_hwnd: HWND(target_window_id.0 as _),
+        }
     }
 
-    /// グローバルにフックをインストールし、スレッドローカルストレージで管理する
     pub fn install_global(window_id: WindowId) {
         HOOK_INSTANCE.with(|instance| {
             let mut instance_ref = instance.borrow_mut();
@@ -42,7 +42,6 @@ impl KeyboardIoDriver {
         });
     }
 
-    /// グローバルフックをアンインストールする
     pub fn uninstall_global() {
         HOOK_INSTANCE.with(|instance| {
             let mut instance_ref = instance.borrow_mut();
@@ -53,11 +52,12 @@ impl KeyboardIoDriver {
         });
     }
 
-    /// キーボードフックをインストールする
     pub fn install(&self) {
         KEYBOARD_HOOK.with(|hook| {
             let mut hook_ref = hook.borrow_mut();
             if hook_ref.is_none() {
+                // SAFETY: 自スレッドに対するキーボードフックのインストール。
+                // 成功した場合は HHOOK を保持し、Drop 時または明示的にアンインストールされる。
                 unsafe {
                     let h = SetWindowsHookExW(
                         WH_KEYBOARD,
@@ -69,7 +69,6 @@ impl KeyboardIoDriver {
                         Ok(hhook) => {
                             log::info!("Keyboard hook installed successfully (Infra)");
                             *hook_ref = Some(hhook);
-                            // フックが成功した場合のみターゲットウィンドウを設定
                             TARGET_HWND.with(|h| {
                                 *h.borrow_mut() = Some(self.target_hwnd);
                             });
@@ -83,11 +82,11 @@ impl KeyboardIoDriver {
         });
     }
 
-    /// キーボードフックを解除する
     pub fn uninstall(&self) {
         KEYBOARD_HOOK.with(|hook| {
             let mut hook_ref = hook.borrow_mut();
             if let Some(hhook) = hook_ref.take() {
+                // SAFETY: 保持していた有効な HHOOK を解除する。
                 unsafe {
                     let _ = UnhookWindowsHookEx(hhook);
                     log::info!("Keyboard hook uninstalled (Infra)");
@@ -106,24 +105,23 @@ impl Drop for KeyboardIoDriver {
     }
 }
 
-/// フックプロシージャ
 extern "system" fn keyboard_hook_proc(code: i32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
     if code >= 0 {
         let vk_code = wparam.0 as u16;
-        let key_up = (lparam.0 >> 31) & 1; // bit 31 = transition state (1 = key up)
+        let key_up = (lparam.0 >> 31) & 1;
 
-        // キーダウンイベントのみを処理
         if key_up == 0 {
             if let Some(hwnd) = TARGET_HWND.with(|h| *h.borrow()) {
-                // IMEの状態チェック
                 if !crate::gui::window::is_ime_composing(hwnd) {
+                    // SAFETY: キーの状態（Ctrl/Shift/Alt）を同期的に取得する。
                     let is_ctrl_pressed = unsafe { GetKeyState(VK_CONTROL.0 as i32) } < 0;
                     let is_shift_pressed = unsafe { GetKeyState(VK_SHIFT.0 as i32) } < 0;
                     let is_alt_pressed = unsafe { GetKeyState(VK_MENU.0 as i32) } < 0;
 
-                    // システムショートカットの除外
-                    // WindowGuiDriver から判定ロジックを借用
-                    if !crate::gui::driver::window_gui_driver::WindowGuiDriver::is_system_shortcut(vk_code, is_alt_pressed) {
+                    if !crate::gui::driver::window_gui_driver::WindowGuiDriver::is_system_shortcut(
+                        vk_code,
+                        is_alt_pressed,
+                    ) {
                         let translator = VtSequenceTranslatorDomainService::new();
                         let input_key = InputKey::new(
                             vk_code,
@@ -135,7 +133,6 @@ extern "system" fn keyboard_hook_proc(code: i32, wparam: WPARAM, lparam: LPARAM)
                         );
 
                         if let Some(seq) = translator.translate(input_key) {
-                            // 直接ターミナルデータに書き込む
                             let data_arc =
                                 crate::gui::resolver::terminal_window_resolver::get_terminal_data();
                             let mut window_data = data_arc.lock().unwrap();
@@ -143,13 +140,12 @@ extern "system" fn keyboard_hook_proc(code: i32, wparam: WPARAM, lparam: LPARAM)
                             let _ = window_data.service.send_input(&seq);
                             drop(window_data);
 
-                            // 描画更新を通知（これは安全なPostMessage）
+                            // SAFETY: 有効なウィンドウハンドルに対して描画更新を通知する。
+                            // PostMessageW はスレッドセーフである。
                             unsafe {
                                 let _ =
                                     PostMessageW(Some(hwnd), WM_APP_REPAINT, WPARAM(0), LPARAM(0));
                             }
-
-                            // キーを処理したことを示す
                             return LRESULT(1);
                         }
                     }
@@ -158,7 +154,7 @@ extern "system" fn keyboard_hook_proc(code: i32, wparam: WPARAM, lparam: LPARAM)
         }
     }
 
-    // 次のフックへチェーン
+    // SAFETY: フックチェーンの次のプロシージャを呼び出す。
     KEYBOARD_HOOK.with(|hook| {
         let hook_ref = hook.borrow();
         if let Some(hhook) = *hook_ref {
