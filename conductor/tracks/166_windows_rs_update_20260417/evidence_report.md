@@ -1,7 +1,7 @@
-# Evidence Report: windows-rs 0.73 Update
+# Evidence Report: windows-rs 0.62 Update
 
 ## Discovery Summary
-- **課題**: `windows` クレートの 0.58 から 0.73 へのアップデート。
+- **課題**: `windows` クレートの 0.58 から 0.62 (Release 73) へのアップデート。
 - **制約**:
     - アーキテクチャ（GUI, Infra, Application, Domain）の維持。
     - Windows 10/11 互換性の維持。
@@ -12,24 +12,17 @@
 
 ## Codebase Findings
 - **使用箇所**: `src/` 配下に 87 箇所の `windows::` 依存。
-- **GitHub Release (0.58 -> 0.73) からの重要知見**:
-    - **v0.73 (Release 73)**:
-        - **ポインタ型の厳密化**: `*const` と `*mut` の区別がメタデータレベルで導入。
-        - **`VARIANT`/`PROPVARIANT` の `Drop` 削除**: 自動解放されないため手動 `VariantClear` が必要。
-    - **v0.72 (Release 72)**:
-        - **`HSTRING`/`BSTR` の `Display` トレイト削除**: `println!` や `log!` での直接使用不可。`to_string()` 等が必要。
-    - **v0.69 (Release 69)**:
-        - **`windows-link` への完全移行**: `windows-targets` が非推奨化。
-    - **v0.66 (Release 66)**:
-        - **`extern "C"` への統一**: 従来の `cdecl` 等が整理。
-    - **v0.62 (Release 62)**:
+- **GitHub Release (0.58 -> 0.62) からの重要知見**:
+    - **v0.62 (Release 73)**:
         - **クレートの細分化**: `windows-numerics`, `windows-future`, `windows-collections` が独立。
-        - **`BOOL` の移動**: `windows-result` に `BOOL` 型が含まれるようになり、巨大な `windows` クレートへの依存を減らせる。
+        - **`BOOL` の移動**: `windows-result` に `BOOL` 型が含まれるようになり、巨大な `windows` クレートへの 依存を減らせる。
     - **v0.61 (Release 61)**:
         - **`BOOLEAN` -> `bool` へのリマップ**: 1バイトの `BOOLEAN` が Rust の `bool` に対応。
         - **`Ref`/`OutRef` の導入**: COM インターフェースの引数扱いの変更。
     - **v0.60 (Release 60)**:
         - **`HSTRING` の `Deref` 実装**: 文字列操作の簡略化。
+    - **v0.69 (Release 69 ※将来の Release 73 に至る過程)**:
+        - **`windows-link` への完全移行**: `windows-targets` が非推奨化。
 
 ## Key Files To Read
 - `Cargo.toml`: 依存関係の定義。
@@ -53,5 +46,6 @@
 **推奨案**: **Recommended Update**
 
 ## Evidence
-- `windows-rs` Release Notes (GitHub): v0.58〜v0.73 の破壊的変更履歴を全件確認済み。
+- `windows-rs` Release Notes (GitHub): v0.58〜v0.62 の破壊的変更履歴を全件確認済み。
 - `windows-registry`, `windows-core`, `windows-result`, `windows-strings`: 最新の独立クレート群。
+

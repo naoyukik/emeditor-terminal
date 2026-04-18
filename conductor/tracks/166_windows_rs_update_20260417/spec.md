@@ -1,10 +1,10 @@
-# Specification: windows-rs 0.73 Update
+# Specification: windows-rs 0.62 Update
 
 ## Overview
-本トラックの目的は、`windows` クレートをバージョン 0.58 から最新の 0.73 へアップデートすることである。この移行に伴う破壊的変更（`windows-targets` の廃止、型シグネチャの厳密化、クレートの細分化など）を解決し、ライブラリの推奨する実装方針に合わせてコードベースを刷新する。これにより、将来的な保守性と安定性を確保する。
+本トラックの目的は、`windows` クレートをバージョン 0.58 から最新の 0.62 (Release 73) へアップデートすることである。この移行に伴う破壊的変更（`windows-targets` の廃止、型シグネチャの厳密化、クレートの細分化など）を解決し、ライブラリの推奨する実装方針に合わせてコードベースを刷新する。これにより、将来的な保守性と安定性を確保する。
 
 ## Functional Requirements
-- `Cargo.toml` において `windows` クレートを 0.73 に更新する。
+- `Cargo.toml` において `windows` クレートを 0.62 に更新する。
 - ビルド依存から古い `windows-targets` に依存する設定を排除し、`windows-link` に移行する。
 - `windows-core`, `windows-registry` などの細分化された独立クレートを導入し、ライブラリの最新の推奨実装へ変更する。
 - `w!` マクロや文字列ポインタ (`PCWSTR`, `PWSTR`) の呼び出しシグネチャを新しい仕様へ適応させる。

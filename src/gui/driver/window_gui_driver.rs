@@ -1,6 +1,5 @@
 use crate::domain::model::window_id_value::WindowId;
 use crate::gui::resolver::terminal_window_resolver::get_terminal_data;
-use crate::infra::driver::emeditor_io_driver::is_system_dark_mode;
 use windows::Win32::Foundation::{HWND, LPARAM, RECT, WPARAM};
 use windows::Win32::Graphics::Gdi::{
     BeginPaint, EndPaint, InvalidateRect, UpdateWindow, PAINTSTRUCT,
@@ -168,20 +167,4 @@ impl WindowGuiDriver {
             window_data.service.resize(cols as usize, rows as usize);
         }
     }
-}
-
-pub(crate) fn cleanup_terminal() {
-    let data_arc = get_terminal_data();
-    let mut window_data = data_arc.lock().unwrap();
-
-    use crate::infra::repository::conpty_repository_impl::DummyOutputRepository;
-    use crate::infra::repository::emeditor_config_repository_impl::EmEditorConfigRepositoryImpl;
-
-    let output_repo = Box::new(DummyOutputRepository);
-    let config_repo = Box::new(EmEditorConfigRepositoryImpl::new(WindowId(0)));
-    let is_dark = is_system_dark_mode();
-    let service =
-        crate::application::TerminalWorkflow::new(80, 25, output_repo, config_repo, is_dark);
-
-    window_data.reset_service(service);
 }

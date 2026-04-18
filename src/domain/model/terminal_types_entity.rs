@@ -1,5 +1,3 @@
-use unicode_width::UnicodeWidthStr;
-
 #[derive(Debug, Clone, PartialEq)]
 pub enum TerminalColor {
     Default,
