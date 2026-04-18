@@ -9,13 +9,15 @@
 - **Windows Pseudo Console (ConptyIoDriver)**: モダンなターミナル機能を提供するためのバックエンド。`CreatePseudoConsole` を利用し、リッチなTUIをサポート。
 
 ## Libraries & Frameworks (Rust Crates)
-- **windows-rs / winapi**: Windows API へのアクセス。
+- **windows-rs (v0.62 / Release 73)**: Windows API へのアクセス。
+  - **クレート細分化**: `windows-core`, `windows-registry`, `windows-result`, `windows-strings` などの独立クレートを活用し、依存関係の最小化と安全性を向上。
+  - **windows-link**: `windows-targets` から移行し、標準化された FFI リンク方式を採用。
   - `Win32_UI_WindowsAndMessaging`: メッセージ送信、ウィンドウプロシージャによるシステムメッセージ (`WM_SYSCOMMAND`, `WM_SYSKEYDOWN`, `WM_ERASEBKGND`) の捕捉と抑制、ダイアログ表示、キャレット制御、**ウィンドウ同期 (`UpdateWindow`)**、**生存確認と破棄 (`IsWindow`, `DestroyWindow`)**。
   - `Win32_Graphics_Gdi`: メモリ DC と互換ビットマップを用いたダブルバッファリング描画の実装。
   - `Win32_Globalization`: 文字コード変換 (CP932 <-> UTF-8)。
   - `Win32_UI_Input_Ime`: IME制御 (Composition String, Candidate Window)。
   - `Win32_UI_Controls`, `Win32_UI_Controls_Dialogs`: リソースベースのダイアログ、および標準フォント選択ダイアログの制御。
-  - `Win32_System_Registry`: OS のダークモード設定の検出、およびプラグイン設定の永続化（INI/レジストリ）に使用。
+  - **windows-registry**: OS のダークモード設定の検出に `windows-rs` 本体の API ではなく、より安全な `windows-registry` クレートを使用。
 - **simplelog / log**: デバッグログ出力。
 - **vte**: ANSI/VT エスケープシーケンスのパース。業界標準のステートマシン実装により、高信頼・高性能なパースを実現。
 - **unicode-width / unicode-segmentation**: 高精度なテキスト測定と書記素クラスター境界判定に使用。
