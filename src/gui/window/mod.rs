@@ -4,7 +4,7 @@ use windows::Win32::Foundation::{
 };
 use windows::Win32::Graphics::Gdi::{COLOR_WINDOW, HBRUSH};
 use windows::Win32::UI::WindowsAndMessaging::{
-    CreateWindowExW, DefWindowProcW, LoadCursorW, RegisterClassW, SendMessageW,
+    CreateWindowExW, DefWindowProcW, LoadCursorW, PostMessageW, RegisterClassW, SendMessageW,
     CS_HREDRAW, CS_VREDRAW, IDC_ARROW, WM_CHAR, WM_DESTROY, WM_ERASEBKGND, WM_GETDLGCODE,
     WM_IME_COMPOSITION, WM_IME_ENDCOMPOSITION, WM_IME_SETCONTEXT, WM_IME_STARTCOMPOSITION,
     WM_KEYDOWN, WM_KEYUP, WM_KILLFOCUS, WM_LBUTTONDOWN, WM_MOUSEWHEEL, WM_PAINT, WM_SETFOCUS,
@@ -16,12 +16,15 @@ use crate::domain::model::window_id_value::WindowId;
 use crate::gui::common::SendHWND;
 use crate::gui::driver::window_gui_driver::WindowGuiDriver;
 use crate::gui::resolver::terminal_window_resolver::get_terminal_data;
+use crate::infra::driver::conpty_io_driver::{ConptyIoDriver, SendHandle};
 use crate::infra::driver::emeditor_io_driver::{
-    CUSTOM_BAR_BOTTOM, CUSTOM_BAR_INFO, EE_CUSTOM_BAR_OPEN,
+    is_system_dark_mode, CUSTOM_BAR_BOTTOM, CUSTOM_BAR_INFO, EE_CUSTOM_BAR_OPEN,
 };
 use std::ffi::c_void;
 use std::mem::size_of;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::thread;
+use windows::Win32::Storage::FileSystem::ReadFile;
 
 use crate::gui::resolver::window_message_resolver as handlers;
 
@@ -37,7 +40,110 @@ pub fn is_ime_composing(hwnd: HWND) -> bool {
     crate::gui::driver::ime_gui_driver::is_composing(WindowId(hwnd.0 as isize))
 }
 
-/// カスタムバーを開く (エントリポイント)
+pub fn ensure_conpty_started(hwnd_client: HWND, hwnd_editor: HWND, cols: i16, rows: i16) -> bool {
+    let data_arc = get_terminal_data();
+    {
+        let window_data = data_arc.lock().unwrap();
+        if window_data.is_conpty_started {
+            return true;
+        }
+    }
+
+    let parent_id = WindowId(hwnd_editor.0 as isize);
+    let config_repo = crate::infra::repository::emeditor_config_repository_impl::EmEditorConfigRepositoryImpl::new(
+        parent_id,
+    );
+    let config = crate::domain::repository::configuration_repository::ConfigurationRepository::load(
+        &config_repo,
+    );
+
+    let shell_path = if config.shell_path.trim().is_empty() {
+        "pwsh.exe".to_string()
+    } else {
+        config.shell_path.clone()
+    };
+
+    match ConptyIoDriver::new(&shell_path, cols, rows) {
+        Ok(conpty) => {
+            log::info!(
+                "ConptyIoDriver started successfully with size {}x{}",
+                cols,
+                rows
+            );
+
+            let output_handle: SendHandle = conpty.get_output_handle();
+
+            {
+                let mut window_data = data_arc.lock().unwrap();
+                let output_repo = Box::new(
+                    crate::infra::repository::conpty_repository_impl::ConptyRepositoryImpl::new(
+                        conpty,
+                    ),
+                );
+
+                let is_dark = is_system_dark_mode();
+
+                window_data.service = crate::application::TerminalWorkflow::new(
+                    cols as usize,
+                    rows as usize,
+                    output_repo,
+                    Box::new(
+                        crate::infra::repository::emeditor_config_repository_impl::EmEditorConfigRepositoryImpl::new(
+                            parent_id,
+                        ),
+                    ),
+                    is_dark,
+                );
+                window_data.is_conpty_started = true;
+            }
+
+            let send_hwnd = SendHWND(hwnd_client);
+
+            thread::spawn(move || {
+                let output_handle = output_handle; 
+                let send_hwnd = send_hwnd; 
+                let mut buffer = [0u8; 1024];
+                let mut bytes_read = 0;
+                loop {
+                    let read_result = unsafe {
+                        ReadFile(
+                            output_handle.0,
+                            Some(&mut buffer),
+                            Some(&mut bytes_read),
+                            None,
+                        )
+                    };
+
+                    if let Err(e) = read_result {
+                        log::error!("ReadFile failed: {}", e);
+                        break;
+                    }
+                    if bytes_read == 0 {
+                        break;
+                    }
+
+                    let raw_bytes = &buffer[..bytes_read as usize];
+                    {
+                        let data = get_terminal_data();
+                        let mut window_data = data.lock().unwrap();
+                        window_data.service.process_output(raw_bytes);
+                    }
+
+                    unsafe {
+                        let _ =
+                            PostMessageW(Some(send_hwnd.0), WM_APP_REPAINT, WPARAM(0), LPARAM(0));
+                    }
+                }
+            });
+            true
+        }
+        Err(e) => {
+            log::error!("Failed to start ConptyIoDriver: {}", e);
+            false
+        }
+    }
+}
+
 pub fn open_custom_bar(hwnd_editor: HWND) -> bool {
     unsafe {
         let h_instance = crate::get_instance_handle();
@@ -126,11 +232,6 @@ pub fn open_custom_bar(hwnd_editor: HWND) -> bool {
     }
 }
 
-/// システムショートカットであるかを判定する
-pub fn is_system_shortcut(vk_code: u16, alt_pressed: bool) -> bool {
-    WindowGuiDriver::is_system_shortcut(vk_code, alt_pressed)
-}
-
 pub fn cleanup_terminal() {
     log::info!("cleanup_terminal: Starting cleanup");
     let data_arc = get_terminal_data();
@@ -166,11 +267,7 @@ pub extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LP
         WM_GETDLGCODE => LRESULT(handlers::on_get_dlg_code()),
         WM_CHAR => LRESULT(handlers::on_char(window_id, wparam.0)),
         msg if msg == WM_APP_REPAINT => LRESULT(handlers::on_app_repaint(window_id)),
-        WM_SIZE => {
-            let width = (lparam.0 & 0xFFFF) as i32;
-            let height = ((lparam.0 >> 16) & 0xFFFF) as i32;
-            LRESULT(handlers::on_size(window_id, width, height))
-        }
+        WM_SIZE => LRESULT(handlers::on_size(window_id, lparam.0)),
         WM_IME_SETCONTEXT => LRESULT(handlers::on_ime_set_context(window_id, msg, wparam.0, lparam.0)),
         WM_IME_STARTCOMPOSITION => LRESULT(handlers::on_ime_start_composition(window_id)),
         WM_IME_COMPOSITION => LRESULT(handlers::on_ime_composition(window_id, msg, wparam.0, lparam.0)),

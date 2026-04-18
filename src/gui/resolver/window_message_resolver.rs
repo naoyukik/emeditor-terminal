@@ -188,26 +188,8 @@ pub fn on_char(window_id: WindowId, wparam: usize) -> isize {
     0
 }
 
-pub fn on_size(window_id: WindowId, width: i32, height: i32) -> isize {
-    let data_arc = get_terminal_data();
-    let mut window_data = data_arc.lock().unwrap();
-
-    let (char_width, char_height) =
-        if let Some(metrics) = window_data.renderer.get_metrics() {
-            (metrics.base_width, metrics.char_height)
-        } else {
-            (8, 16)
-        };
-
-    let cols = (width / char_width).max(1) as i16;
-    let rows = (height / char_height).max(1) as i16;
-
-    if window_data.is_conpty_started {
-        window_data.service.resize(cols as usize, rows as usize);
-    }
-
-    update_window_scroll_info(window_id);
-    WindowGuiDriver::invalidate_rect(window_id, false);
+pub fn on_size(window_id: WindowId, lparam: isize) -> isize {
+    WindowGuiDriver::handle_resize(window_id, lparam);
     0
 }
 
@@ -308,8 +290,6 @@ pub fn on_destroy() -> isize {
     let data_arc = get_terminal_data();
     {
         let mut window_data = data_arc.lock().unwrap();
-        // Keyboard hook uninstalled here via Driver or lib.rs?
-        // Let's use lib.rs as cleanup hub for high-level coordination.
         window_data.renderer.clear_resources();
         window_data.window_handle = None;
         window_data.caret = None;

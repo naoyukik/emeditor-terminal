@@ -10,7 +10,6 @@ use windows::Win32::UI::WindowsAndMessaging::{
 };
 
 /// 描画更新を通知するメッセージ
-/// 0x8000 (WM_APP) + 1 は WM_APP_REPAINT として window モジュールで定義されている
 const WM_APP_REPAINT: u32 = 0x8001;
 
 thread_local! {
@@ -123,7 +122,8 @@ extern "system" fn keyboard_hook_proc(code: i32, wparam: WPARAM, lparam: LPARAM)
                     let is_alt_pressed = unsafe { GetKeyState(VK_MENU.0 as i32) } < 0;
 
                     // システムショートカットの除外
-                    if !crate::gui::window::is_system_shortcut(vk_code, is_alt_pressed) {
+                    // WindowGuiDriver から判定ロジックを借用
+                    if !crate::gui::driver::window_gui_driver::WindowGuiDriver::is_system_shortcut(vk_code, is_alt_pressed) {
                         let translator = VtSequenceTranslatorDomainService::new();
                         let input_key = InputKey::new(
                             vk_code,

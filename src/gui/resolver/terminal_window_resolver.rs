@@ -1,4 +1,5 @@
 use crate::application::TerminalWorkflow;
+use crate::domain::model::window_id_value::WindowId;
 use crate::gui::common::SendHWND;
 use crate::gui::driver::ime_gui_driver::CaretHandle;
 use crate::gui::driver::scroll_gui_driver::ScrollGuiDriver;
@@ -18,11 +19,17 @@ pub struct TerminalWindowResolver {
 }
 
 impl TerminalWindowResolver {
-    /// ターミナルデータを初期化する。
-    /// 
-    /// このメソッドは lib.rs などの境界層でのみ呼び出されるべきである。
-    pub fn init(service: TerminalWorkflow) {
-        let resolver = TerminalWindowResolver {
+    /// ターミナルデータを遅延初期化する。
+    fn new_default() -> Self {
+        use crate::infra::repository::conpty_repository_impl::DummyOutputRepository;
+        use crate::infra::repository::emeditor_config_repository_impl::EmEditorConfigRepositoryImpl;
+        
+        let output_repo = Box::new(DummyOutputRepository);
+        let config_repo = Box::new(EmEditorConfigRepositoryImpl::new(WindowId(0)));
+        let is_dark = crate::infra::driver::emeditor_io_driver::is_system_dark_mode();
+        let service = TerminalWorkflow::new(80, 25, output_repo, config_repo, is_dark);
+
+        TerminalWindowResolver {
             service,
             renderer: TerminalGuiDriver::new(),
             window_handle: None,
@@ -30,8 +37,7 @@ impl TerminalWindowResolver {
             scroll_manager: ScrollGuiDriver::new(),
             caret: None,
             is_conpty_started: false,
-        };
-        let _ = TERMINAL_DATA.set(Arc::new(Mutex::new(resolver)));
+        }
     }
 
     /// TerminalServiceをリセットする (外部から新しい Workflow を注入)
@@ -44,7 +50,8 @@ impl TerminalWindowResolver {
 
 pub fn get_terminal_data() -> Arc<Mutex<TerminalWindowResolver>> {
     TERMINAL_DATA
-        .get()
-        .expect("TerminalWindowResolver not initialized! Call init() first.")
+        .get_or_init(|| {
+            Arc::new(Mutex::new(TerminalWindowResolver::new_default()))
+        })
         .clone()
 }
