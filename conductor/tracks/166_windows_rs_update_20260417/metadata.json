@@ -1,0 +1,8 @@
+{
+  "track_id": "166_windows_rs_update_20260417",
+  "type": "chore",
+  "status": "new",
+  "created_at": "2026-04-17T12:00:00Z",
+  "updated_at": "2026-04-17T12:00:00Z",
+  "description": "windows-rs クレートを 0.58 から 0.62 にアップデート"
+}

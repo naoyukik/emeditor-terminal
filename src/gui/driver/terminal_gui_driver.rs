@@ -15,6 +15,11 @@ use windows::Win32::Graphics::Gdi::{
     OUT_DEFAULT_PRECIS, SRCCOPY, TEXTMETRICW,
 };
 
+pub struct TerminalGuiDriverContext {
+    pub hdc: HDC,
+    pub rect: RECT,
+}
+
 #[derive(Clone, Debug)]
 pub struct CompositionInfo {
     pub text: String,
@@ -31,15 +36,6 @@ pub struct SendHFONT(pub HFONT);
 // SAFETY:
 // - SendHFONT は GDI フォントオブジェクト HFONT のラッパーであり、自身はハンドル値のみを保持する。
 // - この型は「HFONT の所有権を表す値」をスレッド間で転送したり共有したりする目的でのみ用いる。
-// - HFONT の生成と破棄（CreateFontIndirectW / DeleteObject 等）は、呼び出し側のコードで
-//   「所有スレッド」を 1 つに決め、そのスレッド上で一貫して行うことを前提とする。
-// - 他スレッドは、所有スレッドが有効期間を管理している HFONT を「選択して描画に利用する」
-//   などの読み取り専用用途でのみ参照し、所有スレッド以外から DeleteObject を呼び出さない。
-// - DeleteObject の呼び出しと、他スレッドからの HFONT 利用が同時に発生しないよう、
-//   ライフタイム管理は高レベルの同期（join, メッセージループの終了待ち 等）で保証される。
-// 前提が崩れた場合の危険:
-// - 所有スレッド以外から DeleteObject したり、破棄後の HFONT が他スレッドで参照されると、
-//   未定義動作や GDI リソース破損の可能性がある。
 unsafe impl Send for SendHFONT {}
 unsafe impl Sync for SendHFONT {}
 
@@ -54,6 +50,7 @@ struct CreatedDcGuard(HDC);
 impl Drop for CreatedDcGuard {
     fn drop(&mut self) {
         if !self.0 .0.is_null() {
+            // SAFETY: 生成された DC を確実に削除し、リソースリークを防ぐ。
             unsafe {
                 let _ = DeleteDC(self.0);
             }
@@ -65,6 +62,7 @@ struct GdiObjectGuard(HGDIOBJ);
 impl Drop for GdiObjectGuard {
     fn drop(&mut self) {
         if !self.0 .0.is_null() {
+            // SAFETY: 生成された GDI オブジェクトを確実に削除し、リソースリークを防ぐ。
             unsafe {
                 let _ = DeleteObject(self.0);
             }
@@ -86,6 +84,7 @@ impl SelectedObjectGuard {
 impl Drop for SelectedObjectGuard {
     fn drop(&mut self) {
         if !self.prev_obj.0.is_null() && self.prev_obj.0 != HGDI_ERROR_VALUE as *mut _ {
+            // SAFETY: デバイスコンテキストに元のオブジェクトを再選択し、状態を復元する。
             unsafe {
                 let _ = SelectObject(self.hdc, self.prev_obj);
             }
@@ -125,6 +124,7 @@ impl TerminalGuiDriver {
 
     pub fn clear_resources(&mut self) {
         for (_, send_h_font) in self.fonts.drain() {
+            // SAFETY: キャッシュされていたフォントハンドルを破棄する。
             unsafe {
                 let _ = DeleteObject(HGDIOBJ(send_h_font.0 .0));
             }
@@ -149,10 +149,8 @@ impl TerminalGuiDriver {
         if h_font.0.is_null() {
             return false;
         }
-        // SAFETY:
-        // - hdc は有効なデバイスコンテキストハンドルであることを前提とする。
-        // - SelectObject でのフォント切り替えとメトリクス取得は同期的に行われ、
-        //   SelectedObjectGuard (RAII) により確実に元の状態に復元される。
+        // SAFETY: 有効な HDC に対してフォントを選択し、テキストメトリクスを取得する。
+        // SelectedObjectGuard により、元のフォントは確実に復元される。
         unsafe {
             let old_font = SelectObject(hdc, HGDIOBJ(h_font.0));
             let _font_guard = SelectedObjectGuard::new(hdc, old_font);
@@ -192,7 +190,6 @@ impl TerminalGuiDriver {
         }
     }
 
-    /// Converts virtual cell coordinates to client pixel coordinates.
     pub fn cell_to_pixel(&self, x: usize, y: usize) -> Option<(i32, i32)> {
         let metrics = self.metrics.as_ref()?;
         Some((
@@ -218,6 +215,8 @@ impl TerminalGuiDriver {
             return font.0;
         }
 
+        // SAFETY: 指定された設定に基づき Win32 API で論理フォントを作成する。
+        // 作成されたハンドルは self.fonts で管理され、clear_resources で破棄される。
         unsafe {
             let mut lf = LOGFONTW {
                 lfHeight: points_to_pixels_from_hdc(hdc, config.font_size),
@@ -264,7 +263,6 @@ impl TerminalGuiDriver {
                 if style_mask != 0 {
                     return self.get_font_for_style(hdc, 0, config);
                 }
-                // デフォルトフォント作成失敗時の無限再帰を防止
                 return HFONT::default();
             }
 
@@ -339,8 +337,10 @@ impl TerminalGuiDriver {
             return;
         }
 
+        // SAFETY: ダブルバッファリングのためのメモリ DC およびビットマップの生成。
+        // CreatedDcGuard および GdiObjectGuard によりリソースは確実に解放される。
         unsafe {
-            let h_mem_dc = CreateCompatibleDC(hdc);
+            let h_mem_dc = CreateCompatibleDC(Some(hdc));
             if h_mem_dc.0.is_null() {
                 return;
             }
@@ -361,7 +361,7 @@ impl TerminalGuiDriver {
                 client_rect.top,
                 width,
                 height,
-                h_mem_dc,
+                Some(h_mem_dc),
                 0,
                 0,
                 SRCCOPY,
@@ -388,6 +388,7 @@ impl TerminalGuiDriver {
         };
 
         let bg_colorref = self.color_to_colorref(&TerminalColor::Default, true, theme);
+        // SAFETY: 背景塗りつぶし用のブラシ作成と描画。
         unsafe {
             let h_brush = CreateSolidBrush(bg_colorref);
             if !h_brush.0.is_null() {
@@ -404,6 +405,7 @@ impl TerminalGuiDriver {
             None => return,
         };
 
+        // SAFETY: 各セルの描画およびカーソル反転。
         unsafe {
             let char_height = metrics.char_height;
             let base_width = metrics.base_width;
@@ -429,7 +431,6 @@ impl TerminalGuiDriver {
                             continue;
                         }
 
-                        // レビュー指摘修正: ループ内での clone 回避（参照を利用）
                         let start_attr = &cell.attribute;
                         let mut run_text = String::new();
                         let mut run_dx = Vec::new();
@@ -439,21 +440,12 @@ impl TerminalGuiDriver {
                                 Some(c) => c,
                                 None => break,
                             };
-                            if c.is_wide_continuation {
-                                cell_idx += 1;
-                                continue;
-                            }
-                            if &c.attribute != start_attr {
+                            if c.is_wide_continuation || &c.attribute != start_attr {
                                 break;
                             }
-
                             run_text.push_str(&c.text);
-                            // セル内テキストの UTF-16 長を事前に計算（最適化）
                             let utf16_len = c.text.encode_utf16().count();
-
-                            // レビュー指摘修正: 物理表示幅を 1〜2 に制限
-                            let display_width = c.text.width().clamp(1, 2);
-                            let w = display_width as i32 * base_width;
+                            let w = c.text.width().clamp(1, 2) as i32 * base_width;
                             run_dx.push(w);
                             run_dx.extend(std::iter::repeat_n(0, utf16_len.saturating_sub(1)));
                             cell_idx += 1;
@@ -481,39 +473,29 @@ impl TerminalGuiDriver {
                             let old_font = SelectObject(hdc, HGDIOBJ(h_font.0));
                             let _font_guard = SelectedObjectGuard::new(hdc, old_font);
 
-                            let mut fg_colorref =
-                                self.color_to_colorref(&start_attr.fg, false, theme);
-                            let mut bg_colorref =
-                                self.color_to_colorref(&start_attr.bg, true, theme);
-
+                            let mut fg = self.color_to_colorref(&start_attr.fg, false, theme);
+                            let mut bg = self.color_to_colorref(&start_attr.bg, true, theme);
                             if start_attr.is_inverse {
-                                std::mem::swap(&mut fg_colorref, &mut bg_colorref);
+                                std::mem::swap(&mut fg, &mut bg);
                             }
-
                             if !start_attr.is_inverse
                                 && start_attr.bg != TerminalColor::Default
                                 && start_attr.fg == TerminalColor::Default
                             {
-                                fg_colorref =
-                                    self.color_to_colorref(&TerminalColor::Default, true, theme);
+                                fg = self.color_to_colorref(&TerminalColor::Default, true, theme);
                             }
-
                             if start_attr.is_dim {
-                                fg_colorref = Self::apply_dim_effect(fg_colorref);
+                                fg = Self::apply_dim_effect(fg);
                             }
 
-                            SetTextColor(hdc, fg_colorref);
-                            SetBkColor(hdc, bg_colorref);
-
+                            SetTextColor(hdc, fg);
+                            SetBkColor(hdc, bg);
                             let run_rect = RECT {
                                 left: x_offset,
                                 top: current_y,
                                 right: x_offset + run_pixel_width,
                                 bottom: current_y + char_height,
                             };
-
-                            // セキュリティリスク修正: 生テキストのログ出力を削除
-
                             let _ = ExtTextOutW(
                                 hdc,
                                 x_offset,
@@ -530,12 +512,11 @@ impl TerminalGuiDriver {
                 }
 
                 if viewport_offset == 0 && visual_row == cursor_y {
-                    let safe_cursor_x =
-                        std::cmp::min(cursor_x, buffer.get_width().saturating_sub(1));
-                    let cursor_pixel_x = safe_cursor_x as i32 * base_width;
+                    let safe_x = std::cmp::min(cursor_x, buffer.get_width().saturating_sub(1));
+                    let px_x = safe_x as i32 * base_width;
                     if let Some(comp) = composition {
                         let ctx = RenderContext {
-                            x: cursor_pixel_x,
+                            x: px_x,
                             y: current_y,
                             char_height,
                             base_width,
@@ -543,37 +524,31 @@ impl TerminalGuiDriver {
                         self.render_composition(hdc, &ctx, comp, theme, config);
                     } else if buffer.is_cursor_visible() {
                         let style = buffer.get_cursor_style();
-                        let display_width =
-                            if let Some(line) = buffer.get_line_at_visual_row(visual_row) {
-                                line.get(safe_cursor_x)
-                                    .map(|cell| {
-                                        // レビュー指摘修正: カーソル幅も 1〜2 に制限
-                                        let w = cell.text.width();
-                                        w.clamp(1, 2)
-                                    })
-                                    .unwrap_or(1)
-                            } else {
-                                1
-                            };
-
-                        let rect_width = display_width as i32 * base_width;
+                        let dw = if let Some(line) = buffer.get_line_at_visual_row(visual_row) {
+                            line.get(safe_x)
+                                .map(|cell| cell.text.width().clamp(1, 2))
+                                .unwrap_or(1)
+                        } else {
+                            1
+                        };
+                        let rw = dw as i32 * base_width;
                         let rect = match style {
                             CursorStyle::BlinkingBlock | CursorStyle::SteadyBlock => RECT {
-                                left: cursor_pixel_x,
+                                left: px_x,
                                 top: current_y,
-                                right: cursor_pixel_x + rect_width,
+                                right: px_x + rw,
                                 bottom: current_y + char_height,
                             },
                             CursorStyle::BlinkingUnderline | CursorStyle::SteadyUnderline => RECT {
-                                left: cursor_pixel_x,
+                                left: px_x,
                                 top: current_y + char_height - 2,
-                                right: cursor_pixel_x + rect_width,
+                                right: px_x + rw,
                                 bottom: current_y + char_height,
                             },
                             CursorStyle::BlinkingBar | CursorStyle::SteadyBar => RECT {
-                                left: cursor_pixel_x,
+                                left: px_x,
                                 top: current_y,
-                                right: cursor_pixel_x + 2,
+                                right: px_x + 2,
                                 bottom: current_y + char_height,
                             },
                         };
@@ -612,6 +587,7 @@ impl TerminalGuiDriver {
             right: ctx.x + pixel_width,
             bottom: ctx.y + ctx.char_height,
         };
+        // SAFETY: IME 変換中の文字列描画。GDI リソースの選択と復元は SelectedObjectGuard が行う。
         unsafe {
             let h_font = self.get_font_for_style(hdc, 0, config);
             let old_font = SelectObject(hdc, HGDIOBJ(h_font.0));
@@ -631,20 +607,16 @@ impl TerminalGuiDriver {
             );
 
             if pixel_width > 0 && ctx.char_height > 0 {
-                let underline_height: i32 = 1;
-                let underline_top = ctx.y + ctx.char_height - underline_height;
-                let underline_bottom = ctx.y + ctx.char_height;
                 let underline_rect = RECT {
                     left: ctx.x,
-                    top: underline_top,
+                    top: ctx.y + ctx.char_height - 1,
                     right: ctx.x + pixel_width,
-                    bottom: underline_bottom,
+                    bottom: ctx.y + ctx.char_height,
                 };
-                let underline_color = Self::rgb_to_colorref(&theme.default_fg);
-                let h_underline_brush = CreateSolidBrush(underline_color);
-                if !h_underline_brush.0.is_null() {
-                    let _underline_brush_guard = GdiObjectGuard(HGDIOBJ(h_underline_brush.0));
-                    let _ = FillRect(hdc, &underline_rect, h_underline_brush);
+                let h_brush = CreateSolidBrush(Self::rgb_to_colorref(&theme.default_fg));
+                if !h_brush.0.is_null() {
+                    let _brush_guard = GdiObjectGuard(HGDIOBJ(h_brush.0));
+                    FillRect(hdc, &underline_rect, h_brush);
                 }
             }
         }

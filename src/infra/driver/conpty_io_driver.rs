@@ -1,8 +1,7 @@
 use std::ffi::c_void;
 use std::mem::size_of;
-use std::ptr::null_mut;
 use windows::core::{PCWSTR, PWSTR};
-use windows::Win32::Foundation::{CloseHandle, BOOL, HANDLE, INVALID_HANDLE_VALUE};
+use windows::Win32::Foundation::{CloseHandle, HANDLE, INVALID_HANDLE_VALUE};
 use windows::Win32::System::Console::{
     ClosePseudoConsole, CreatePseudoConsole, ResizePseudoConsole, COORD, HPCON,
 };
@@ -13,15 +12,15 @@ use windows::Win32::System::Threading::{
     PROCESS_INFORMATION, PROC_THREAD_ATTRIBUTE_PSEUDOCONSOLE, STARTUPINFOEXW,
 };
 
-#[repr(transparent)]
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct SendHPCON(pub HPCON);
+// SAFETY: HPCON はポインタサイズのハンドルであり、スレッド間での転送は安全。
 unsafe impl Send for SendHPCON {}
 unsafe impl Sync for SendHPCON {}
 
-#[repr(transparent)]
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct SendHandle(pub HANDLE);
+// SAFETY: HANDLE はポインタサイズのハンドルであり、スレッド間での転送は安全。
 unsafe impl Send for SendHandle {}
 unsafe impl Sync for SendHandle {}
 
@@ -34,21 +33,26 @@ pub struct ConptyIoDriver {
 }
 
 impl ConptyIoDriver {
-    pub fn new(cmd_line: &str, width: i16, height: i16) -> Result<Self, String> {
-        log::debug!("ConptyIoDriver::new called with cmd_line: '{}'", cmd_line);
-        let mut h_pipe_pt_in = INVALID_HANDLE_VALUE;
-        let mut h_pipe_in_write = INVALID_HANDLE_VALUE;
-        let mut h_pipe_pt_out = INVALID_HANDLE_VALUE;
-        let mut h_pipe_out_read = INVALID_HANDLE_VALUE;
+    pub fn new(
+        cmd_line: &str,
+        current_dir: Option<&str>,
+        width: i16,
+        height: i16,
+    ) -> Result<Self, String> {
+        let mut h_pipe_pt_in = HANDLE::default();
+        let mut h_pipe_in_write = HANDLE::default();
+        let mut h_pipe_out_read = HANDLE::default();
+        let mut h_pipe_pt_out = HANDLE::default();
 
-        // Get USERPROFILE for current directory (outside unsafe block)
-        let current_dir = std::env::var("USERPROFILE").ok();
         let current_dir_w: Vec<u16> = if let Some(dir) = current_dir {
             dir.encode_utf16().chain(std::iter::once(0)).collect()
         } else {
             Vec::new()
         };
 
+        // SAFETY: Win32 API を使用してプロセス間通信用のパイプを作成し、
+        // 擬似コンソール (ConPTY) を初期化する。すべてのハンドルは成功時に所有権が
+        // 管理され、失敗時には適切にクローズされる。
         unsafe {
             if CreatePipe(&mut h_pipe_pt_in, &mut h_pipe_in_write, None, 0).is_err() {
                 return Err("Failed to create input pipe".to_string());
@@ -92,18 +96,15 @@ impl ConptyIoDriver {
             startup_info_ex.StartupInfo.cb = size_of::<STARTUPINFOEXW>() as u32;
 
             let mut size: usize = 0;
-            let _ = InitializeProcThreadAttributeList(
-                LPPROC_THREAD_ATTRIBUTE_LIST(null_mut()),
-                1,
-                0,
-                &mut size,
-            );
+            let _ = InitializeProcThreadAttributeList(None, 1, Some(0), &mut size);
 
             let mut attr_list_buffer = vec![0u8; size];
             let lp_attribute_list =
                 LPPROC_THREAD_ATTRIBUTE_LIST(attr_list_buffer.as_mut_ptr() as *mut c_void);
 
-            if InitializeProcThreadAttributeList(lp_attribute_list, 1, 0, &mut size).is_err() {
+            if InitializeProcThreadAttributeList(Some(lp_attribute_list), 1, Some(0), &mut size)
+                .is_err()
+            {
                 ClosePseudoConsole(h_pcon);
                 let _ = CloseHandle(h_pipe_in_write);
                 let _ = CloseHandle(h_pipe_out_read);
@@ -182,10 +183,10 @@ impl ConptyIoDriver {
 
             let success = CreateProcessW(
                 None,
-                PWSTR(cmd_line_w.as_mut_ptr()),
+                Some(PWSTR(cmd_line_w.as_mut_ptr())),
                 None,
                 None,
-                BOOL(0),
+                false,
                 EXTENDED_STARTUPINFO_PRESENT,
                 None,
                 lp_current_directory,
@@ -231,6 +232,7 @@ impl ConptyIoDriver {
             X: width,
             Y: height,
         };
+        // SAFETY: コンソールハンドルは生存しており、リサイズ要求は安全。
         unsafe {
             ResizePseudoConsole(self.pseudo_console_handle.0, size)
                 .map_err(|e| format!("Failed to resize pseudo console: {}", e))
@@ -238,12 +240,15 @@ impl ConptyIoDriver {
     }
 }
 
+// SAFETY: ConptyIoDriver は Win32 ハンドルの集合であり、スレッド間での転送は安全。
 unsafe impl Send for ConptyIoDriver {}
 unsafe impl Sync for ConptyIoDriver {}
 
 impl Drop for ConptyIoDriver {
     fn drop(&mut self) {
         log::info!("ConptyIoDriver dropping... closing handles.");
+        // SAFETY: 保持しているプロセス、スレッド、コンソール、およびパイプの
+        // ハンドルを確実にクローズし、リソースリークを防ぐ。
         unsafe {
             if self.process_handle.0 != INVALID_HANDLE_VALUE {
                 let _ = CloseHandle(self.process_handle.0);

@@ -1,6 +1,8 @@
+use crate::domain::model::window_id_value::WindowId;
 use crate::gui::resolver::terminal_window_resolver::get_terminal_data;
 use std::mem::size_of;
-use windows::Win32::Foundation::{BOOL, HWND};
+use windows::core::BOOL;
+use windows::Win32::Foundation::HWND;
 use windows::Win32::UI::WindowsAndMessaging::{
     SB_BOTTOM, SB_LINEDOWN, SB_LINEUP, SB_PAGEDOWN, SB_PAGEUP, SB_THUMBPOSITION, SB_THUMBTRACK,
     SB_TOP, SB_VERT, SCROLLBAR_COMMAND,
@@ -31,7 +33,8 @@ struct SCROLLINFO {
     nTrackPos: i32,
 }
 
-pub fn update_window_scroll_info(hwnd: HWND) {
+pub fn update_window_scroll_info(window_id: WindowId) {
+    let hwnd = HWND(window_id.0 as _);
     let data_arc = get_terminal_data();
     let mut window_data = data_arc.lock().unwrap();
 
@@ -61,6 +64,8 @@ pub fn update_window_scroll_info(hwnd: HWND) {
         nTrackPos: 0,
     };
 
+    // SAFETY: hwnd は有効なウィンドウハンドルであり、si は正しく初期化された
+    // SCROLLINFO 構造体である。この呼び出しによりスクロールバーの状態が安全に更新される。
     unsafe {
         SetScrollInfo(hwnd, SB_VERT.0, &si, BOOL(1));
     }

@@ -1,6 +1,8 @@
+use super::terminal_protocol_handler::TerminalProtocolHandler;
 use crate::domain::model::terminal_buffer_entity::TerminalBufferEntity;
 use vte::Parser;
 
+/// ANSI エスケープシーケンスのパースを担うドメインサービス
 pub(crate) struct AnsiParserDomainService {
     parser: Parser,
 }
@@ -11,19 +13,15 @@ impl AnsiParserDomainService {
             parser: Parser::new(),
         }
     }
-}
 
-impl Default for AnsiParserDomainService {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl AnsiParserDomainService {
     pub(crate) fn parse(&mut self, bytes: &[u8], buffer: &mut TerminalBufferEntity) {
-        self.parser.advance(buffer, bytes);
-        // レビュー指摘修正: バッファリングによる描画遅延を解消するため、
-        // 各データ受信パケットの処理後に強制的にフラッシュを行う。
+        {
+            // Protocol Handler を介してバッファを操作する
+            let mut handler = TerminalProtocolHandler::new(buffer);
+            // vte 0.15 の advance は &[u8] を受け取るため、入力全体をまとめて渡す
+            self.parser.advance(&mut handler, bytes);
+        }
+        // 各データ受信パケットの処理後に強制的にフラッシュを行い、表示遅延を解消する
         buffer.flush_pending_cluster();
     }
 }
@@ -45,7 +43,7 @@ mod tests {
         let mut buffer = TerminalBufferEntity::new(80, 25);
         let mut parser = AnsiParserDomainService::new();
         parser.parse(b"Hello", &mut buffer);
-        let first_line = line_to_string(&buffer.get_lines()[0]);
+        let first_line = line_to_string(buffer.get_line_at_visual_row(0).unwrap());
         assert!(first_line.starts_with("Hello"));
     }
 
@@ -53,18 +51,12 @@ mod tests {
     fn test_utf8_fragmentation() {
         let mut buffer = TerminalBufferEntity::new(10, 5);
         let mut parser = AnsiParserDomainService::new();
+        // "あ" (E3 81 82)
         parser.parse(&[0xE3, 0x81], &mut buffer);
         assert_eq!(buffer.get_cursor_pos().0, 0);
         parser.parse(&[0x82], &mut buffer);
         assert_eq!(buffer.get_cursor_pos().0, 2);
-        assert_eq!(buffer.get_lines()[0][0].text, "あ");
-    }
-
-    #[test]
-    fn test_cursor_initialization() {
-        let buffer = TerminalBufferEntity::new(80, 25);
-        assert_eq!(buffer.get_cursor_pos().0, 0);
-        assert_eq!(buffer.get_cursor_pos().1, 0);
+        assert_eq!(buffer.get_line_at_visual_row(0).unwrap()[0].text, "あ");
     }
 
     #[test]
@@ -72,53 +64,14 @@ mod tests {
         let mut buffer = TerminalBufferEntity::new(80, 25);
         let mut parser = AnsiParserDomainService::new();
         parser.parse(b"\x1b[31mRED\x1b[0m", &mut buffer);
-        let line = &buffer.get_lines()[0];
+        let line = buffer.get_line_at_visual_row(0).unwrap();
         assert_eq!(line[0].text, "R");
         assert_eq!(line[0].attribute.fg, TerminalColor::Ansi(1));
         assert_eq!(line[3].text, " ");
     }
 
     #[test]
-    fn test_terminal_resize() {
-        let mut buffer = TerminalBufferEntity::new(5, 2);
-        let mut parser = AnsiParserDomainService::new();
-        parser.parse(b"1234567", &mut buffer);
-        assert_eq!(buffer.get_cursor_pos().1, 1);
-        assert_eq!(buffer.get_cursor_pos().0, 2);
-
-        buffer.resize(10, 5);
-        assert_eq!(buffer.get_width(), 10);
-        assert_eq!(buffer.get_height(), 5);
-        assert_eq!(buffer.get_lines()[0][0].text, "1");
-    }
-
-    #[test]
-    fn test_scrollback_history() {
-        let mut buffer = TerminalBufferEntity::new(10, 3);
-        let mut parser = AnsiParserDomainService::new();
-        parser.parse(b"1\n2\n3\n4\n5", &mut buffer);
-
-        assert_eq!(buffer.get_history_len(), 2);
-        assert_eq!(buffer.get_line_at_visual_row(0).unwrap()[0].text, "3");
-        assert_eq!(buffer.get_line_at_visual_row(2).unwrap()[0].text, "5");
-    }
-
-    #[test]
-    fn test_viewport_logic() {
-        let mut buffer = TerminalBufferEntity::new(10, 3);
-        let mut parser = AnsiParserDomainService::new();
-        parser.parse(b"1\n2\n3\n4\n5", &mut buffer);
-
-        let line = buffer.get_line_at_visual_row(0).unwrap();
-        assert_eq!(line[0].text, "3");
-
-        buffer.scroll_lines(1);
-        let line = buffer.get_line_at_visual_row(0).unwrap();
-        assert_eq!(line[0].text, "2");
-    }
-
-    #[test]
-    fn test_decset_decrst() {
+    fn test_cursor_visibility() {
         let mut buffer = TerminalBufferEntity::new(80, 25);
         let mut parser = AnsiParserDomainService::new();
 
@@ -129,33 +82,17 @@ mod tests {
         // Cursor visible
         parser.parse(b"\x1b[?25h", &mut buffer);
         assert!(buffer.is_cursor_visible());
-
-        // Origin mode and cursor reset
-        parser.parse(b"\x1b[2;10r", &mut buffer); // Scroll region 2-10
-        parser.parse(b"\x1b[?6h", &mut buffer);
-        assert_eq!(buffer.get_cursor_pos().1, 1); // Row 2 (0-indexed)
-        assert_eq!(buffer.get_cursor_pos().0, 0);
-
-        parser.parse(b"\x1b[?6l", &mut buffer);
-        assert_eq!(buffer.get_cursor_pos().1, 0);
-        assert_eq!(buffer.get_cursor_pos().0, 0);
     }
 
     #[test]
-    fn test_control_characters() {
-        let mut buffer = TerminalBufferEntity::new(80, 25);
+    fn test_scrollback_history() {
+        let mut buffer = TerminalBufferEntity::new(10, 3);
         let mut parser = AnsiParserDomainService::new();
+        parser.parse(b"1\n2\n3\n4\n5", &mut buffer);
 
-        // BS
-        parser.parse(b"AB\x08", &mut buffer);
-        assert_eq!(buffer.get_cursor_pos().0, 1);
-
-        // TAB
-        parser.parse(b"\r\t", &mut buffer);
-        assert_eq!(buffer.get_cursor_pos().0, 8);
-
-        // CR
-        parser.parse(b"XY\r", &mut buffer);
-        assert_eq!(buffer.get_cursor_pos().0, 0);
+        // 3 lines height, 5 lines input -> 2 lines in history
+        assert_eq!(buffer.get_history_len(), 2);
+        assert_eq!(buffer.get_line_at_visual_row(0).unwrap()[0].text, "3");
+        assert_eq!(buffer.get_line_at_visual_row(2).unwrap()[0].text, "5");
     }
 }

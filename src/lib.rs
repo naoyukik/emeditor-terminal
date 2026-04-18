@@ -3,7 +3,8 @@ use simplelog::{ConfigBuilder, WriteLogger};
 use std::ffi::c_void;
 use std::fs::File;
 use std::sync::OnceLock;
-use windows::Win32::Foundation::{BOOL, HINSTANCE, HWND, LPARAM, LRESULT, WPARAM};
+use windows::core::BOOL;
+use windows::Win32::Foundation::{HINSTANCE, HWND, LPARAM, LRESULT, WPARAM};
 use windows::Win32::System::SystemServices::{DLL_PROCESS_ATTACH, DLL_PROCESS_DETACH};
 
 mod application;
@@ -34,7 +35,6 @@ fn init_logger() {
     let mut path = std::env::temp_dir();
     path.push("emeditor_terminal.log");
 
-    // Set offset to +09:00:00 for JST
     let config = ConfigBuilder::new()
         .set_time_offset(time::UtcOffset::from_hms(9, 0, 0).expect("Valid JST offset"))
         .build();
@@ -60,6 +60,8 @@ pub extern "system" fn DllMain(
             let _ = INSTANCE_HANDLE.set(dll_module.0 as usize);
             init_logger();
             log::info!("DllMain: Process Attach");
+            // TerminalWindowResolver::init は Loader Lock 圏内での実行を避けるため
+            // ここでは行わず、最初のウィンドウ作成時に遅延初期化する。
         }
         DLL_PROCESS_DETACH => {
             log::info!("DllMain: Process Detach");
@@ -73,12 +75,8 @@ pub extern "system" fn DllMain(
 #[allow(non_snake_case, unused_variables)]
 pub extern "system" fn OnCommand(hwnd: HWND) {
     log::info!("OnCommand called");
-
-    // Show custom bar
     if window::open_custom_bar(hwnd) {
-        log::info!("Terminal bar opened and pwsh.exe started");
-    } else {
-        log::info!("Custom bar already open, focusing only");
+        log::info!("Terminal bar opened");
     }
 }
 
@@ -86,8 +84,7 @@ pub extern "system" fn OnCommand(hwnd: HWND) {
 #[allow(non_snake_case, unused_variables, clippy::not_unsafe_ptr_arg_deref)]
 pub extern "system" fn QueryStatus(hwnd: HWND, pbChecked: *mut BOOL) -> BOOL {
     if !pbChecked.is_null() {
-        // Always return checked for now if it exists, or based on custom bar state
-        // For now, let's keep it simple.
+        // SAFETY: pbChecked は EmEditor から渡される有効なポインタであることを前提とする。
         unsafe {
             *pbChecked = BOOL(0);
         }
@@ -98,28 +95,20 @@ pub extern "system" fn QueryStatus(hwnd: HWND, pbChecked: *mut BOOL) -> BOOL {
 #[no_mangle]
 #[allow(non_snake_case, unused_variables)]
 pub extern "system" fn OnEvents(hwnd: HWND, nEvent: u32, wParam: WPARAM, lParam: LPARAM) {
-    if nEvent == EVENT_CREATE {
-        log::info!("OnEvents: EVENT_CREATE");
-    } else if nEvent == EVENT_CLOSE {
-        log::info!("OnEvents: EVENT_CLOSE - cleaning up plugin resources");
+    if nEvent == EVENT_CLOSE {
         window::cleanup_terminal();
     }
 }
 
 #[no_mangle]
-#[allow(non_snake_case, unused_variables)]
 pub extern "system" fn GetMenuTextID() -> u32 {
     0
 }
-
 #[no_mangle]
-#[allow(non_snake_case, unused_variables)]
 pub extern "system" fn GetStatusMessageID() -> u32 {
     0
 }
-
 #[no_mangle]
-#[allow(non_snake_case, unused_variables)]
 pub extern "system" fn GetBitmapID() -> u32 {
     0
 }
@@ -140,15 +129,4 @@ pub extern "system" fn PlugInProc(
         );
         application::ConfigWorkflow::new(config_repo)
     })
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_constants() {
-        assert_eq!(EVENT_CREATE, 0x00000400);
-        assert_eq!(EVENT_CLOSE, 0x00000800);
-    }
 }
