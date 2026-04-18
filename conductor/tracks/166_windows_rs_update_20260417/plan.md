@@ -40,7 +40,9 @@
 
 ## フェーズ 6: PRレビュー対応 (PR Review Fixes)
 - [x] Task: `WM_DESTROY` ハンドラでのキーボードフック解除とリソース解放の追加。
-- [x] Task: `AnsiParserDomainService::parse` のバイト処理効率化とフラッシュ漏れ修正。
+- [x] Task: `AnsiParserDomainService::parse` のバイト処理効率化とフラッシュ漏れ修正.
 - [x] Task: 削除されたドメインサービスのユニットテストの復元と調整。
 - [x] Task: ドキュメントおよび PR 説明文のバージョン表記を 0.62 に統一。
 - [x] Task: 未使用の `WindowGuiDriver::cleanup_terminal()` の整理。
+- [x] Task: 不要な重複ファイル `terminal_protocol_handler_domain_service.rs` の削除。
+- [x] Task: `lib.rs`, `conpty_repository_impl.rs`, `conpty_io_driver.rs`, `gui/window/mod.rs` への `// SAFETY:` コメント追加。

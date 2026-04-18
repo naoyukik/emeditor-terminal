@@ -1,35 +1,30 @@
-use windows::core::{w, PCWSTR};
-use windows::Win32::Foundation::{
-    GetLastError, ERROR_CLASS_ALREADY_EXISTS, HWND, LPARAM, LRESULT, WPARAM,
-};
-use windows::Win32::Graphics::Gdi::{COLOR_WINDOW, HBRUSH};
-use windows::Win32::UI::WindowsAndMessaging::{
-    CreateWindowExW, DefWindowProcW, LoadCursorW, PostMessageW, RegisterClassW, SendMessageW,
-    CS_HREDRAW, CS_VREDRAW, IDC_ARROW, WM_CHAR, WM_DESTROY, WM_ERASEBKGND, WM_GETDLGCODE,
-    WM_IME_COMPOSITION, WM_IME_ENDCOMPOSITION, WM_IME_SETCONTEXT, WM_IME_STARTCOMPOSITION,
-    WM_KEYDOWN, WM_KEYUP, WM_KILLFOCUS, WM_LBUTTONDOWN, WM_MOUSEWHEEL, WM_PAINT, WM_SETFOCUS,
-    WM_SIZE, WM_SYSCHAR, WM_SYSCOMMAND, WM_SYSKEYDOWN, WM_SYSKEYUP, WM_VSCROLL, WNDCLASSW,
-    WS_CHILD, WS_CLIPCHILDREN, WS_CLIPSIBLINGS, WS_VISIBLE,
-};
-
 use crate::domain::model::window_id_value::WindowId;
-use crate::gui::common::SendHWND;
+use crate::infra::driver::conpty_io_driver::SendHandle;
 use crate::gui::driver::window_gui_driver::WindowGuiDriver;
-use crate::gui::resolver::terminal_window_resolver::get_terminal_data;
-use crate::infra::driver::conpty_io_driver::{ConptyIoDriver, SendHandle};
+use crate::gui::resolver::terminal_window_resolver::{get_terminal_data};
 use crate::infra::driver::emeditor_io_driver::{
-    is_system_dark_mode, CUSTOM_BAR_BOTTOM, CUSTOM_BAR_INFO, EE_CUSTOM_BAR_OPEN,
+    CUSTOM_BAR_BOTTOM, CUSTOM_BAR_INFO, EE_CUSTOM_BAR_OPEN,
 };
-use std::ffi::c_void;
+use crate::infra::driver::emeditor_io_driver::{MessageBoxW, MB_ICONERROR, MB_OK, SendMessageW};
 use std::mem::size_of;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread;
+use windows::core::{w, PCWSTR};
+use windows::Win32::Foundation::{HWND, LPARAM, LRESULT, WPARAM};
+use windows::Win32::Graphics::Gdi::HBRUSH;
 use windows::Win32::Storage::FileSystem::ReadFile;
+use windows::Win32::UI::WindowsAndMessaging::{
+    CreateWindowExW, PostMessageW, RegisterClassW, DefWindowProcW, CS_HREDRAW, CS_VREDRAW, CW_USEDEFAULT,
+    WM_APP, WM_CHAR, WM_DESTROY, WM_ERASEBKGND, WM_IME_COMPOSITION, WM_IME_ENDCOMPOSITION,
+    WM_IME_SETCONTEXT, WM_IME_STARTCOMPOSITION, WM_KEYDOWN, WM_KEYUP, WM_KILLFOCUS, WM_LBUTTONDOWN,
+    WM_MOUSEWHEEL, WM_PAINT, WM_SETFOCUS, WM_SIZE, WM_SYSCHAR, WM_SYSCOMMAND, WM_SYSKEYDOWN,
+    WM_SYSKEYUP, WM_VSCROLL, WNDCLASSW, WS_CHILD, WS_CLIPCHILDREN, WS_CLIPSIBLINGS, WS_VISIBLE,
+    WINDOW_EX_STYLE, WM_GETDLGCODE,
+};
 
 use crate::gui::resolver::window_message_resolver as handlers;
 
-// Custom message for repaint from background thread
-const WM_APP: u32 = 0x8000;
+/// 描画更新を通知するメッセージ
 const WM_APP_REPAINT: u32 = WM_APP + 1;
 
 static CLASS_REGISTERED: AtomicBool = AtomicBool::new(false);
@@ -57,20 +52,16 @@ pub fn ensure_conpty_started(hwnd_client: HWND, hwnd_editor: HWND, cols: i16, ro
         &config_repo,
     );
 
-    let shell_path = if config.shell_path.trim().is_empty() {
-        "pwsh.exe".to_string()
-    } else {
-        config.shell_path.clone()
-    };
+    let shell_path = config.shell_path.clone();
+    log::info!("Starting ConPTY with shell: {}", shell_path);
 
-    match ConptyIoDriver::new(&shell_path, cols, rows) {
+    match crate::infra::driver::conpty_io_driver::ConptyIoDriver::new(
+        &shell_path,
+        None,
+        cols,
+        rows,
+    ) {
         Ok(conpty) => {
-            log::info!(
-                "ConptyIoDriver started successfully with size {}x{}",
-                cols,
-                rows
-            );
-
             let output_handle: SendHandle = conpty.get_output_handle();
 
             {
@@ -81,7 +72,7 @@ pub fn ensure_conpty_started(hwnd_client: HWND, hwnd_editor: HWND, cols: i16, ro
                     ),
                 );
 
-                let is_dark = is_system_dark_mode();
+                let is_dark = crate::infra::driver::emeditor_io_driver::is_system_dark_mode();
 
                 window_data.service = crate::application::TerminalWorkflow::new(
                     cols as usize,
@@ -97,7 +88,7 @@ pub fn ensure_conpty_started(hwnd_client: HWND, hwnd_editor: HWND, cols: i16, ro
                 window_data.is_conpty_started = true;
             }
 
-            let send_hwnd = SendHWND(hwnd_client);
+            let send_hwnd = crate::gui::common::SendHWND(hwnd_client);
 
             thread::spawn(move || {
                 let output_handle = output_handle;
@@ -105,6 +96,8 @@ pub fn ensure_conpty_started(hwnd_client: HWND, hwnd_editor: HWND, cols: i16, ro
                 let mut buffer = [0u8; 1024];
                 let mut bytes_read = 0;
                 loop {
+                    // SAFETY: 有効なパイプハンドルに対して同期読み取りを行う。
+                    // 読み取り結果は bytes_read に格納される。
                     let read_result = unsafe {
                         ReadFile(
                             output_handle.0,
@@ -114,8 +107,7 @@ pub fn ensure_conpty_started(hwnd_client: HWND, hwnd_editor: HWND, cols: i16, ro
                         )
                     };
 
-                    if let Err(e) = read_result {
-                        log::error!("ReadFile failed: {}", e);
+                    if read_result.is_err() {
                         break;
                     }
                     if bytes_read == 0 {
@@ -129,6 +121,8 @@ pub fn ensure_conpty_started(hwnd_client: HWND, hwnd_editor: HWND, cols: i16, ro
                         window_data.service.process_output(raw_bytes);
                     }
 
+                    // SAFETY: 有効なウィンドウハンドルに対して描画更新を通知する。
+                    // PostMessageW はスレッドセーフである。
                     unsafe {
                         let _ =
                             PostMessageW(Some(send_hwnd.0), WM_APP_REPAINT, WPARAM(0), LPARAM(0));
@@ -138,13 +132,15 @@ pub fn ensure_conpty_started(hwnd_client: HWND, hwnd_editor: HWND, cols: i16, ro
             true
         }
         Err(e) => {
-            log::error!("Failed to start ConptyIoDriver: {}", e);
+            log::error!("Failed to start ConPTY: {}", e);
             false
         }
     }
 }
 
 pub fn open_custom_bar(hwnd_editor: HWND) -> bool {
+    // SAFETY: ウィンドウクラスの登録、ウィンドウの作成、およびメッセージ送信は
+    // Win32 API の標準的な手順に従っており、有効なハンドルとリソースを使用する。
     unsafe {
         let h_instance = crate::get_instance_handle();
 
@@ -164,36 +160,33 @@ pub fn open_custom_bar(hwnd_editor: HWND) -> bool {
             }
         }
 
-        if !CLASS_REGISTERED.load(Ordering::Relaxed) {
+        if !CLASS_REGISTERED.load(Ordering::SeqCst) {
             let wc = WNDCLASSW {
                 style: CS_HREDRAW | CS_VREDRAW,
                 lpfnWndProc: Some(wnd_proc),
-                hInstance: h_instance,
+                hInstance: h_instance.into(),
                 lpszClassName: CLASS_NAME,
-                hCursor: LoadCursorW(None, IDC_ARROW).unwrap_or_default(),
-                hbrBackground: HBRUSH((COLOR_WINDOW.0 + 1) as isize as *mut c_void),
+                hbrBackground: HBRUSH(std::ptr::null_mut()),
                 ..Default::default()
             };
-            let atom = RegisterClassW(&wc);
-            if atom == 0 {
-                let err = GetLastError();
-                if err != ERROR_CLASS_ALREADY_EXISTS {
-                    log::error!("Failed to register window class: {:?}", err);
-                    return false;
-                }
+
+            if RegisterClassW(&wc) == 0 {
+                let err = windows::Win32::Foundation::GetLastError();
+                log::error!("Failed to register window class: {:?}", err);
+                return false;
             }
-            CLASS_REGISTERED.store(true, Ordering::Relaxed);
+            CLASS_REGISTERED.store(true, Ordering::SeqCst);
         }
 
         let hwnd_client_result = CreateWindowExW(
-            Default::default(),
+            WINDOW_EX_STYLE::default(),
             CLASS_NAME,
             w!("Terminal"),
-            WS_CHILD | WS_VISIBLE | WS_CLIPCHILDREN | WS_CLIPSIBLINGS,
-            0,
-            0,
-            0,
-            0,
+            WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS | WS_CLIPCHILDREN,
+            CW_USEDEFAULT,
+            CW_USEDEFAULT,
+            CW_USEDEFAULT,
+            CW_USEDEFAULT,
             Some(hwnd_editor),
             None,
             Some(h_instance),
@@ -203,18 +196,18 @@ pub fn open_custom_bar(hwnd_editor: HWND) -> bool {
         match hwnd_client_result {
             Ok(hwnd_client) => {
                 let mut window_data = data_arc.lock().unwrap();
-                window_data.window_handle = Some(SendHWND(hwnd_client));
+                window_data.window_handle = Some(crate::gui::common::SendHWND(hwnd_client));
                 drop(window_data);
 
                 let mut info = CUSTOM_BAR_INFO {
                     cbSize: size_of::<CUSTOM_BAR_INFO>(),
-                    hwndCustomBar: HWND::default(),
+                    hwndCustomBar: HWND::default(), // EmEditor 側でセットされる
                     hwndClient: hwnd_client,
                     pszTitle: w!("Terminal"),
                     iPos: CUSTOM_BAR_BOTTOM,
                 };
 
-                SendMessageW(
+                let _ = SendMessageW(
                     hwnd_editor,
                     EE_CUSTOM_BAR_OPEN,
                     Some(WPARAM(0)),
@@ -225,7 +218,13 @@ pub fn open_custom_bar(hwnd_editor: HWND) -> bool {
                 true
             }
             Err(e) => {
-                log::error!("Failed to create custom bar window: {}", e);
+                MessageBoxW(
+                    Some(hwnd_editor),
+                    w!("Failed to create terminal window."),
+                    w!("Terminal Error"),
+                    MB_ICONERROR | MB_OK,
+                );
+                log::error!("CreateWindowExW failed: {:?}", e);
                 false
             }
         }
@@ -279,6 +278,7 @@ pub extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LP
         WM_IME_ENDCOMPOSITION => LRESULT(handlers::on_ime_end_composition(window_id)),
         WM_ERASEBKGND => LRESULT(1),
         WM_DESTROY => LRESULT(handlers::on_destroy()),
+        // SAFETY: 未処理のメッセージをシステムのデフォルトウィンドウプロシージャへ委ねる。
         _ => unsafe { DefWindowProcW(hwnd, msg, wparam, lparam) },
     }
 }

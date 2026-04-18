@@ -23,6 +23,8 @@ impl TerminalOutputRepository for ConptyRepositoryImpl {
     fn send_input(&self, input_bytes: &[u8]) -> io::Result<()> {
         let handle = self.conpty.get_input_handle();
         let mut bytes_written = 0;
+        // SAFETY: 有効なパイプハンドルに対して、指定されたバッファサイズ分を書き込む。
+        // bytes_written は書き込み完了後に同期的に取得される。
         unsafe {
             WriteFile(handle.0, Some(input_bytes), Some(&mut bytes_written), None)
                 .map_err(|e| io::Error::other(e.to_string()))

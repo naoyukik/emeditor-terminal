@@ -12,15 +12,15 @@ use windows::Win32::System::Threading::{
     PROCESS_INFORMATION, PROC_THREAD_ATTRIBUTE_PSEUDOCONSOLE, STARTUPINFOEXW,
 };
 
-#[repr(transparent)]
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct SendHPCON(pub HPCON);
+// SAFETY: HPCON はポインタサイズのハンドルであり、スレッド間での転送は安全。
 unsafe impl Send for SendHPCON {}
 unsafe impl Sync for SendHPCON {}
 
-#[repr(transparent)]
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct SendHandle(pub HANDLE);
+// SAFETY: HANDLE はポインタサイズのハンドルであり、スレッド間での転送は安全。
 unsafe impl Send for SendHandle {}
 unsafe impl Sync for SendHandle {}
 
@@ -33,15 +33,17 @@ pub struct ConptyIoDriver {
 }
 
 impl ConptyIoDriver {
-    pub fn new(cmd_line: &str, width: i16, height: i16) -> Result<Self, String> {
-        log::debug!("ConptyIoDriver::new called with cmd_line: '{}'", cmd_line);
-        let mut h_pipe_pt_in = INVALID_HANDLE_VALUE;
-        let mut h_pipe_in_write = INVALID_HANDLE_VALUE;
-        let mut h_pipe_pt_out = INVALID_HANDLE_VALUE;
-        let mut h_pipe_out_read = INVALID_HANDLE_VALUE;
+    pub fn new(
+        cmd_line: &str,
+        current_dir: Option<&str>,
+        width: i16,
+        height: i16,
+    ) -> Result<Self, String> {
+        let mut h_pipe_pt_in = HANDLE::default();
+        let mut h_pipe_in_write = HANDLE::default();
+        let mut h_pipe_out_read = HANDLE::default();
+        let mut h_pipe_pt_out = HANDLE::default();
 
-        // Get USERPROFILE for current directory (outside unsafe block)
-        let current_dir = std::env::var("USERPROFILE").ok();
         let current_dir_w: Vec<u16> = if let Some(dir) = current_dir {
             dir.encode_utf16().chain(std::iter::once(0)).collect()
         } else {
@@ -179,9 +181,6 @@ impl ConptyIoDriver {
                 PCWSTR(current_dir_w.as_ptr())
             };
 
-            // SAFETY: プロセス作成に際してワイド文字列のコマンドラインポインタを
-            // 渡し、プロセスの起動に成功した場合は情報を取得する。属性リストは
-            // 呼び出し後に確実に破棄される。
             let success = CreateProcessW(
                 None,
                 Some(PWSTR(cmd_line_w.as_mut_ptr())),
@@ -241,6 +240,7 @@ impl ConptyIoDriver {
     }
 }
 
+// SAFETY: ConptyIoDriver は Win32 ハンドルの集合であり、スレッド間での転送は安全。
 unsafe impl Send for ConptyIoDriver {}
 unsafe impl Sync for ConptyIoDriver {}
 

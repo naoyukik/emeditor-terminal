@@ -84,6 +84,7 @@ pub extern "system" fn OnCommand(hwnd: HWND) {
 #[allow(non_snake_case, unused_variables, clippy::not_unsafe_ptr_arg_deref)]
 pub extern "system" fn QueryStatus(hwnd: HWND, pbChecked: *mut BOOL) -> BOOL {
     if !pbChecked.is_null() {
+        // SAFETY: pbChecked は EmEditor から渡される有効なポインタであることを前提とする。
         unsafe {
             *pbChecked = BOOL(0);
         }
