@@ -48,4 +48,4 @@
 - [x] Task: `lib.rs`, `conpty_repository_impl.rs`, `conpty_io_driver.rs`, `gui/window/mod.rs` への `// SAFETY:` コメント追加。
 
 ## Phase: Review Fixes
-- [~] Task: Apply review suggestions
+- [x] Task: Apply review suggestions cb03c7b
