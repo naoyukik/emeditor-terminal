@@ -28,15 +28,15 @@
 
 ## フェーズ 4: マイルストーン C - アーキテクチャ是正 (arch-auditor 指摘対応)
 - **主な変更**: Resolver 層の Win32 隠蔽、Domain 層のプロトコル解析分離。
-- [ ] Task: `window_message_resolver.rs` 内の Win32 API 呼び出し（`BeginPaint`, `GetDC` 等）を `_gui_driver.rs` へカプセル化。
-- [ ] Task: `terminal_buffer_entity.rs` から `vte::Perform` 実装と解析ロジックを `terminal_protocol_handler.rs` (仮) へ隔離。
-- [ ] Task: コンパイル確認 (`cargo check`)。
-- [ ] Task: `@arch-auditor` による最終アーキテクチャ監査。
-- [ ] Task: `cargo clippy` および `cargo fmt` の実行。
-- [ ] Task: Conductor - ユーザー手動検証 'フェーズ 4' (リファクタリング後の全機能確認)
-- [ ] Task: フェーズ成果物のコミット
+- [x] Task: `window_message_resolver.rs` 内の Win32 API 呼び出し（`BeginPaint`, `GetDC` 等）を `_gui_driver.rs` へカプセル化。
+- [x] Task: `terminal_buffer_entity.rs` から `vte::Perform` 実装と解析ロジックを `terminal_protocol_handler.rs` へ隔離。
+- [x] Task: コンパイル確認 (`cargo check`)。
+- [x] Task: `@arch-auditor` による最終アーキテクチャ監査。
+- [x] Task: `cargo clippy` および `cargo fmt` の実行。
+- [x] Task: Conductor - ユーザー手動検証 'フェーズ 4' (リファクタリング後の全機能確認)
+- [x] Task: フェーズ成果物のコミット
 
 ## フェーズ 5: 仕上げと最終検証 (Finalization & Verification)
-- [ ] Task: 実機（EmEditor）での全機能検証（描画、IME、ConPTY、設定、テーマ）。
-- [ ] Task: `cargo clippy` および `cargo fmt` の実行。
-- [ ] Task: Conductor - ユーザー手動検証 'フェーズ 5' (最終成果物の承認)
+- [x] Task: 実機（EmEditor）での全機能検証（描画、IME、ConPTY、設定、テーマ）。
+- [x] Task: `cargo clippy` および `cargo fmt` の実行。
+- [x] Task: Conductor - ユーザー手動検証 'フェーズ 5' (最終成果物の承認)
