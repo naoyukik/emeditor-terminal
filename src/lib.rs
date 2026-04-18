@@ -100,11 +100,17 @@ pub extern "system" fn OnEvents(hwnd: HWND, nEvent: u32, wParam: WPARAM, lParam:
 }
 
 #[no_mangle]
-pub extern "system" fn GetMenuTextID() -> u32 { 0 }
+pub extern "system" fn GetMenuTextID() -> u32 {
+    0
+}
 #[no_mangle]
-pub extern "system" fn GetStatusMessageID() -> u32 { 0 }
+pub extern "system" fn GetStatusMessageID() -> u32 {
+    0
+}
 #[no_mangle]
-pub extern "system" fn GetBitmapID() -> u32 { 0 }
+pub extern "system" fn GetBitmapID() -> u32 {
+    0
+}
 
 #[no_mangle]
 #[allow(non_snake_case, unused_variables)]

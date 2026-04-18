@@ -1,10 +1,14 @@
-use windows::Win32::Foundation::{HWND, RECT, LPARAM, WPARAM};
-use windows::Win32::Graphics::Gdi::{BeginPaint, EndPaint, InvalidateRect, UpdateWindow, PAINTSTRUCT};
-use windows::Win32::UI::Input::KeyboardAndMouse::SetFocus;
-use windows::Win32::UI::WindowsAndMessaging::{DefWindowProcW, DestroyWindow, GetClientRect, IsWindow};
 use crate::domain::model::window_id_value::WindowId;
 use crate::gui::resolver::terminal_window_resolver::get_terminal_data;
 use crate::infra::driver::emeditor_io_driver::is_system_dark_mode;
+use windows::Win32::Foundation::{HWND, LPARAM, RECT, WPARAM};
+use windows::Win32::Graphics::Gdi::{
+    BeginPaint, EndPaint, InvalidateRect, UpdateWindow, PAINTSTRUCT,
+};
+use windows::Win32::UI::Input::KeyboardAndMouse::SetFocus;
+use windows::Win32::UI::WindowsAndMessaging::{
+    DefWindowProcW, DestroyWindow, GetClientRect, IsWindow,
+};
 
 /// Win32 ウィンドウ操作をカプセル化するドライバ
 pub(crate) struct WindowGuiDriver;
@@ -56,12 +60,15 @@ impl WindowGuiDriver {
     }
 
     /// 標準のウィンドウプロシージャを呼び出す。
-    pub(crate) fn default_window_proc(window_id: WindowId, msg: u32, wparam: usize, lparam: isize) -> isize {
+    pub(crate) fn default_window_proc(
+        window_id: WindowId,
+        msg: u32,
+        wparam: usize,
+        lparam: isize,
+    ) -> isize {
         let hwnd = HWND(window_id.0 as _);
         // SAFETY: 有効な HWND に対して標準のメッセージ処理を委ねる。
-        unsafe {
-            DefWindowProcW(hwnd, msg, WPARAM(wparam), LPARAM(lparam)).0
-        }
+        unsafe { DefWindowProcW(hwnd, msg, WPARAM(wparam), LPARAM(lparam)).0 }
     }
 
     /// システムショートカットであるかを判定する。
@@ -84,14 +91,11 @@ impl WindowGuiDriver {
         unsafe {
             let mut ps = PAINTSTRUCT::default();
             let hdc = BeginPaint(hwnd, &mut ps);
-            
+
             let mut rect = RECT::default();
             let _ = GetClientRect(hwnd, &mut rect);
 
-            f(super::terminal_gui_driver::TerminalGuiDriverContext {
-                hdc,
-                rect,
-            });
+            f(super::terminal_gui_driver::TerminalGuiDriverContext { hdc, rect });
 
             let _ = EndPaint(hwnd, &ps);
         }
@@ -102,7 +106,9 @@ impl WindowGuiDriver {
         let width = (lparam & 0xFFFF) as i32;
         let height = ((lparam >> 16) & 0xFFFF) as i32;
 
-        if width <= 0 || height <= 0 { return; }
+        if width <= 0 || height <= 0 {
+            return;
+        }
 
         let data_arc = get_terminal_data();
         let mut window_data = data_arc.lock().unwrap();
@@ -112,14 +118,18 @@ impl WindowGuiDriver {
 
             let hwnd = HWND(window_id.0 as _);
             // SAFETY: 有効な HWND に対して親ウィンドウを取得する。
-            let hwnd_editor = match unsafe { windows::Win32::UI::WindowsAndMessaging::GetParent(hwnd) } {
-                Ok(h) => h,
-                Err(_) => return,
-            };
+            let hwnd_editor =
+                match unsafe { windows::Win32::UI::WindowsAndMessaging::GetParent(hwnd) } {
+                    Ok(h) => h,
+                    Err(_) => return,
+                };
             let parent_id = WindowId(hwnd_editor.0 as isize);
 
             let config_repo = crate::infra::repository::emeditor_config_repository_impl::EmEditorConfigRepositoryImpl::new(parent_id);
-            let config = crate::domain::repository::configuration_repository::ConfigurationRepository::load(&config_repo);
+            let config =
+                crate::domain::repository::configuration_repository::ConfigurationRepository::load(
+                    &config_repo,
+                );
 
             let mut window_data = data_arc.lock().unwrap();
             // Update metrics using hdc
@@ -132,11 +142,12 @@ impl WindowGuiDriver {
                 }
             }
 
-            let (char_width, char_height) = if let Some(metrics) = window_data.renderer.get_metrics() {
-                (metrics.base_width, metrics.char_height)
-            } else {
-                (8, 16)
-            };
+            let (char_width, char_height) =
+                if let Some(metrics) = window_data.renderer.get_metrics() {
+                    (metrics.base_width, metrics.char_height)
+                } else {
+                    (8, 16)
+                };
 
             let cols = (width / char_width).max(1) as i16;
             let rows = (height / char_height).max(1) as i16;
@@ -146,11 +157,12 @@ impl WindowGuiDriver {
                 log::info!("ConPTY started successfully");
             }
         } else {
-            let (char_width, char_height) = if let Some(metrics) = window_data.renderer.get_metrics() {
-                (metrics.base_width, metrics.char_height)
-            } else {
-                (8, 16)
-            };
+            let (char_width, char_height) =
+                if let Some(metrics) = window_data.renderer.get_metrics() {
+                    (metrics.base_width, metrics.char_height)
+                } else {
+                    (8, 16)
+                };
             let cols = (width / char_width).max(1) as i16;
             let rows = (height / char_height).max(1) as i16;
             window_data.service.resize(cols as usize, rows as usize);
@@ -161,14 +173,15 @@ impl WindowGuiDriver {
 pub(crate) fn cleanup_terminal() {
     let data_arc = get_terminal_data();
     let mut window_data = data_arc.lock().unwrap();
-    
+
     use crate::infra::repository::conpty_repository_impl::DummyOutputRepository;
     use crate::infra::repository::emeditor_config_repository_impl::EmEditorConfigRepositoryImpl;
-    
+
     let output_repo = Box::new(DummyOutputRepository);
     let config_repo = Box::new(EmEditorConfigRepositoryImpl::new(WindowId(0)));
     let is_dark = is_system_dark_mode();
-    let service = crate::application::TerminalWorkflow::new(80, 25, output_repo, config_repo, is_dark);
-    
+    let service =
+        crate::application::TerminalWorkflow::new(80, 25, output_repo, config_repo, is_dark);
+
     window_data.reset_service(service);
 }

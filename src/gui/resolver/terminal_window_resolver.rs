@@ -23,7 +23,7 @@ impl TerminalWindowResolver {
     fn new_default() -> Self {
         use crate::infra::repository::conpty_repository_impl::DummyOutputRepository;
         use crate::infra::repository::emeditor_config_repository_impl::EmEditorConfigRepositoryImpl;
-        
+
         let output_repo = Box::new(DummyOutputRepository);
         let config_repo = Box::new(EmEditorConfigRepositoryImpl::new(WindowId(0)));
         let is_dark = crate::infra::driver::emeditor_io_driver::is_system_dark_mode();
@@ -50,8 +50,6 @@ impl TerminalWindowResolver {
 
 pub fn get_terminal_data() -> Arc<Mutex<TerminalWindowResolver>> {
     TERMINAL_DATA
-        .get_or_init(|| {
-            Arc::new(Mutex::new(TerminalWindowResolver::new_default()))
-        })
+        .get_or_init(|| Arc::new(Mutex::new(TerminalWindowResolver::new_default())))
         .clone()
 }
