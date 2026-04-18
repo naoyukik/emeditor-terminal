@@ -4,28 +4,24 @@ use windows::Win32::Foundation::{
 };
 use windows::Win32::Graphics::Gdi::{COLOR_WINDOW, HBRUSH};
 use windows::Win32::UI::WindowsAndMessaging::{
-    CreateWindowExW, DefWindowProcW, LoadCursorW, PostMessageW, RegisterClassW, SendMessageW,
+    CreateWindowExW, DefWindowProcW, LoadCursorW, RegisterClassW, SendMessageW,
     CS_HREDRAW, CS_VREDRAW, IDC_ARROW, WM_CHAR, WM_DESTROY, WM_ERASEBKGND, WM_GETDLGCODE,
     WM_IME_COMPOSITION, WM_IME_ENDCOMPOSITION, WM_IME_SETCONTEXT, WM_IME_STARTCOMPOSITION,
     WM_KEYDOWN, WM_KEYUP, WM_KILLFOCUS, WM_LBUTTONDOWN, WM_MOUSEWHEEL, WM_PAINT, WM_SETFOCUS,
     WM_SIZE, WM_SYSCHAR, WM_SYSCOMMAND, WM_SYSKEYDOWN, WM_SYSKEYUP, WM_VSCROLL, WNDCLASSW,
-    WS_CHILD, WS_CLIPCHILDREN, WS_CLIPSIBLINGS, WS_VISIBLE,
+    WS_CHILD, WS_VISIBLE, WS_CLIPCHILDREN, WS_CLIPSIBLINGS,
 };
 
 use crate::domain::model::window_id_value::WindowId;
 use crate::gui::common::SendHWND;
 use crate::gui::driver::window_gui_driver::WindowGuiDriver;
 use crate::gui::resolver::terminal_window_resolver::get_terminal_data;
-use crate::infra::driver::conpty_io_driver::{ConptyIoDriver, SendHandle};
 use crate::infra::driver::emeditor_io_driver::{
-    is_system_dark_mode, CUSTOM_BAR_BOTTOM, CUSTOM_BAR_INFO, EE_CUSTOM_BAR_OPEN,
+    CUSTOM_BAR_BOTTOM, CUSTOM_BAR_INFO, EE_CUSTOM_BAR_OPEN,
 };
 use std::ffi::c_void;
 use std::mem::size_of;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::thread;
-use windows::Win32::Storage::FileSystem::ReadFile;
-use windows::Win32::UI::Input::KeyboardAndMouse::{VK_ESCAPE, VK_F4, VK_SPACE, VK_TAB};
 
 use crate::gui::resolver::window_message_resolver as handlers;
 
@@ -36,125 +32,16 @@ const WM_APP_REPAINT: u32 = WM_APP + 1;
 static CLASS_REGISTERED: AtomicBool = AtomicBool::new(false);
 const CLASS_NAME: PCWSTR = w!("EmEditorTerminalClass");
 
-// Helper to check if IME is composing (Re-export for handlers if needed, or just keep public)
-// handlers.rs doesn't seem to use this directly, it calls crate::gui::ime::is_composing
+/// IME が変換中であるかを確認する
 pub fn is_ime_composing(hwnd: HWND) -> bool {
-    crate::gui::driver::ime_gui_driver::is_composing(hwnd)
+    crate::gui::driver::ime_gui_driver::is_composing(WindowId(hwnd.0 as isize))
 }
 
-pub fn ensure_conpty_started(hwnd_client: HWND, hwnd_editor: HWND, cols: i16, rows: i16) -> bool {
-    let data_arc = get_terminal_data();
-    {
-        let window_data = data_arc.lock().unwrap();
-        if window_data.is_conpty_started {
-            return true;
-        }
-    }
-
-    let config_repo = crate::infra::repository::emeditor_config_repository_impl::EmEditorConfigRepositoryImpl::new(
-        WindowId(hwnd_editor.0 as isize),
-    );
-    let config = crate::domain::repository::configuration_repository::ConfigurationRepository::load(
-        &config_repo,
-    );
-
-    let shell_path = if config.shell_path.trim().is_empty() {
-        "pwsh.exe".to_string()
-    } else {
-        config.shell_path.clone()
-    };
-
-    match ConptyIoDriver::new(&shell_path, cols, rows) {
-        Ok(conpty) => {
-            log::info!(
-                "ConptyIoDriver started successfully with size {}x{}",
-                cols,
-                rows
-            );
-
-            let output_handle: SendHandle = conpty.get_output_handle();
-            // ConptyIoDriver retains ownership of the handle and closes it on drop.
-            // SendHandle is Copy, so we can pass a copy to the thread.
-
-            {
-                let mut window_data = data_arc.lock().unwrap();
-                let output_repo = Box::new(
-                    crate::infra::repository::conpty_repository_impl::ConptyRepositoryImpl::new(
-                        conpty,
-                    ),
-                );
-
-                let is_dark = is_system_dark_mode();
-
-                // 新しいリポジトリでサービスを再構築する（DI）
-                window_data.service = crate::application::TerminalWorkflow::new(
-                    cols as usize,
-                    rows as usize,
-                    output_repo,
-                    Box::new(
-                        crate::infra::repository::emeditor_config_repository_impl::EmEditorConfigRepositoryImpl::new(
-                            WindowId(hwnd_editor.0 as isize),
-                        ),
-                    ),
-                    is_dark,
-                );
-                window_data.is_conpty_started = true;
-            }
-
-            let send_hwnd = SendHWND(hwnd_client);
-
-            thread::spawn(move || {
-                let output_handle = output_handle; // Force capture of SendHandle to avoid disjoint capture of !Send HANDLE
-                let send_hwnd = send_hwnd; // Force capture of SendHWND
-                let mut buffer = [0u8; 1024];
-                let mut bytes_read = 0;
-                loop {
-                    let read_result = unsafe {
-                        ReadFile(
-                            output_handle.0,
-                            Some(&mut buffer),
-                            Some(&mut bytes_read),
-                            None,
-                        )
-                    };
-
-                    if let Err(e) = read_result {
-                        log::error!("ReadFile failed: {}", e);
-                        break;
-                    }
-                    if bytes_read == 0 {
-                        log::info!("ReadFile returned 0 bytes (EOF)");
-                        break;
-                    }
-
-                    let raw_bytes = &buffer[..bytes_read as usize];
-                    {
-                        let mut window_data = data_arc.lock().unwrap();
-                        window_data.service.process_output(raw_bytes);
-                    }
-
-                    // Trigger repaint via PostMessage (thread-safe)
-                    unsafe {
-                        let _ =
-                            PostMessageW(Some(send_hwnd.0), WM_APP_REPAINT, WPARAM(0), LPARAM(0));
-                    }
-                }
-                log::info!("ConptyIoDriver output thread finished");
-            });
-            true
-        }
-        Err(e) => {
-            log::error!("Failed to start ConptyIoDriver: {}", e);
-            false
-        }
-    }
-}
-
+/// カスタムバーを開く (エントリポイント)
 pub fn open_custom_bar(hwnd_editor: HWND) -> bool {
     unsafe {
         let h_instance = crate::get_instance_handle();
 
-        // Check if already open
         let data_arc = get_terminal_data();
         let existing_hwnd = {
             let window_data = data_arc.lock().unwrap();
@@ -162,12 +49,10 @@ pub fn open_custom_bar(hwnd_editor: HWND) -> bool {
         };
 
         if let Some(hwnd) = existing_hwnd {
-            if WindowGuiDriver::focus_existing_window(hwnd) {
-                return false; // Already open and focused
+            if WindowGuiDriver::focus_existing_window(WindowId(hwnd.0 as isize)) {
+                return false; 
             } else {
-                // Invalid handle, clear it and proceed to recreate
-                log::warn!("Invalid window handle detected. Cleaning up.");
-                WindowGuiDriver::destroy_window(hwnd);
+                WindowGuiDriver::destroy_window(WindowId(hwnd.0 as isize));
                 let mut window_data = data_arc.lock().unwrap();
                 window_data.window_handle = None;
             }
@@ -211,28 +96,9 @@ pub fn open_custom_bar(hwnd_editor: HWND) -> bool {
 
         match hwnd_client_result {
             Ok(hwnd_client) => {
-                if hwnd_client.0.is_null() {
-                    log::error!("Failed to create custom bar window: Handle is NULL");
-                    return false;
-                }
-
-                // Store window handle immediately
-                let existing_hwnd = {
-                    let mut window_data = data_arc.lock().unwrap();
-                    if let Some(h) = window_data.window_handle {
-                        Some(h.0)
-                    } else {
-                        window_data.window_handle = Some(SendHWND(hwnd_client));
-                        None
-                    }
-                };
-
-                if let Some(h) = existing_hwnd {
-                    // Another window exists, destroy this one and focus the existing one
-                    WindowGuiDriver::destroy_window(hwnd_client);
-                    WindowGuiDriver::focus_existing_window(h);
-                    return false;
-                }
+                let mut window_data = data_arc.lock().unwrap();
+                window_data.window_handle = Some(SendHWND(hwnd_client));
+                drop(window_data);
 
                 let mut info = CUSTOM_BAR_INFO {
                     cbSize: size_of::<CUSTOM_BAR_INFO>(),
@@ -249,9 +115,7 @@ pub fn open_custom_bar(hwnd_editor: HWND) -> bool {
                     Some(LPARAM(&mut info as *mut _ as isize)),
                 );
 
-                // ConPTYの起動はWM_SIZE（配置確定後）に任せるため、ここではウィンドウ作成のみ行う
-                // 自動フォーカス設定: 初期化成功時にターミナルウィンドウへフォーカスを当てる
-                WindowGuiDriver::focus_existing_window(hwnd_client);
+                WindowGuiDriver::focus_existing_window(WindowId(hwnd_client.0 as isize));
                 true
             }
             Err(e) => {
@@ -262,58 +126,57 @@ pub fn open_custom_bar(hwnd_editor: HWND) -> bool {
     }
 }
 
-/// システムショートカット（Alt+Tab 等）であるかを判定する
+/// システムショートカットであるかを判定する
 pub fn is_system_shortcut(vk_code: u16, alt_pressed: bool) -> bool {
-    alt_pressed
-        && (vk_code == VK_F4.0
-            || vk_code == VK_TAB.0
-            || vk_code == VK_SPACE.0
-            || vk_code == VK_ESCAPE.0)
-}
-
-#[allow(dead_code)]
-pub fn send_input(text: &str) {
-    let data_arc = get_terminal_data();
-    let window_data = data_arc.lock().unwrap();
-    let _ = window_data.service.send_input(text.as_bytes());
-    // 改行を送る
-    let _ = window_data.service.send_input(b"\r");
+    WindowGuiDriver::is_system_shortcut(vk_code, alt_pressed)
 }
 
 pub fn cleanup_terminal() {
     log::info!("cleanup_terminal: Starting cleanup");
     let data_arc = get_terminal_data();
     let mut window_data = data_arc.lock().unwrap();
-    // TerminalServiceが差し替えられる（古いサービスがドロップされる）際に、
-    // 内部のリポジトリ経由でConPTYもドロップされる。
-    window_data.reset_service();
-    log::info!("TerminalWorkflow reset in cleanup_terminal");
+    
+    // Workflow に新しいダミーサービスを注入してリセット
+    use crate::infra::repository::conpty_repository_impl::DummyOutputRepository;
+    use crate::infra::repository::emeditor_config_repository_impl::EmEditorConfigRepositoryImpl;
+    
+    let output_repo = Box::new(DummyOutputRepository);
+    let config_repo = Box::new(EmEditorConfigRepositoryImpl::new(WindowId(0)));
+    let is_dark = crate::infra::driver::emeditor_io_driver::is_system_dark_mode();
+    let service = crate::application::TerminalWorkflow::new(80, 25, output_repo, config_repo, is_dark);
+    
+    window_data.reset_service(service);
 }
 
-extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
+pub extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
+    let window_id = WindowId(hwnd.0 as isize);
     match msg {
-        WM_VSCROLL => handlers::on_vscroll(hwnd, wparam, lparam),
-        WM_MOUSEWHEEL => handlers::on_mousewheel(hwnd, wparam),
-        WM_PAINT => handlers::on_paint(hwnd),
-        WM_LBUTTONDOWN => handlers::on_lbuttondown(hwnd),
-        WM_SETFOCUS => handlers::on_set_focus(hwnd),
-        WM_KILLFOCUS => handlers::on_kill_focus(),
-        WM_KEYDOWN => handlers::on_keydown(hwnd, msg, wparam, lparam),
-        WM_SYSKEYDOWN => handlers::on_syskeydown(hwnd, msg, wparam, lparam),
-        WM_SYSKEYUP => handlers::on_syskeyup(hwnd, msg, wparam, lparam),
-        WM_KEYUP => handlers::on_keyup(hwnd, msg, wparam, lparam),
-        WM_SYSCHAR => handlers::on_syschar(hwnd, msg, wparam, lparam),
-        WM_SYSCOMMAND => handlers::on_syscommand(hwnd, msg, wparam, lparam),
-        WM_GETDLGCODE => handlers::on_get_dlg_code(),
-        WM_CHAR => handlers::on_char(hwnd, wparam),
-        msg if msg == WM_APP_REPAINT => handlers::on_app_repaint(hwnd),
-        WM_SIZE => handlers::on_size(hwnd, lparam),
-        WM_IME_SETCONTEXT => handlers::on_ime_set_context(hwnd, msg, wparam, lparam),
-        WM_IME_STARTCOMPOSITION => handlers::on_ime_start_composition(hwnd),
-        WM_IME_COMPOSITION => handlers::on_ime_composition(hwnd, msg, wparam, lparam),
-        WM_IME_ENDCOMPOSITION => handlers::on_ime_end_composition(hwnd),
+        WM_VSCROLL => LRESULT(handlers::on_vscroll(window_id, wparam.0, lparam.0)),
+        WM_MOUSEWHEEL => LRESULT(handlers::on_mousewheel(window_id, wparam.0)),
+        WM_PAINT => LRESULT(handlers::on_paint(window_id)),
+        WM_LBUTTONDOWN => LRESULT(handlers::on_lbuttondown(window_id)),
+        WM_SETFOCUS => LRESULT(handlers::on_set_focus(window_id)),
+        WM_KILLFOCUS => LRESULT(handlers::on_kill_focus()),
+        WM_KEYDOWN => LRESULT(handlers::on_keydown(window_id, msg, wparam.0, lparam.0)),
+        WM_SYSKEYDOWN => LRESULT(handlers::on_syskeydown(window_id, msg, wparam.0, lparam.0)),
+        WM_SYSKEYUP => LRESULT(handlers::on_syskeyup(window_id, msg, wparam.0, lparam.0)),
+        WM_KEYUP => LRESULT(handlers::on_keyup(window_id, msg, wparam.0, lparam.0)),
+        WM_SYSCHAR => LRESULT(handlers::on_syschar(window_id, msg, wparam.0, lparam.0)),
+        WM_SYSCOMMAND => LRESULT(handlers::on_syscommand(window_id, msg, wparam.0, lparam.0)),
+        WM_GETDLGCODE => LRESULT(handlers::on_get_dlg_code()),
+        WM_CHAR => LRESULT(handlers::on_char(window_id, wparam.0)),
+        msg if msg == WM_APP_REPAINT => LRESULT(handlers::on_app_repaint(window_id)),
+        WM_SIZE => {
+            let width = (lparam.0 & 0xFFFF) as i32;
+            let height = ((lparam.0 >> 16) & 0xFFFF) as i32;
+            LRESULT(handlers::on_size(window_id, width, height))
+        }
+        WM_IME_SETCONTEXT => LRESULT(handlers::on_ime_set_context(window_id, msg, wparam.0, lparam.0)),
+        WM_IME_STARTCOMPOSITION => LRESULT(handlers::on_ime_start_composition(window_id)),
+        WM_IME_COMPOSITION => LRESULT(handlers::on_ime_composition(window_id, msg, wparam.0, lparam.0)),
+        WM_IME_ENDCOMPOSITION => LRESULT(handlers::on_ime_end_composition(window_id)),
         WM_ERASEBKGND => LRESULT(1),
-        WM_DESTROY => handlers::on_destroy(),
+        WM_DESTROY => LRESULT(handlers::on_destroy()),
         _ => unsafe { DefWindowProcW(hwnd, msg, wparam, lparam) },
     }
 }

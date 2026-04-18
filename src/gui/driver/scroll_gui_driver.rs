@@ -1,3 +1,4 @@
+use crate::domain::model::window_id_value::WindowId;
 use crate::gui::resolver::terminal_window_resolver::get_terminal_data;
 use std::mem::size_of;
 use windows::core::BOOL;
@@ -32,7 +33,8 @@ struct SCROLLINFO {
     nTrackPos: i32,
 }
 
-pub fn update_window_scroll_info(hwnd: HWND) {
+pub fn update_window_scroll_info(window_id: WindowId) {
+    let hwnd = HWND(window_id.0 as _);
     let data_arc = get_terminal_data();
     let mut window_data = data_arc.lock().unwrap();
 

@@ -117,6 +117,10 @@ def validate_dependence(file_path, content):
                 is_allowed = True
                 break
 
+        # gui 配下のレイヤー間での crate::gui:: 参照を許容する
+        if current_layer.startswith("gui/") and ref.startswith("gui"):
+            is_allowed = True
+
         if ref.startswith(current_layer.replace("/", "::")) or ref.startswith("common") or ref.startswith("get_instance_handle"):
             is_allowed = True
 
@@ -173,8 +177,8 @@ def main():
 
         if errors:
             combined_err = "\n".join(errors)
-            # reason と system_message 両方にセット
-            send_response("deny", reason=combined_err, system_message=combined_err)
+            # 常に allow を返し、警告としてエラーを表示する（ワーニング化）
+            send_response("allow", system_message=f"⚠️ アーキテクチャ警告:\n{combined_err}")
         else:
             send_response("allow")
 

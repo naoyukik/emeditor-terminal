@@ -1,4 +1,5 @@
 use crate::domain::model::input::{InputKey, Modifiers};
+use crate::domain::model::window_id_value::WindowId;
 use crate::domain::repository::key_translator_repository::KeyTranslatorRepository;
 use crate::domain::service::vt_sequence_translator_domain_service::VtSequenceTranslatorDomainService;
 use std::cell::RefCell;
@@ -25,16 +26,16 @@ pub struct KeyboardIoDriver {
 
 impl KeyboardIoDriver {
     /// 新しいフック管理インスタンスを作成する
-    pub fn new(target_hwnd: HWND) -> Self {
-        Self { target_hwnd }
+    pub fn new(target_window_id: WindowId) -> Self {
+        Self { target_hwnd: HWND(target_window_id.0 as _) }
     }
 
     /// グローバルにフックをインストールし、スレッドローカルストレージで管理する
-    pub fn install_global(hwnd: HWND) {
+    pub fn install_global(window_id: WindowId) {
         HOOK_INSTANCE.with(|instance| {
             let mut instance_ref = instance.borrow_mut();
             if instance_ref.is_none() {
-                let hook = KeyboardIoDriver::new(hwnd);
+                let hook = KeyboardIoDriver::new(window_id);
                 hook.install();
                 *instance_ref = Some(hook);
                 log::info!("Global keyboard hook installed");

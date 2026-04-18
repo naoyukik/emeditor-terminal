@@ -10,6 +10,7 @@ use windows::Win32::UI::Input::Ime::{
 use windows::Win32::UI::Input::KeyboardAndMouse::GetFocus;
 use windows::Win32::UI::WindowsAndMessaging::{CreateCaret, DestroyCaret, SetCaretPos};
 
+use crate::domain::model::window_id_value::WindowId;
 use crate::gui::driver::terminal_gui_driver::TerminalGuiDriver;
 
 /// RAII handle for the system caret.
@@ -30,7 +31,8 @@ unsafe impl Sync for CaretHandle {}
 impl CaretHandle {
     /// Creates a new invisible system caret for the specified window with given dimensions.
     /// Matching the caret size to the actual font dimensions helps IME to position correctly.
-    pub fn new(hwnd: HWND, width: i32, height: i32) -> Self {
+    pub fn new(window_id: WindowId, width: i32, height: i32) -> Self {
+        let hwnd = HWND(window_id.0 as _);
         log::info!(
             "Creating system caret handle for HWND {:?} size {}x{}",
             hwnd,
@@ -92,12 +94,13 @@ impl Drop for CaretHandle {
 
 /// Updates both the system caret and the IME composition window position.
 pub fn sync_system_caret(
-    hwnd: HWND,
+    window_id: WindowId,
     cursor_pos: (usize, usize),
     viewport_offset: usize,
     renderer: &TerminalGuiDriver,
     caret: Option<&CaretHandle>,
 ) {
+    let hwnd = HWND(window_id.0 as _);
     // CRITICAL: Only sync if this window actually has focus.
     // This prevents interfering with the parent EmEditor window's IME.
     unsafe {
@@ -180,7 +183,8 @@ pub fn sync_system_caret(
     }
 }
 
-pub fn is_composing(hwnd: HWND) -> bool {
+pub fn is_composing(window_id: WindowId) -> bool {
+    let hwnd = HWND(window_id.0 as _);
     unsafe {
         let himc = ImmGetContext(hwnd);
         if himc.0.is_null() {
@@ -204,13 +208,15 @@ pub enum ImeResult {
 }
 
 pub fn handle_composition(
-    hwnd: HWND,
-    lparam: LPARAM,
+    window_id: WindowId,
+    lparam_raw: isize,
     cursor_pos: (usize, usize),
     viewport_offset: usize,
     renderer: &TerminalGuiDriver,
     caret: Option<&CaretHandle>,
 ) -> ImeResult {
+    let lparam = LPARAM(lparam_raw);
+    let hwnd = HWND(window_id.0 as _);
     log::debug!(
         "WM_IME_COMPOSITION: lparam={:?}, cursor_pos={:?}",
         lparam,
@@ -241,7 +247,7 @@ pub fn handle_composition(
     }
 
     if (lparam.0 as u32 & GCS_COMPSTR.0) != 0 {
-        sync_system_caret(hwnd, cursor_pos, viewport_offset, renderer, caret);
+        sync_system_caret(window_id, cursor_pos, viewport_offset, renderer, caret);
 
         unsafe {
             let himc = ImmGetContext(hwnd);
@@ -270,11 +276,11 @@ pub fn handle_composition(
     result
 }
 
-pub fn handle_start_composition(_hwnd: HWND) {
+pub fn handle_start_composition(_window_id: WindowId) {
     log::debug!("WM_IME_STARTCOMPOSITION");
 }
 
-pub fn handle_end_composition(_hwnd: HWND) {
+pub fn handle_end_composition(_window_id: WindowId) {
     log::debug!("WM_IME_ENDCOMPOSITION");
 }
 

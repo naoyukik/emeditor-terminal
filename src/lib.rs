@@ -13,6 +13,11 @@ mod gui;
 mod infra;
 
 use gui::window;
+use gui::resolver::terminal_window_resolver::TerminalWindowResolver;
+use application::TerminalWorkflow;
+use domain::model::window_id_value::WindowId;
+use infra::repository::conpty_repository_impl::DummyOutputRepository;
+use infra::repository::emeditor_config_repository_impl::EmEditorConfigRepositoryImpl;
 
 // EmEditor SDK Constants
 pub const EVENT_CREATE: u32 = 0x00000400;
@@ -61,6 +66,13 @@ pub extern "system" fn DllMain(
             let _ = INSTANCE_HANDLE.set(dll_module.0 as usize);
             init_logger();
             log::info!("DllMain: Process Attach");
+
+            // Initialize TerminalWindowResolver with dummy implementations
+            let output_repo = Box::new(DummyOutputRepository);
+            let config_repo = Box::new(EmEditorConfigRepositoryImpl::new(WindowId(0)));
+            let is_dark = infra::driver::emeditor_io_driver::is_system_dark_mode();
+            let service = TerminalWorkflow::new(80, 25, output_repo, config_repo, is_dark);
+            TerminalWindowResolver::init(service);
         }
         DLL_PROCESS_DETACH => {
             log::info!("DllMain: Process Detach");

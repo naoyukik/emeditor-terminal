@@ -24,7 +24,7 @@
 - [x] Task: `@arch-auditor` によるレビューを実施（Win32 API 隔離状況の確認）。
 - [x] Task: `cargo clippy` および `cargo fmt` の実行。
 - [x] Task: Conductor - ユーザー手動検証 'フェーズ 3' (レジストリ操作とビルドの安定性確認)
-- [ ] Task: フェーズ成果物のコミット
+- [x] Task: フェーズ成果物のコミット
 
 ## フェーズ 4: マイルストーン C - アーキテクチャ是正 (arch-auditor 指摘対応)
 - **主な変更**: Resolver 層の Win32 隠蔽、Domain 層のプロトコル解析分離。

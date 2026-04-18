@@ -15,6 +15,11 @@ use windows::Win32::Graphics::Gdi::{
     OUT_DEFAULT_PRECIS, SRCCOPY, TEXTMETRICW,
 };
 
+pub struct TerminalGuiDriverContext {
+    pub hdc: HDC,
+    pub rect: RECT,
+}
+
 #[derive(Clone, Debug)]
 pub struct CompositionInfo {
     pub text: String,
