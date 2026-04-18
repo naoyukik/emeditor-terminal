@@ -43,9 +43,7 @@ impl CaretHandle {
         let thread_id = unsafe { windows::Win32::System::Threading::GetCurrentThreadId() };
         // SAFETY: 有効な HWND に対してキャレットを作成する。
         // キャレットはスレッドローカルなリソースであり、作成したスレッドで管理される。
-        let created = unsafe {
-            CreateCaret(hwnd, None, width, height).is_ok()
-        };
+        let created = unsafe { CreateCaret(hwnd, None, width, height).is_ok() };
         if !created {
             log::error!("Failed to create system caret for HWND {:?}", hwnd);
         }

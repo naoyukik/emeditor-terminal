@@ -100,7 +100,7 @@ unsafe fn update_font_label(hwnd: HWND, config: &TerminalConfig) {
         .encode_utf16()
         .chain(std::iter::once(0))
         .collect();
-    
+
     // SAFETY: 有効な HWND とコントロール ID を使用してテキストを設定する。
     let _ = SetDlgItemTextW(
         hwnd,

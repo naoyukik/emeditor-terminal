@@ -46,3 +46,6 @@
 - [x] Task: 未使用の `WindowGuiDriver::cleanup_terminal()` の整理。
 - [x] Task: 不要な重複ファイル `terminal_protocol_handler_domain_service.rs` の削除。
 - [x] Task: `lib.rs`, `conpty_repository_impl.rs`, `conpty_io_driver.rs`, `gui/window/mod.rs` への `// SAFETY:` コメント追加。
+
+## Phase: Review Fixes
+- [~] Task: Apply review suggestions

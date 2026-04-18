@@ -294,9 +294,21 @@ impl TerminalGuiDriver {
                 0..=15 => Self::rgb_to_colorref(&theme.ansi_palette[*n as usize]),
                 16..=231 => {
                     let idx = *n - 16;
-                    let r = if (idx / 36) > 0 { (idx / 36) * 40 + 55 } else { 0 };
-                    let g = if ((idx % 36) / 6) > 0 { ((idx % 36) / 6) * 40 + 55 } else { 0 };
-                    let b = if (idx % 6) > 0 { (idx % 6) * 40 + 55 } else { 0 };
+                    let r = if (idx / 36) > 0 {
+                        (idx / 36) * 40 + 55
+                    } else {
+                        0
+                    };
+                    let g = if ((idx % 36) / 6) > 0 {
+                        ((idx % 36) / 6) * 40 + 55
+                    } else {
+                        0
+                    };
+                    let b = if (idx % 6) > 0 {
+                        (idx % 6) * 40 + 55
+                    } else {
+                        0
+                    };
                     COLORREF((r as u32) | ((g as u32) << 8) | ((b as u32) << 16))
                 }
                 232..=255 => {
@@ -321,23 +333,39 @@ impl TerminalGuiDriver {
     ) {
         let width = client_rect.right - client_rect.left;
         let height = client_rect.bottom - client_rect.top;
-        if width <= 0 || height <= 0 { return; }
+        if width <= 0 || height <= 0 {
+            return;
+        }
 
         // SAFETY: ダブルバッファリングのためのメモリ DC およびビットマップの生成。
         // CreatedDcGuard および GdiObjectGuard によりリソースは確実に解放される。
         unsafe {
             let h_mem_dc = CreateCompatibleDC(Some(hdc));
-            if h_mem_dc.0.is_null() { return; }
+            if h_mem_dc.0.is_null() {
+                return;
+            }
             let _dc_guard = CreatedDcGuard(h_mem_dc);
             let h_bm = CreateCompatibleBitmap(hdc, width, height);
-            if h_bm.0.is_null() { return; }
+            if h_bm.0.is_null() {
+                return;
+            }
             let _bm_guard = GdiObjectGuard(HGDIOBJ(h_bm.0));
             let h_old_bm = SelectObject(h_mem_dc, HGDIOBJ(h_bm.0));
             let _bm_select_guard = SelectedObjectGuard::new(h_mem_dc, h_old_bm);
 
             self.render_internal(h_mem_dc, client_rect, buffer, composition, theme, config);
 
-            let _ = BitBlt(hdc, client_rect.left, client_rect.top, width, height, Some(h_mem_dc), 0, 0, SRCCOPY);
+            let _ = BitBlt(
+                hdc,
+                client_rect.left,
+                client_rect.top,
+                width,
+                height,
+                Some(h_mem_dc),
+                0,
+                0,
+                SRCCOPY,
+            );
         }
     }
 
@@ -352,7 +380,12 @@ impl TerminalGuiDriver {
     ) {
         let width = client_rect.right - client_rect.left;
         let height = client_rect.bottom - client_rect.top;
-        let relative_rect = RECT { left: 0, top: 0, right: width, bottom: height };
+        let relative_rect = RECT {
+            left: 0,
+            top: 0,
+            right: width,
+            bottom: height,
+        };
 
         let bg_colorref = self.color_to_colorref(&TerminalColor::Default, true, theme);
         // SAFETY: 背景塗りつぶし用のブラシ作成と描画。
@@ -364,15 +397,24 @@ impl TerminalGuiDriver {
             }
         }
 
-        if self.metrics.is_none() { self.update_metrics(hdc, config); }
-        let metrics = match &self.metrics { Some(m) => m, None => return };
+        if self.metrics.is_none() {
+            self.update_metrics(hdc, config);
+        }
+        let metrics = match &self.metrics {
+            Some(m) => m,
+            None => return,
+        };
 
         // SAFETY: 各セルの描画およびカーソル反転。
         unsafe {
             let char_height = metrics.char_height;
             let base_width = metrics.base_width;
             let mut current_y = 0;
-            let (cursor_x, cursor_y) = if composition.is_some() { buffer.get_ime_anchor_pos() } else { buffer.get_cursor_pos() };
+            let (cursor_x, cursor_y) = if composition.is_some() {
+                buffer.get_ime_anchor_pos()
+            } else {
+                buffer.get_cursor_pos()
+            };
             let viewport_offset = buffer.get_viewport_offset();
 
             for visual_row in 0..buffer.get_height() {
@@ -380,16 +422,27 @@ impl TerminalGuiDriver {
                 if let Some(line) = buffer.get_line_at_visual_row(visual_row) {
                     let mut cell_idx = 0;
                     while cell_idx < buffer.get_width() {
-                        let cell = match line.get(cell_idx) { Some(c) => c, None => break };
-                        if cell.is_wide_continuation { cell_idx += 1; continue; }
+                        let cell = match line.get(cell_idx) {
+                            Some(c) => c,
+                            None => break,
+                        };
+                        if cell.is_wide_continuation {
+                            cell_idx += 1;
+                            continue;
+                        }
 
                         let start_attr = &cell.attribute;
                         let mut run_text = String::new();
                         let mut run_dx = Vec::new();
 
                         while cell_idx < buffer.get_width() {
-                            let c = match line.get(cell_idx) { Some(c) => c, None => break };
-                            if c.is_wide_continuation || &c.attribute != start_attr { break; }
+                            let c = match line.get(cell_idx) {
+                                Some(c) => c,
+                                None => break,
+                            };
+                            if c.is_wide_continuation || &c.attribute != start_attr {
+                                break;
+                            }
                             run_text.push_str(&c.text);
                             let utf16_len = c.text.encode_utf16().count();
                             let w = c.text.width().clamp(1, 2) as i32 * base_width;
@@ -403,10 +456,18 @@ impl TerminalGuiDriver {
 
                         if !wide_run.is_empty() {
                             let mut style_mask = 0;
-                            if start_attr.is_bold { style_mask |= STYLE_BOLD; }
-                            if start_attr.is_italic { style_mask |= STYLE_ITALIC; }
-                            if start_attr.is_underline { style_mask |= STYLE_UNDERLINE; }
-                            if start_attr.is_strikethrough { style_mask |= STYLE_STRIKEOUT; }
+                            if start_attr.is_bold {
+                                style_mask |= STYLE_BOLD;
+                            }
+                            if start_attr.is_italic {
+                                style_mask |= STYLE_ITALIC;
+                            }
+                            if start_attr.is_underline {
+                                style_mask |= STYLE_UNDERLINE;
+                            }
+                            if start_attr.is_strikethrough {
+                                style_mask |= STYLE_STRIKEOUT;
+                            }
 
                             let h_font = self.get_font_for_style(hdc, style_mask, config);
                             let old_font = SelectObject(hdc, HGDIOBJ(h_font.0));
@@ -414,16 +475,37 @@ impl TerminalGuiDriver {
 
                             let mut fg = self.color_to_colorref(&start_attr.fg, false, theme);
                             let mut bg = self.color_to_colorref(&start_attr.bg, true, theme);
-                            if start_attr.is_inverse { std::mem::swap(&mut fg, &mut bg); }
-                            if !start_attr.is_inverse && start_attr.bg != TerminalColor::Default && start_attr.fg == TerminalColor::Default {
+                            if start_attr.is_inverse {
+                                std::mem::swap(&mut fg, &mut bg);
+                            }
+                            if !start_attr.is_inverse
+                                && start_attr.bg != TerminalColor::Default
+                                && start_attr.fg == TerminalColor::Default
+                            {
                                 fg = self.color_to_colorref(&TerminalColor::Default, true, theme);
                             }
-                            if start_attr.is_dim { fg = Self::apply_dim_effect(fg); }
+                            if start_attr.is_dim {
+                                fg = Self::apply_dim_effect(fg);
+                            }
 
                             SetTextColor(hdc, fg);
                             SetBkColor(hdc, bg);
-                            let run_rect = RECT { left: x_offset, top: current_y, right: x_offset + run_pixel_width, bottom: current_y + char_height };
-                            let _ = ExtTextOutW(hdc, x_offset, current_y, ETO_OPTIONS(ETO_OPAQUE.0), Some(&run_rect), PCWSTR(wide_run.as_ptr()), wide_run.len() as u32, Some(run_dx.as_ptr()));
+                            let run_rect = RECT {
+                                left: x_offset,
+                                top: current_y,
+                                right: x_offset + run_pixel_width,
+                                bottom: current_y + char_height,
+                            };
+                            let _ = ExtTextOutW(
+                                hdc,
+                                x_offset,
+                                current_y,
+                                ETO_OPTIONS(ETO_OPAQUE.0),
+                                Some(&run_rect),
+                                PCWSTR(wide_run.as_ptr()),
+                                wide_run.len() as u32,
+                                Some(run_dx.as_ptr()),
+                            );
                         }
                         x_offset += run_pixel_width;
                     }
@@ -433,18 +515,42 @@ impl TerminalGuiDriver {
                     let safe_x = std::cmp::min(cursor_x, buffer.get_width().saturating_sub(1));
                     let px_x = safe_x as i32 * base_width;
                     if let Some(comp) = composition {
-                        let ctx = RenderContext { x: px_x, y: current_y, char_height, base_width };
+                        let ctx = RenderContext {
+                            x: px_x,
+                            y: current_y,
+                            char_height,
+                            base_width,
+                        };
                         self.render_composition(hdc, &ctx, comp, theme, config);
                     } else if buffer.is_cursor_visible() {
                         let style = buffer.get_cursor_style();
                         let dw = if let Some(line) = buffer.get_line_at_visual_row(visual_row) {
-                            line.get(safe_x).map(|cell| cell.text.width().clamp(1, 2)).unwrap_or(1)
-                        } else { 1 };
+                            line.get(safe_x)
+                                .map(|cell| cell.text.width().clamp(1, 2))
+                                .unwrap_or(1)
+                        } else {
+                            1
+                        };
                         let rw = dw as i32 * base_width;
                         let rect = match style {
-                            CursorStyle::BlinkingBlock | CursorStyle::SteadyBlock => RECT { left: px_x, top: current_y, right: px_x + rw, bottom: current_y + char_height },
-                            CursorStyle::BlinkingUnderline | CursorStyle::SteadyUnderline => RECT { left: px_x, top: current_y + char_height - 2, right: px_x + rw, bottom: current_y + char_height },
-                            CursorStyle::BlinkingBar | CursorStyle::SteadyBar => RECT { left: px_x, top: current_y, right: px_x + 2, bottom: current_y + char_height },
+                            CursorStyle::BlinkingBlock | CursorStyle::SteadyBlock => RECT {
+                                left: px_x,
+                                top: current_y,
+                                right: px_x + rw,
+                                bottom: current_y + char_height,
+                            },
+                            CursorStyle::BlinkingUnderline | CursorStyle::SteadyUnderline => RECT {
+                                left: px_x,
+                                top: current_y + char_height - 2,
+                                right: px_x + rw,
+                                bottom: current_y + char_height,
+                            },
+                            CursorStyle::BlinkingBar | CursorStyle::SteadyBar => RECT {
+                                left: px_x,
+                                top: current_y,
+                                right: px_x + 2,
+                                bottom: current_y + char_height,
+                            },
                         };
                         let _ = InvertRect(hdc, &rect);
                     }
@@ -469,10 +575,18 @@ impl TerminalGuiDriver {
             let text = c.to_string();
             let w = (text.width().clamp(1, 2) as i32) * ctx.base_width;
             comp_dx.push(w);
-            comp_dx.extend(std::iter::repeat_n(0, text.encode_utf16().count().saturating_sub(1)));
+            comp_dx.extend(std::iter::repeat_n(
+                0,
+                text.encode_utf16().count().saturating_sub(1),
+            ));
             pixel_width += w;
         }
-        let comp_rect = RECT { left: ctx.x, top: ctx.y, right: ctx.x + pixel_width, bottom: ctx.y + ctx.char_height };
+        let comp_rect = RECT {
+            left: ctx.x,
+            top: ctx.y,
+            right: ctx.x + pixel_width,
+            bottom: ctx.y + ctx.char_height,
+        };
         // SAFETY: IME 変換中の文字列描画。GDI リソースの選択と復元は SelectedObjectGuard が行う。
         unsafe {
             let h_font = self.get_font_for_style(hdc, 0, config);
@@ -481,10 +595,24 @@ impl TerminalGuiDriver {
 
             SetBkColor(hdc, Self::rgb_to_colorref(&theme.default_bg));
             SetTextColor(hdc, Self::rgb_to_colorref(&theme.default_fg));
-            let _ = ExtTextOutW(hdc, ctx.x, ctx.y, ETO_OPTIONS(ETO_OPAQUE.0), Some(&comp_rect), PCWSTR(comp_wide.as_ptr()), comp_wide.len() as u32, Some(comp_dx.as_ptr()));
+            let _ = ExtTextOutW(
+                hdc,
+                ctx.x,
+                ctx.y,
+                ETO_OPTIONS(ETO_OPAQUE.0),
+                Some(&comp_rect),
+                PCWSTR(comp_wide.as_ptr()),
+                comp_wide.len() as u32,
+                Some(comp_dx.as_ptr()),
+            );
 
             if pixel_width > 0 && ctx.char_height > 0 {
-                let underline_rect = RECT { left: ctx.x, top: ctx.y + ctx.char_height - 1, right: ctx.x + pixel_width, bottom: ctx.y + ctx.char_height };
+                let underline_rect = RECT {
+                    left: ctx.x,
+                    top: ctx.y + ctx.char_height - 1,
+                    right: ctx.x + pixel_width,
+                    bottom: ctx.y + ctx.char_height,
+                };
                 let h_brush = CreateSolidBrush(Self::rgb_to_colorref(&theme.default_fg));
                 if !h_brush.0.is_null() {
                     let _brush_guard = GdiObjectGuard(HGDIOBJ(h_brush.0));
