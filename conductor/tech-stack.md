@@ -49,6 +49,6 @@
 - **Presentation / GUI 層 (`src/gui/`)**:
     - **Resolver**: `_resolver.rs` (OSメッセージ解釈・変換)
     - **GUI Driver**: `_gui_driver.rs` (描画・IME・Win32操作を封印)
-      - **`window_gui_driver.rs`**: ウィンドウの生存確認、フォーカス、破棄を専門に扱う低層ドライバ。
+      - **`window_gui_driver.rs`**: ウィンドウの生存確認、フォーカス、破棄、および親ハンドル (editor_handle) の適切な管理を担う低層ドライバ。
 - **FFI 境界 (`src/lib.rs`)**: EmEditor SDK と Rust の仲介役。
 
