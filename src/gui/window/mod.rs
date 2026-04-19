@@ -193,6 +193,7 @@ pub fn open_custom_bar(hwnd_editor: HWND) -> bool {
             Ok(hwnd_client) => {
                 let mut window_data = data_arc.lock().unwrap();
                 window_data.window_handle = Some(crate::gui::common::SendHWND(hwnd_client));
+                window_data.editor_handle = Some(crate::gui::common::SendHWND(hwnd_editor));
                 drop(window_data);
 
                 let mut info = CUSTOM_BAR_INFO {
