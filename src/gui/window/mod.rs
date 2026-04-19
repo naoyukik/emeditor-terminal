@@ -1,11 +1,11 @@
 use crate::domain::model::window_id_value::WindowId;
-use crate::infra::driver::conpty_io_driver::SendHandle;
 use crate::gui::driver::window_gui_driver::WindowGuiDriver;
-use crate::gui::resolver::terminal_window_resolver::{get_terminal_data};
+use crate::gui::resolver::terminal_window_resolver::get_terminal_data;
+use crate::infra::driver::conpty_io_driver::SendHandle;
+use crate::infra::driver::emeditor_io_driver::{MessageBoxW, SendMessageW, MB_ICONERROR, MB_OK};
 use crate::infra::driver::emeditor_io_driver::{
     CUSTOM_BAR_BOTTOM, CUSTOM_BAR_INFO, EE_CUSTOM_BAR_OPEN,
 };
-use crate::infra::driver::emeditor_io_driver::{MessageBoxW, MB_ICONERROR, MB_OK, SendMessageW};
 use std::mem::size_of;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread;
@@ -14,12 +14,12 @@ use windows::Win32::Foundation::{HWND, LPARAM, LRESULT, WPARAM};
 use windows::Win32::Graphics::Gdi::HBRUSH;
 use windows::Win32::Storage::FileSystem::ReadFile;
 use windows::Win32::UI::WindowsAndMessaging::{
-    CreateWindowExW, PostMessageW, RegisterClassW, DefWindowProcW, CS_HREDRAW, CS_VREDRAW, CW_USEDEFAULT,
-    WM_APP, WM_CHAR, WM_DESTROY, WM_ERASEBKGND, WM_IME_COMPOSITION, WM_IME_ENDCOMPOSITION,
-    WM_IME_SETCONTEXT, WM_IME_STARTCOMPOSITION, WM_KEYDOWN, WM_KEYUP, WM_KILLFOCUS, WM_LBUTTONDOWN,
-    WM_MOUSEWHEEL, WM_PAINT, WM_SETFOCUS, WM_SIZE, WM_SYSCHAR, WM_SYSCOMMAND, WM_SYSKEYDOWN,
-    WM_SYSKEYUP, WM_VSCROLL, WNDCLASSW, WS_CHILD, WS_CLIPCHILDREN, WS_CLIPSIBLINGS, WS_VISIBLE,
-    WINDOW_EX_STYLE, WM_GETDLGCODE,
+    CreateWindowExW, DefWindowProcW, PostMessageW, RegisterClassW, CS_HREDRAW, CS_VREDRAW,
+    CW_USEDEFAULT, WINDOW_EX_STYLE, WM_APP, WM_CHAR, WM_DESTROY, WM_ERASEBKGND, WM_GETDLGCODE,
+    WM_IME_COMPOSITION, WM_IME_ENDCOMPOSITION, WM_IME_SETCONTEXT, WM_IME_STARTCOMPOSITION,
+    WM_KEYDOWN, WM_KEYUP, WM_KILLFOCUS, WM_LBUTTONDOWN, WM_MOUSEWHEEL, WM_PAINT, WM_SETFOCUS,
+    WM_SIZE, WM_SYSCHAR, WM_SYSCOMMAND, WM_SYSKEYDOWN, WM_SYSKEYUP, WM_VSCROLL, WNDCLASSW,
+    WS_CHILD, WS_CLIPCHILDREN, WS_CLIPSIBLINGS, WS_VISIBLE,
 };
 
 use crate::gui::resolver::window_message_resolver as handlers;
@@ -55,12 +55,8 @@ pub fn ensure_conpty_started(hwnd_client: HWND, hwnd_editor: HWND, cols: i16, ro
     let shell_path = config.shell_path.clone();
     log::info!("Starting ConPTY with shell: {}", shell_path);
 
-    match crate::infra::driver::conpty_io_driver::ConptyIoDriver::new(
-        &shell_path,
-        None,
-        cols,
-        rows,
-    ) {
+    match crate::infra::driver::conpty_io_driver::ConptyIoDriver::new(&shell_path, None, cols, rows)
+    {
         Ok(conpty) => {
             let output_handle: SendHandle = conpty.get_output_handle();
 
@@ -164,7 +160,7 @@ pub fn open_custom_bar(hwnd_editor: HWND) -> bool {
             let wc = WNDCLASSW {
                 style: CS_HREDRAW | CS_VREDRAW,
                 lpfnWndProc: Some(wnd_proc),
-                hInstance: h_instance.into(),
+                hInstance: h_instance,
                 lpszClassName: CLASS_NAME,
                 hbrBackground: HBRUSH(std::ptr::null_mut()),
                 ..Default::default()

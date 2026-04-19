@@ -41,8 +41,27 @@ impl ConfigurationRepository for EmEditorConfigRepositoryImpl {
         let theme_type = ThemeType::from_index(theme_type_val);
 
         let font_face = self.query_string("FontFaceName", &default.font_face);
-        let font_size = self.query_dword("FontSize", default.font_size);
-        let font_weight = self.query_dword("FontWeight", default.font_weight);
+        let mut font_size = self.query_dword("FontSize", default.font_size);
+        let mut font_weight = self.query_dword("FontWeight", default.font_weight);
+
+        if font_size <= 0 {
+            log::warn!(
+                "EmEditorConfigRepositoryImpl: Invalid FontSize loaded ({}). Falling back to default ({}).",
+                font_size,
+                default.font_size
+            );
+            font_size = default.font_size;
+        }
+
+        if font_weight <= 0 {
+            log::warn!(
+                "EmEditorConfigRepositoryImpl: Invalid FontWeight loaded ({}). Falling back to default ({}).",
+                font_weight,
+                default.font_weight
+            );
+            font_weight = default.font_weight;
+        }
+
         let font_italic =
             self.query_dword("FontItalic", if default.font_italic { 1 } else { 0 }) != 0;
         let shell_path_raw = self.query_string("ShellPath", &default.shell_path);
