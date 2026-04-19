@@ -40,5 +40,5 @@ windows-result = "0.4"
 windows-strings = "0.5"
 
 [build-dependencies]
-embed-resource = "2.5"
+embed-resource = "3.0"
 windows-link = "0.2"
