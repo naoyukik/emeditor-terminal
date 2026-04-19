@@ -7,24 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ## [0.6.0] - 2026-04-18
-### Added
-- 依存関係の最新化: `windows-rs` を 0.62 (Release 73) へアップデートし、基盤を刷新
-- 新規クレート導入: `windows-core`, `windows-registry`, `windows-result`, `windows-strings`, `windows-link` を採用し、型安全性とリンクの標準化を向上
-- 物理的隔離の完遂: Presentation層 (Resolver) から Win32 型を完全に排除し、`WindowId` による抽象化を実現
-- プロトコル解釈の分離: `TerminalProtocolHandler` を新設し、Domain層から外部パーサー依存を隔離
-- 大規模ファイル分割: 肥大化した `TerminalBufferEntity` を `TerminalGridEntity` と `TerminalScrollbackEntity` に分割し凝集度を向上
-- 安全性ドキュメント: 全ての `unsafe` ブロックに対し、RAII やスレッド安全性に関する `// SAFETY:` コメントを網羅
-
 ### Changed
-- レジストリ操作を `windows-registry` クレートによる Safe API 実装へ移行
-- `DllMain` からの重い初期化処理を排除し、Loader Lock によるデッドロックのリスクを根絶
-- ドメイン層のユニットテストをリファクタリング後の構造に合わせて復元・拡充
-
-### Fixed
-- TUI 描画崩れ: リファクタリング中に欠落した ANSI シーケンス（ECH, CHA, CNL等）を復元
-- IME 候補位置: 仮想カーソル移動に伴う IME 候補ウィンドウの表示位置同期を修正
-- リソース解放: `WM_DESTROY` ハンドラでのフック解除およびターミナルリソースの解放を確実に実行するよう修正
-- 安定性向上: `wnd_proc` のメッセージ引数不整合によるスタック破壊およびクラッシュを修正
+- windows-rs 0.62へアップデート
 
 ## [0.5.0] - 2026-04-17
 ### Added
