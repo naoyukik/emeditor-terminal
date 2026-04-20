@@ -113,7 +113,19 @@ impl WindowGuiDriver {
         let mut window_data = data_arc.lock().unwrap();
 
         if !window_data.is_conpty_started {
-            let hwnd_editor = window_data.editor_handle.map(|h| h.0).unwrap_or_default();
+            let mut hwnd_editor = window_data.editor_handle.map(|h| h.0).unwrap_or_default();
+
+            // editor_handle が未設定（初期化中など）の場合、GetParent でフォールバックを試みる
+            if hwnd_editor.is_invalid() {
+                let hwnd = HWND(window_id.0 as _);
+                // SAFETY: 有効な HWND に対して親ウィンドウを取得する。
+                if let Ok(parent) =
+                    unsafe { windows::Win32::UI::WindowsAndMessaging::GetParent(hwnd) }
+                {
+                    hwnd_editor = parent;
+                }
+            }
+
             drop(window_data);
 
             if hwnd_editor.is_invalid() {
