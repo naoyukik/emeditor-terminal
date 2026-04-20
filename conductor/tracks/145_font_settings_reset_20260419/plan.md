@@ -27,3 +27,10 @@
 - [x] Task: `architecture-validator` スキル（または該当ツール）を実行し、アーキテクチャの依存関係に違反がないか確認する。
 - [x] Task: Issueのクローズ条件（Acceptance Criteria）が全て満たされているか最終確認する。
 - [x] Task: Conductor - ユーザー手動検証 'フェーズ 3' (全タスク完了の承認)
+
+## フェーズ 4: PR レビュー指摘への対応 (Review Fixes)
+- [x] Task: `src/gui/window/mod.rs` において、`CreateWindowExW` 呼び出し前に `editor_handle` を保存するように修正する。
+- [x] Task: `src/gui/driver/window_gui_driver.rs` の `handle_resize` 内で、`editor_handle` が未設定の場合の安全なフォールバック（`GetParent` の一時利用等）を検討・実装する。
+- [x] Task: `build.rs` において、`embed_resource::compile` の戻り値を `expect` でチェックするように修正する。
+- [x] Task: 修正後のビルド・Clippy確認および再検証を実施する。
+- [x] Task: Conductor - ユーザー手動検証 'フェーズ 4' (指摘対応の確認)
