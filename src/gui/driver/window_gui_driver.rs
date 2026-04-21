@@ -113,17 +113,27 @@ impl WindowGuiDriver {
         let mut window_data = data_arc.lock().unwrap();
 
         if !window_data.is_conpty_started {
+            let mut hwnd_editor = window_data.editor_handle.map(|h| h.0).unwrap_or_default();
+
+            // editor_handle が未設定（初期化中など）の場合、GetParent でフォールバックを試みる
+            if hwnd_editor.is_invalid() {
+                let hwnd = HWND(window_id.0 as _);
+                // SAFETY: 有効な HWND に対して親ウィンドウを取得する。
+                if let Ok(parent) =
+                    unsafe { windows::Win32::UI::WindowsAndMessaging::GetParent(hwnd) }
+                {
+                    hwnd_editor = parent;
+                }
+            }
+
             drop(window_data);
 
-            let hwnd = HWND(window_id.0 as _);
-            // SAFETY: 有効な HWND に対して親ウィンドウを取得する。
-            let hwnd_editor =
-                match unsafe { windows::Win32::UI::WindowsAndMessaging::GetParent(hwnd) } {
-                    Ok(h) => h,
-                    Err(_) => return,
-                };
-            let parent_id = WindowId(hwnd_editor.0 as isize);
+            if hwnd_editor.is_invalid() {
+                return;
+            }
 
+            let hwnd = HWND(window_id.0 as _);
+            let parent_id = WindowId(hwnd_editor.0 as isize);
             let config_repo = crate::infra::repository::emeditor_config_repository_impl::EmEditorConfigRepositoryImpl::new(parent_id);
             let config =
                 crate::domain::repository::configuration_repository::ConfigurationRepository::load(

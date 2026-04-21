@@ -1,0 +1,8 @@
+{
+  "track_id": "145_font_settings_reset_20260419",
+  "type": "bug",
+  "status": "new",
+  "created_at": "2026-04-19T00:00:00Z",
+  "updated_at": "2026-04-19T00:00:00Z",
+  "description": "fix: リサイズ等のタイミングでフォント設定が 0 にリセットされる問題の修正"
+}

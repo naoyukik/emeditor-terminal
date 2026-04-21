@@ -5,6 +5,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
+### Fixed
+- フォント設定がターミナルに反映されない不具合を修正
 
 ## [0.6.0] - 2026-04-18
 ### Changed

@@ -21,7 +21,9 @@ fn main() {
     generate_resource_rs(&manifest_path);
 
     // Compile resource file
-    embed_resource::compile("emeditor-terminal.rc", embed_resource::NONE);
+    embed_resource::compile("emeditor-terminal.rc", embed_resource::NONE)
+        .manifest_required()
+        .expect("Failed to compile emeditor-terminal.rc");
 }
 
 fn generate_resource_rs(manifest_path: &std::path::Path) {

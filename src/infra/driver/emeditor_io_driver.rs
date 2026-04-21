@@ -131,7 +131,7 @@ pub fn emeditor_query_string(window_id: WindowId, value_name: &str, default: &st
 /// EmEditor の設定から数値 (DWORD) を取得する
 pub fn emeditor_query_u32(window_id: WindowId, value_name: &str, default: u32) -> u32 {
     let hwnd = HWND(window_id.0 as _);
-    let mut data: u32 = 0;
+    let mut data: u32 = default;
     let mut cb_data = size_of::<u32>() as u32;
     let value_name_wide: Vec<u16> = value_name
         .encode_utf16()
