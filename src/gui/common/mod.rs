@@ -25,13 +25,17 @@ pub(crate) unsafe fn pixels_to_points(
     lf_height: i32,
 ) -> i32 {
     use windows::Win32::Graphics::Gdi::{GetDC, ReleaseDC};
-    let hdc = GetDC(Some(hwnd));
-    if hdc.is_invalid() {
-        return 10;
+    // SAFETY: 引数の HWND は呼び出し元で有効であることが保証されている必要がある。
+    // GetDC はウィンドウのデバイスコンテキストを取得し、その戻り値は ReleaseDC で解放される。
+    unsafe {
+        let hdc = GetDC(Some(hwnd));
+        if hdc.is_invalid() {
+            return 10;
+        }
+        let pts = pixels_to_points_from_hdc(hdc, lf_height);
+        ReleaseDC(Some(hwnd), hdc);
+        pts
     }
-    let pts = pixels_to_points_from_hdc(hdc, lf_height);
-    ReleaseDC(Some(hwnd), hdc);
-    pts
 }
 
 /// HDC からピクセル単位の高さからポイントサイズへ変換する
@@ -40,23 +44,31 @@ pub(crate) unsafe fn pixels_to_points_from_hdc(
     lf_height: i32,
 ) -> i32 {
     use windows::Win32::Graphics::Gdi::{GetDeviceCaps, LOGPIXELSY};
-    let dpi_y = GetDeviceCaps(Some(hdc), LOGPIXELSY);
-    if dpi_y == 0 {
-        return 10;
+    // SAFETY: 引数の HDC は呼び出し元で有効であることが保証されている必要がある。
+    // GetDeviceCaps はデバイスの性能情報を取得する。
+    unsafe {
+        let dpi_y = GetDeviceCaps(Some(hdc), LOGPIXELSY);
+        if dpi_y == 0 {
+            return 10;
+        }
+        (lf_height.abs() * 72 + dpi_y / 2) / dpi_y
     }
-    (lf_height.abs() * 72 + dpi_y / 2) / dpi_y
 }
 
 /// ポイントサイズからピクセル単位の高さへ変換する (LOGFONT用)
 pub(crate) unsafe fn points_to_pixels(hwnd: windows::Win32::Foundation::HWND, points: i32) -> i32 {
     use windows::Win32::Graphics::Gdi::{GetDC, ReleaseDC};
-    let hdc = GetDC(Some(hwnd));
-    if hdc.is_invalid() {
-        return -13;
+    // SAFETY: 引数の HWND は呼び出し元で有効であることが保証されている必要がある。
+    // GetDC はウィンドウのデバイスコンテキストを取得し、その戻り値は ReleaseDC で解放される。
+    unsafe {
+        let hdc = GetDC(Some(hwnd));
+        if hdc.is_invalid() {
+            return -13;
+        }
+        let px = points_to_pixels_from_hdc(hdc, points);
+        ReleaseDC(Some(hwnd), hdc);
+        px
     }
-    let px = points_to_pixels_from_hdc(hdc, points);
-    ReleaseDC(Some(hwnd), hdc);
-    px
 }
 
 /// HDC からポイントサイズからピクセル単位の高さへ変換する (LOGFONT用)
@@ -65,9 +77,13 @@ pub(crate) unsafe fn points_to_pixels_from_hdc(
     points: i32,
 ) -> i32 {
     use windows::Win32::Graphics::Gdi::{GetDeviceCaps, LOGPIXELSY};
-    let dpi_y = GetDeviceCaps(Some(hdc), LOGPIXELSY);
-    if dpi_y == 0 {
-        return -13;
+    // SAFETY: 引数の HDC は呼び出し元で有効であることが保証されている必要がある。
+    // GetDeviceCaps はデバイスの性能情報を取得する。
+    unsafe {
+        let dpi_y = GetDeviceCaps(Some(hdc), LOGPIXELSY);
+        if dpi_y == 0 {
+            return -13;
+        }
+        -((points * dpi_y + 36) / 72)
     }
-    -((points * dpi_y + 36) / 72)
 }

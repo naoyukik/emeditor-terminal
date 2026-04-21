@@ -74,14 +74,12 @@ impl<'a> TerminalProtocolHandler<'a> {
                                     attr.fg = TerminalColor::Xterm(color_idx as u8);
                                 }
                             }
-                            2 => {
-                                if subparams.len() >= 5 {
-                                    attr.fg = TerminalColor::Rgb(
-                                        subparams[2] as u8,
-                                        subparams[3] as u8,
-                                        subparams[4] as u8,
-                                    );
-                                }
+                            2 if subparams.len() >= 5 => {
+                                attr.fg = TerminalColor::Rgb(
+                                    subparams[2] as u8,
+                                    subparams[3] as u8,
+                                    subparams[4] as u8,
+                                );
                             }
                             _ => {}
                         }
@@ -117,14 +115,12 @@ impl<'a> TerminalProtocolHandler<'a> {
                                     attr.bg = TerminalColor::Xterm(color_idx as u8);
                                 }
                             }
-                            2 => {
-                                if subparams.len() >= 5 {
-                                    attr.bg = TerminalColor::Rgb(
-                                        subparams[2] as u8,
-                                        subparams[3] as u8,
-                                        subparams[4] as u8,
-                                    );
-                                }
+                            2 if subparams.len() >= 5 => {
+                                attr.bg = TerminalColor::Rgb(
+                                    subparams[2] as u8,
+                                    subparams[3] as u8,
+                                    subparams[4] as u8,
+                                );
                             }
                             _ => {}
                         }
@@ -240,28 +236,24 @@ impl<'a> Perform for TerminalProtocolHandler<'a> {
                 self.buffer.move_cursor_up(n);
                 self.buffer.move_cursor_to_col(0);
             }
-            'h' => {
-                if intermediates.first() == Some(&b'?') {
-                    for subparams in params.iter() {
-                        for mode in subparams.iter() {
-                            match mode {
-                                6 => self.buffer.set_origin_mode(true),
-                                25 => self.buffer.set_cursor_visible(true),
-                                _ => {}
-                            }
+            'h' if intermediates.first() == Some(&b'?') => {
+                for subparams in params.iter() {
+                    for mode in subparams.iter() {
+                        match mode {
+                            6 => self.buffer.set_origin_mode(true),
+                            25 => self.buffer.set_cursor_visible(true),
+                            _ => {}
                         }
                     }
                 }
             }
-            'l' => {
-                if intermediates.first() == Some(&b'?') {
-                    for subparams in params.iter() {
-                        for mode in subparams.iter() {
-                            match mode {
-                                6 => self.buffer.set_origin_mode(false),
-                                25 => self.buffer.set_cursor_visible(false),
-                                _ => {}
-                            }
+            'l' if intermediates.first() == Some(&b'?') => {
+                for subparams in params.iter() {
+                    for mode in subparams.iter() {
+                        match mode {
+                            6 => self.buffer.set_origin_mode(false),
+                            25 => self.buffer.set_cursor_visible(false),
+                            _ => {}
                         }
                     }
                 }
@@ -286,10 +278,8 @@ impl<'a> Perform for TerminalProtocolHandler<'a> {
             'M' => self
                 .buffer
                 .delete_lines(self.get_param(params, 0, 1) as usize),
-            'q' => {
-                if intermediates.first() == Some(&b' ') {
-                    self.handle_decscusr(params);
-                }
+            'q' if intermediates.first() == Some(&b' ') => {
+                self.handle_decscusr(params);
             }
             _ => {}
         }
