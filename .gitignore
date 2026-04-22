@@ -72,3 +72,7 @@
 
 # Windows sandbox files
 /sandbox
+
+# MemPalace per-project files
+mempalace.yaml
+entities.json
