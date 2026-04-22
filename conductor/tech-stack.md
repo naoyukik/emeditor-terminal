@@ -1,7 +1,8 @@
 # Tech Stack - emeditor-terminal
 
 ## Programming Language
-- **Rust**: プラグインの主要なロジックおよびターミナル実装に使用。
+- **Rust (Edition 2024)**: プラグインの主要なロジックおよびターミナル実装に使用。
+  - **最新仕様への準拠**: `unsafe extern` ブロック、`#[unsafe(no_mangle)]` 属性、`if let` 連結など、Edition 2024 の新構文を全面的に適用。
   - `cdylib` 形式でコンパイルし、C ABI を通じて EmEditor SDK と連携。
 
 ## Core Technologies
@@ -32,6 +33,7 @@
 - **MSVC Toolchain**: Windows ネイティブ DLL の生成に使用。
 - **Clippy**: Rust の静的解析ツール（リンター）。
 - **rustfmt**: Rust のコードフォーマッタ。
+  - **style_edition**: 2024 エディションのフォーマット規則に準拠。
 
 ## Architecture
 **厳格な物理隔離レイヤードアーキテクチャ (Strict Rigid Architecture)** を採用し、ファイル名と配置によって境界を強制している。
