@@ -87,10 +87,10 @@ impl<'a> TerminalProtocolHandler<'a> {
                         let type_p = next_subparams.first().copied().unwrap_or(0);
                         match type_p {
                             5 => {
-                                if let Some(color_sub) = iter.next() {
-                                    if let Some(color_idx) = color_sub.first().copied() {
-                                        attr.fg = TerminalColor::Xterm(color_idx as u8);
-                                    }
+                                if let Some(color_sub) = iter.next()
+                                    && let Some(color_idx) = color_sub.first().copied()
+                                {
+                                    attr.fg = TerminalColor::Xterm(color_idx as u8);
                                 }
                             }
                             2 => {
@@ -128,10 +128,10 @@ impl<'a> TerminalProtocolHandler<'a> {
                         let type_p = next_subparams.first().copied().unwrap_or(0);
                         match type_p {
                             5 => {
-                                if let Some(color_sub) = iter.next() {
-                                    if let Some(color_idx) = color_sub.first().copied() {
-                                        attr.bg = TerminalColor::Xterm(color_idx as u8);
-                                    }
+                                if let Some(color_sub) = iter.next()
+                                    && let Some(color_idx) = color_sub.first().copied()
+                                {
+                                    attr.bg = TerminalColor::Xterm(color_idx as u8);
                                 }
                             }
                             2 => {

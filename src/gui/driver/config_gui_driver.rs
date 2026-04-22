@@ -58,8 +58,10 @@ pub(crate) fn show_settings_dialog(
         );
 
         if result == IDOK.0 as isize {
-            if let Ok(lock) = TEMP_CONFIG.lock() {
-                result_config = lock.clone();
+            if let Ok(lock) = TEMP_CONFIG.lock()
+                && let Some(config) = lock.as_ref()
+            {
+                result_config = Some(config.clone());
             }
         } else if result == -1 {
             log::error!(
@@ -129,63 +131,62 @@ unsafe extern "system" fn settings_dlg_proc(
                 // テーマコンボボックスの初期化
                 if let Ok(combo_hwnd) =
                     windows::Win32::UI::WindowsAndMessaging::GetDlgItem(Some(hwnd), IDC_COMBO_THEME)
+                    && !combo_hwnd.0.is_null()
                 {
-                    if !combo_hwnd.0.is_null() {
-                        for theme in ThemeType::all() {
-                            let display_name = theme.get_display_name();
-                            let wide_name: Vec<u16> = display_name
-                                .encode_utf16()
-                                .chain(std::iter::once(0))
-                                .collect();
-                            let item_idx = SendMessageW(
+                    for theme in ThemeType::all() {
+                        let display_name = theme.get_display_name();
+                        let wide_name: Vec<u16> = display_name
+                            .encode_utf16()
+                            .chain(std::iter::once(0))
+                            .collect();
+                        let item_idx = SendMessageW(
+                            combo_hwnd,
+                            CB_ADDSTRING,
+                            Some(WPARAM(0)),
+                            Some(LPARAM(wide_name.as_ptr() as isize)),
+                        );
+                        // インデックス値を明示的に紐付ける
+                        if item_idx.0 >= 0 {
+                            SendMessageW(
                                 combo_hwnd,
-                                CB_ADDSTRING,
-                                Some(WPARAM(0)),
-                                Some(LPARAM(wide_name.as_ptr() as isize)),
+                                windows::Win32::UI::WindowsAndMessaging::CB_SETITEMDATA,
+                                Some(WPARAM(item_idx.0 as usize)),
+                                Some(LPARAM(theme.to_index() as isize)),
                             );
-                            // インデックス値を明示的に紐付ける
-                            if item_idx.0 >= 0 {
+                        }
+                    }
+
+                    if let Ok(lock) = TEMP_CONFIG.lock()
+                        && let Some(config) = lock.as_ref()
+                    {
+                        let target_val = config.theme_type.to_index();
+                        let count = SendMessageW(
+                            combo_hwnd,
+                            windows::Win32::UI::WindowsAndMessaging::CB_GETCOUNT,
+                            Some(WPARAM(0)),
+                            Some(LPARAM(0)),
+                        )
+                        .0 as i32;
+
+                        for i in 0..count {
+                            let item_data = SendMessageW(
+                                combo_hwnd,
+                                windows::Win32::UI::WindowsAndMessaging::CB_GETITEMDATA,
+                                Some(WPARAM(i as usize)),
+                                Some(LPARAM(0)),
+                            )
+                            .0 as i32;
+                            if item_data == target_val {
                                 SendMessageW(
                                     combo_hwnd,
-                                    windows::Win32::UI::WindowsAndMessaging::CB_SETITEMDATA,
-                                    Some(WPARAM(item_idx.0 as usize)),
-                                    Some(LPARAM(theme.to_index() as isize)),
-                                );
-                            }
-                        }
-
-                        if let Ok(lock) = TEMP_CONFIG.lock() {
-                            if let Some(config) = lock.as_ref() {
-                                let target_val = config.theme_type.to_index();
-                                let count = SendMessageW(
-                                    combo_hwnd,
-                                    windows::Win32::UI::WindowsAndMessaging::CB_GETCOUNT,
-                                    Some(WPARAM(0)),
+                                    CB_SETCURSEL,
+                                    Some(WPARAM(i as usize)),
                                     Some(LPARAM(0)),
-                                )
-                                .0 as i32;
-
-                                for i in 0..count {
-                                    let item_data = SendMessageW(
-                                        combo_hwnd,
-                                        windows::Win32::UI::WindowsAndMessaging::CB_GETITEMDATA,
-                                        Some(WPARAM(i as usize)),
-                                        Some(LPARAM(0)),
-                                    )
-                                    .0 as i32;
-                                    if item_data == target_val {
-                                        SendMessageW(
-                                            combo_hwnd,
-                                            CB_SETCURSEL,
-                                            Some(WPARAM(i as usize)),
-                                            Some(LPARAM(0)),
-                                        );
-                                        break;
-                                    }
-                                }
-                                update_font_label(hwnd, config);
+                                );
+                                break;
                             }
                         }
+                        update_font_label(hwnd, config);
                     }
                 }
                 1 // TRUE
@@ -200,31 +201,29 @@ unsafe extern "system" fn settings_dlg_proc(
                         if let Ok(combo_hwnd) = windows::Win32::UI::WindowsAndMessaging::GetDlgItem(
                             Some(hwnd),
                             IDC_COMBO_THEME,
-                        ) {
-                            if !combo_hwnd.0.is_null() {
-                                let sel_idx = SendMessageW(
+                        )
+                        && !combo_hwnd.0.is_null()
+                        {
+                            let sel_idx = SendMessageW(
+                                combo_hwnd,
+                                CB_GETCURSEL,
+                                Some(WPARAM(0)),
+                                Some(LPARAM(0)),
+                            )
+                            .0;
+                            if sel_idx != windows::Win32::UI::WindowsAndMessaging::CB_ERR as isize {
+                                let theme_val = SendMessageW(
                                     combo_hwnd,
-                                    CB_GETCURSEL,
-                                    Some(WPARAM(0)),
+                                    windows::Win32::UI::WindowsAndMessaging::CB_GETITEMDATA,
+                                    Some(WPARAM(sel_idx as usize)),
                                     Some(LPARAM(0)),
                                 )
-                                .0;
-                                if sel_idx
-                                    != windows::Win32::UI::WindowsAndMessaging::CB_ERR as isize
-                                {
-                                    let theme_val = SendMessageW(
-                                        combo_hwnd,
-                                        windows::Win32::UI::WindowsAndMessaging::CB_GETITEMDATA,
-                                        Some(WPARAM(sel_idx as usize)),
-                                        Some(LPARAM(0)),
-                                    )
-                                    .0 as i32;
+                                .0 as i32;
 
-                                    if let Ok(mut lock) = TEMP_CONFIG.lock() {
-                                        if let Some(config) = lock.as_mut() {
-                                            config.theme_type = ThemeType::from_index(theme_val);
-                                        }
-                                    }
+                                if let Ok(mut lock) = TEMP_CONFIG.lock()
+                                    && let Some(config) = lock.as_mut()
+                                {
+                                    config.theme_type = ThemeType::from_index(theme_val);
                                 }
                             }
                         }
@@ -241,19 +240,18 @@ unsafe extern "system" fn settings_dlg_proc(
                         1
                     }
                     IDC_BTN_CHANGE_FONT => {
-                        let mut lf = LOGFONTW::default();
+                    let mut lf = LOGFONTW::default();
 
-                        if let Ok(lock) = TEMP_CONFIG.lock() {
-                            if let Some(config) = lock.as_ref() {
-                                let face_name_units: Vec<u16> =
-                                    config.font_face.encode_utf16().collect();
-                                let len = face_name_units.len().min(lf.lfFaceName.len() - 1);
-                                lf.lfFaceName[..len].copy_from_slice(&face_name_units[..len]);
-                                lf.lfHeight = points_to_pixels(hwnd, config.font_size);
-                                lf.lfWeight = config.font_weight;
-                                lf.lfItalic = if config.font_italic { 1 } else { 0 };
-                            }
-                        }
+                    if let Ok(lock) = TEMP_CONFIG.lock()
+                        && let Some(config) = lock.as_ref()
+                    {
+                        let face_name_units: Vec<u16> = config.font_face.encode_utf16().collect();
+                        let len = face_name_units.len().min(lf.lfFaceName.len() - 1);
+                        lf.lfFaceName[..len].copy_from_slice(&face_name_units[..len]);
+                        lf.lfHeight = points_to_pixels(hwnd, config.font_size);
+                        lf.lfWeight = config.font_weight;
+                        lf.lfItalic = if config.font_italic { 1 } else { 0 };
+                    }
 
                         let mut cf = CHOOSEFONTW {
                             lStructSize: std::mem::size_of::<CHOOSEFONTW>() as u32,
@@ -274,15 +272,15 @@ unsafe extern "system" fn settings_dlg_proc(
                             let selected_weight = lf.lfWeight;
                             let selected_italic = lf.lfItalic != 0;
 
-                            if let Ok(mut lock) = TEMP_CONFIG.lock() {
-                                if let Some(config) = lock.as_mut() {
-                                    config.font_face = selected_face;
-                                    config.font_size = selected_size;
-                                    config.font_weight = selected_weight;
-                                    config.font_italic = selected_italic;
+                            if let Ok(mut lock) = TEMP_CONFIG.lock()
+                                && let Some(config) = lock.as_mut()
+                            {
+                                config.font_face = selected_face;
+                                config.font_size = selected_size;
+                                config.font_weight = selected_weight;
+                                config.font_italic = selected_italic;
 
-                                    update_font_label(hwnd, config);
-                                }
+                                update_font_label(hwnd, config);
                             }
                         }
                         1

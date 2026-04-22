@@ -15,8 +15,10 @@ const SIF_DISABLENOSCROLL: u32 = 0x0008;
 const SIF_TRACKPOS: u32 = 0x0010;
 const SIF_ALL: u32 = SIF_RANGE | SIF_PAGE | SIF_POS | SIF_TRACKPOS;
 
+// SAFETY: Win32 API SetScrollInfo の呼び出し。
+// 呼び出し側で正しい HWND と構造体ポインタを渡す必要がある。
 #[link(name = "user32")]
-extern "system" {
+unsafe extern "system" {
     fn SetScrollInfo(hwnd: HWND, nbar: i32, lpsi: *const SCROLLINFO, redraw: BOOL) -> i32;
 }
 

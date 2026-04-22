@@ -110,45 +110,43 @@ extern "system" fn keyboard_hook_proc(code: i32, wparam: WPARAM, lparam: LPARAM)
         let vk_code = wparam.0 as u16;
         let key_up = (lparam.0 >> 31) & 1;
 
-        if key_up == 0 {
-            if let Some(hwnd) = TARGET_HWND.with(|h| *h.borrow()) {
-                if !crate::gui::window::is_ime_composing(hwnd) {
-                    // SAFETY: キーの状態（Ctrl/Shift/Alt）を同期的に取得する。
-                    let is_ctrl_pressed = unsafe { GetKeyState(VK_CONTROL.0 as i32) } < 0;
-                    let is_shift_pressed = unsafe { GetKeyState(VK_SHIFT.0 as i32) } < 0;
-                    let is_alt_pressed = unsafe { GetKeyState(VK_MENU.0 as i32) } < 0;
+        if key_up == 0
+            && let Some(hwnd) = TARGET_HWND.with(|h| *h.borrow())
+            && !crate::gui::window::is_ime_composing(hwnd)
+        {
+            // SAFETY: キーの状態（Ctrl/Shift/Alt）を同期的に取得する。
+            let is_ctrl_pressed = unsafe { GetKeyState(VK_CONTROL.0 as i32) } < 0;
+            let is_shift_pressed = unsafe { GetKeyState(VK_SHIFT.0 as i32) } < 0;
+            let is_alt_pressed = unsafe { GetKeyState(VK_MENU.0 as i32) } < 0;
 
-                    if !crate::gui::driver::window_gui_driver::WindowGuiDriver::is_system_shortcut(
-                        vk_code,
+            if !crate::gui::driver::window_gui_driver::WindowGuiDriver::is_system_shortcut(
+                vk_code,
+                is_alt_pressed,
+            ) {
+                let translator = VtSequenceTranslatorDomainService::new();
+                let input_key = InputKey::new(
+                    vk_code,
+                    Modifiers {
+                        is_ctrl_pressed,
+                        is_shift_pressed,
                         is_alt_pressed,
-                    ) {
-                        let translator = VtSequenceTranslatorDomainService::new();
-                        let input_key = InputKey::new(
-                            vk_code,
-                            Modifiers {
-                                is_ctrl_pressed,
-                                is_shift_pressed,
-                                is_alt_pressed,
-                            },
-                        );
+                    },
+                );
 
-                        if let Some(seq) = translator.translate(input_key) {
-                            let data_arc =
-                                crate::gui::resolver::terminal_window_resolver::get_terminal_data();
-                            let mut window_data = data_arc.lock().unwrap();
-                            window_data.service.reset_viewport();
-                            let _ = window_data.service.send_input(&seq);
-                            drop(window_data);
+                if let Some(seq) = translator.translate(input_key) {
+                    let data_arc =
+                        crate::gui::resolver::terminal_window_resolver::get_terminal_data();
+                    let mut window_data = data_arc.lock().unwrap();
+                    window_data.service.reset_viewport();
+                    let _ = window_data.service.send_input(&seq);
+                    drop(window_data);
 
-                            // SAFETY: 有効なウィンドウハンドルに対して描画更新を通知する。
-                            // PostMessageW はスレッドセーフである。
-                            unsafe {
-                                let _ =
-                                    PostMessageW(Some(hwnd), WM_APP_REPAINT, WPARAM(0), LPARAM(0));
-                            }
-                            return LRESULT(1);
-                        }
+                    // SAFETY: 有効なウィンドウハンドルに対して描画更新を通知する。
+                    // PostMessageW はスレッドセーフである。
+                    unsafe {
+                        let _ = PostMessageW(Some(hwnd), WM_APP_REPAINT, WPARAM(0), LPARAM(0));
                     }
+                    return LRESULT(1);
                 }
             }
         }
