@@ -221,7 +221,7 @@ dependencies = [
 
 [[package]]
 name = "terminal-for-emeditor"
-version = "0.6.1"
+version = "0.7.0"
 dependencies = [
  "embed-resource",
  "log",
@@ -232,11 +232,7 @@ dependencies = [
  "vte",
  "which",
  "windows",
- "windows-core",
- "windows-link",
  "windows-registry",
- "windows-result",
- "windows-strings",
 ]
 
 [[package]]

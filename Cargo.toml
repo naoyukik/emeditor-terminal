@@ -1,6 +1,6 @@
 [package]
 name = "terminal-for-emeditor"
-version = "0.6.1"
+version = "0.7.0"
 edition = "2024"
 
 [lib]
@@ -34,11 +34,7 @@ windows = { version = "0.62", features = [
     "Win32_UI_Controls_Dialogs",
     "Win32_System_Registry",
 ] }
-windows-core = "0.62"
 windows-registry = "0.6"
-windows-result = "0.4"
-windows-strings = "0.5"
 
 [build-dependencies]
 embed-resource = "3.0"
-windows-link = "0.2"
