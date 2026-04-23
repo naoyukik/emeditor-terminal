@@ -1,8 +1,9 @@
 use super::color_theme_value::ColorTheme;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 #[allow(dead_code)]
 pub enum ThemeType {
+    #[default]
     SystemDefault,
     OneHalfDark,
     OneHalfLight,
@@ -47,12 +48,6 @@ impl ThemeType {
 
     pub fn all() -> Vec<Self> {
         Self::THEMES.iter().map(|(t, _, _)| *t).collect()
-    }
-}
-
-impl Default for ThemeType {
-    fn default() -> Self {
-        Self::SystemDefault
     }
 }
 

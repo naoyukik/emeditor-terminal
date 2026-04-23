@@ -1,0 +1,8 @@
+{
+  "track_id": "156_rust_edition_2024_20260421",
+  "type": "chore",
+  "status": "new",
+  "created_at": "2026-04-21T00:00:00Z",
+  "updated_at": "2026-04-21T00:00:00Z",
+  "description": "Rust Edition 2024 への移行 (Issue #156)"
+}

@@ -58,8 +58,10 @@ pub(crate) fn show_settings_dialog(
         );
 
         if result == IDOK.0 as isize {
-            if let Ok(lock) = TEMP_CONFIG.lock() {
-                result_config = lock.clone();
+            if let Ok(lock) = TEMP_CONFIG.lock()
+                && let Some(config) = lock.as_ref()
+            {
+                result_config = Some(config.clone());
             }
         } else if result == -1 {
             log::error!(
@@ -101,12 +103,15 @@ unsafe fn update_font_label(hwnd: HWND, config: &TerminalConfig) {
         .chain(std::iter::once(0))
         .collect();
 
-    // SAFETY: 有効な HWND とコントロール ID を使用してテキストを設定する。
-    let _ = SetDlgItemTextW(
-        hwnd,
-        IDC_STATIC_FONT_NAME,
-        windows::core::PCWSTR(wide_text.as_ptr()),
-    );
+    // SAFETY: 引数の HWND は呼び出し元で有効であることが保証されている。
+    // SetDlgItemTextW は指定されたコントロールのテキストを設定する。
+    unsafe {
+        let _ = SetDlgItemTextW(
+            hwnd,
+            IDC_STATIC_FONT_NAME,
+            windows::core::PCWSTR(wide_text.as_ptr()),
+        );
+    }
 }
 
 /// ダイアログプロシージャ
@@ -116,17 +121,18 @@ unsafe extern "system" fn settings_dlg_proc(
     w_param: WPARAM,
     _l_param: LPARAM,
 ) -> isize {
-    // SAFETY: ダイアログプロシージャ内での Win32 API 呼び出し。
-    // メッセージ、パラメータ、およびハンドルの整合性は Windows 側によって担保される。
-    match msg {
-        windows::Win32::UI::WindowsAndMessaging::WM_INITDIALOG => {
-            log::info!("WM_INITDIALOG: Initializing settings dialog.");
+    // SAFETY: 本関数は Windows OS によって呼び出されるコールバックである。
+    // 各メッセージにおけるハンドルやパラメータの整合性はシステムによって担保される。
+    unsafe {
+        match msg {
+            windows::Win32::UI::WindowsAndMessaging::WM_INITDIALOG => {
+                log::info!("WM_INITDIALOG: Initializing settings dialog.");
 
-            // テーマコンボボックスの初期化
-            if let Ok(combo_hwnd) =
-                windows::Win32::UI::WindowsAndMessaging::GetDlgItem(Some(hwnd), IDC_COMBO_THEME)
-            {
-                if !combo_hwnd.0.is_null() {
+                // テーマコンボボックスの初期化
+                if let Ok(combo_hwnd) =
+                    windows::Win32::UI::WindowsAndMessaging::GetDlgItem(Some(hwnd), IDC_COMBO_THEME)
+                    && !combo_hwnd.0.is_null()
+                {
                     for theme in ThemeType::all() {
                         let display_name = theme.get_display_name();
                         let wide_name: Vec<u16> = display_name
@@ -150,54 +156,54 @@ unsafe extern "system" fn settings_dlg_proc(
                         }
                     }
 
-                    if let Ok(lock) = TEMP_CONFIG.lock() {
-                        if let Some(config) = lock.as_ref() {
-                            let target_val = config.theme_type.to_index();
-                            let count = SendMessageW(
+                    if let Ok(lock) = TEMP_CONFIG.lock()
+                        && let Some(config) = lock.as_ref()
+                    {
+                        let target_val = config.theme_type.to_index();
+                        let count = SendMessageW(
+                            combo_hwnd,
+                            windows::Win32::UI::WindowsAndMessaging::CB_GETCOUNT,
+                            Some(WPARAM(0)),
+                            Some(LPARAM(0)),
+                        )
+                        .0 as i32;
+
+                        for i in 0..count {
+                            let item_data = SendMessageW(
                                 combo_hwnd,
-                                windows::Win32::UI::WindowsAndMessaging::CB_GETCOUNT,
-                                Some(WPARAM(0)),
+                                windows::Win32::UI::WindowsAndMessaging::CB_GETITEMDATA,
+                                Some(WPARAM(i as usize)),
                                 Some(LPARAM(0)),
                             )
                             .0 as i32;
-
-                            for i in 0..count {
-                                let item_data = SendMessageW(
+                            if item_data == target_val {
+                                SendMessageW(
                                     combo_hwnd,
-                                    windows::Win32::UI::WindowsAndMessaging::CB_GETITEMDATA,
+                                    CB_SETCURSEL,
                                     Some(WPARAM(i as usize)),
                                     Some(LPARAM(0)),
-                                )
-                                .0 as i32;
-                                if item_data == target_val {
-                                    SendMessageW(
-                                        combo_hwnd,
-                                        CB_SETCURSEL,
-                                        Some(WPARAM(i as usize)),
-                                        Some(LPARAM(0)),
-                                    );
-                                    break;
-                                }
+                                );
+                                break;
                             }
-                            update_font_label(hwnd, config);
                         }
+                        update_font_label(hwnd, config);
                     }
                 }
+                1 // TRUE
             }
-            1 // TRUE
-        }
-        windows::Win32::UI::WindowsAndMessaging::WM_COMMAND => {
-            let control_id = (w_param.0 & 0xFFFF) as i32;
-            match control_id {
-                id if id == IDOK.0 => {
-                    log::info!("Settings dialog: OK clicked.");
+            windows::Win32::UI::WindowsAndMessaging::WM_COMMAND => {
+                let control_id = (w_param.0 & 0xFFFF) as i32;
+                match control_id {
+                    id if id == IDOK.0 => {
+                        log::info!("Settings dialog: OK clicked.");
 
-                    // コンボボックスからテーマを取得
-                    if let Ok(combo_hwnd) = windows::Win32::UI::WindowsAndMessaging::GetDlgItem(
-                        Some(hwnd),
-                        IDC_COMBO_THEME,
-                    ) {
-                        if !combo_hwnd.0.is_null() {
+                        // コンボボックスからテーマを取得
+                        if let Ok(combo_hwnd) = windows::Win32::UI::WindowsAndMessaging::GetDlgItem(
+                            Some(hwnd),
+                            IDC_COMBO_THEME,
+                        )
+                        && !combo_hwnd.0.is_null()
+                        {
                             let sel_idx = SendMessageW(
                                 combo_hwnd,
                                 CB_GETCURSEL,
@@ -214,62 +220,61 @@ unsafe extern "system" fn settings_dlg_proc(
                                 )
                                 .0 as i32;
 
-                                if let Ok(mut lock) = TEMP_CONFIG.lock() {
-                                    if let Some(config) = lock.as_mut() {
-                                        config.theme_type = ThemeType::from_index(theme_val);
-                                    }
+                                if let Ok(mut lock) = TEMP_CONFIG.lock()
+                                    && let Some(config) = lock.as_mut()
+                                {
+                                    config.theme_type = ThemeType::from_index(theme_val);
                                 }
                             }
                         }
-                    }
 
-                    if let Err(e) = EndDialog(hwnd, IDOK.0 as isize) {
-                        log::error!("EndDialog(IDOK) failed: {:?}", e);
+                        if let Err(e) = EndDialog(hwnd, IDOK.0 as isize) {
+                            log::error!("EndDialog(IDOK) failed: {:?}", e);
+                        }
+                        1
                     }
-                    1
-                }
-                id if id == IDCANCEL.0 => {
-                    if let Err(e) = EndDialog(hwnd, IDCANCEL.0 as isize) {
-                        log::error!("EndDialog(IDCANCEL) failed: {:?}", e);
+                    id if id == IDCANCEL.0 => {
+                        if let Err(e) = EndDialog(hwnd, IDCANCEL.0 as isize) {
+                            log::error!("EndDialog(IDCANCEL) failed: {:?}", e);
+                        }
+                        1
                     }
-                    1
-                }
-                IDC_BTN_CHANGE_FONT => {
+                    IDC_BTN_CHANGE_FONT => {
                     let mut lf = LOGFONTW::default();
 
-                    if let Ok(lock) = TEMP_CONFIG.lock() {
-                        if let Some(config) = lock.as_ref() {
-                            let face_name_units: Vec<u16> =
-                                config.font_face.encode_utf16().collect();
-                            let len = face_name_units.len().min(lf.lfFaceName.len() - 1);
-                            lf.lfFaceName[..len].copy_from_slice(&face_name_units[..len]);
-                            lf.lfHeight = points_to_pixels(hwnd, config.font_size);
-                            lf.lfWeight = config.font_weight;
-                            lf.lfItalic = if config.font_italic { 1 } else { 0 };
-                        }
+                    if let Ok(lock) = TEMP_CONFIG.lock()
+                        && let Some(config) = lock.as_ref()
+                    {
+                        let face_name_units: Vec<u16> = config.font_face.encode_utf16().collect();
+                        let len = face_name_units.len().min(lf.lfFaceName.len() - 1);
+                        lf.lfFaceName[..len].copy_from_slice(&face_name_units[..len]);
+                        lf.lfHeight = points_to_pixels(hwnd, config.font_size);
+                        lf.lfWeight = config.font_weight;
+                        lf.lfItalic = if config.font_italic { 1 } else { 0 };
                     }
 
-                    let mut cf = CHOOSEFONTW {
-                        lStructSize: std::mem::size_of::<CHOOSEFONTW>() as u32,
-                        hwndOwner: hwnd,
-                        lpLogFont: &mut lf,
-                        Flags: CF_SCREENFONTS | CF_INITTOLOGFONTSTRUCT,
-                        ..Default::default()
-                    };
+                        let mut cf = CHOOSEFONTW {
+                            lStructSize: std::mem::size_of::<CHOOSEFONTW>() as u32,
+                            hwndOwner: hwnd,
+                            lpLogFont: &mut lf,
+                            Flags: CF_SCREENFONTS | CF_INITTOLOGFONTSTRUCT,
+                            ..Default::default()
+                        };
 
-                    if ChooseFontW(&mut cf).as_bool() {
-                        let len = lf
-                            .lfFaceName
-                            .iter()
-                            .position(|&c| c == 0)
-                            .unwrap_or(lf.lfFaceName.len());
-                        let selected_face = String::from_utf16_lossy(&lf.lfFaceName[..len]);
-                        let selected_size = pixels_to_points(hwnd, lf.lfHeight);
-                        let selected_weight = lf.lfWeight;
-                        let selected_italic = lf.lfItalic != 0;
+                        if ChooseFontW(&mut cf).as_bool() {
+                            let len = lf
+                                .lfFaceName
+                                .iter()
+                                .position(|&c| c == 0)
+                                .unwrap_or(lf.lfFaceName.len());
+                            let selected_face = String::from_utf16_lossy(&lf.lfFaceName[..len]);
+                            let selected_size = pixels_to_points(hwnd, lf.lfHeight);
+                            let selected_weight = lf.lfWeight;
+                            let selected_italic = lf.lfItalic != 0;
 
-                        if let Ok(mut lock) = TEMP_CONFIG.lock() {
-                            if let Some(config) = lock.as_mut() {
+                            if let Ok(mut lock) = TEMP_CONFIG.lock()
+                                && let Some(config) = lock.as_mut()
+                            {
                                 config.font_face = selected_face;
                                 config.font_size = selected_size;
                                 config.font_weight = selected_weight;
@@ -278,12 +283,12 @@ unsafe extern "system" fn settings_dlg_proc(
                                 update_font_label(hwnd, config);
                             }
                         }
+                        1
                     }
-                    1
+                    _ => 0,
                 }
-                _ => 0,
             }
+            _ => 0,
         }
-        _ => 0,
     }
 }

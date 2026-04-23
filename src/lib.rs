@@ -48,7 +48,7 @@ fn init_logger() {
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 #[allow(non_snake_case, unused_variables)]
 pub extern "system" fn DllMain(
     dll_module: HINSTANCE,
@@ -71,7 +71,7 @@ pub extern "system" fn DllMain(
     BOOL(1)
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 #[allow(non_snake_case, unused_variables)]
 pub extern "system" fn OnCommand(hwnd: HWND) {
     log::info!("OnCommand called");
@@ -80,7 +80,7 @@ pub extern "system" fn OnCommand(hwnd: HWND) {
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 #[allow(non_snake_case, unused_variables, clippy::not_unsafe_ptr_arg_deref)]
 pub extern "system" fn QueryStatus(hwnd: HWND, pbChecked: *mut BOOL) -> BOOL {
     if !pbChecked.is_null() {
@@ -92,7 +92,7 @@ pub extern "system" fn QueryStatus(hwnd: HWND, pbChecked: *mut BOOL) -> BOOL {
     BOOL(1)
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 #[allow(non_snake_case, unused_variables)]
 pub extern "system" fn OnEvents(hwnd: HWND, nEvent: u32, wParam: WPARAM, lParam: LPARAM) {
     if nEvent == EVENT_CLOSE {
@@ -100,20 +100,20 @@ pub extern "system" fn OnEvents(hwnd: HWND, nEvent: u32, wParam: WPARAM, lParam:
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "system" fn GetMenuTextID() -> u32 {
     0
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "system" fn GetStatusMessageID() -> u32 {
     0
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "system" fn GetBitmapID() -> u32 {
     0
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 #[allow(non_snake_case, unused_variables)]
 pub extern "system" fn PlugInProc(
     hwnd: HWND,

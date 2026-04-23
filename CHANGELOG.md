@@ -5,6 +5,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
+### Changed
+- Rust Edition 2024へアップデート
+
 ### Fixed
 - フォント設定がターミナルに反映されない不具合を修正
 

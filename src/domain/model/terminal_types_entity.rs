@@ -50,20 +50,15 @@ impl Default for Cell {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum CursorStyle {
     BlinkingBlock,
     SteadyBlock,
     BlinkingUnderline,
     SteadyUnderline,
+    #[default]
     BlinkingBar,
     SteadyBar,
-}
-
-impl Default for CursorStyle {
-    fn default() -> Self {
-        Self::BlinkingBar
-    }
 }
 
 pub struct Cursor {
