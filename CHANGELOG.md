@@ -5,6 +5,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
+
+## [0.7.0] - 2026-04-23
 ### Changed
 - Rust Edition 2024へアップデート
 
@@ -86,7 +88,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - RustによるEmEditorプラグイン開発基盤を構築し、Hello World動作を確認
 - 簡易ターミナル入出力機能を実装し、基本動作を検証
 
-[Unreleased]: https://github.com/naoyukik/emeditor-terminal/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/naoyukik/emeditor-terminal/compare/v0.7.0...HEAD
+[0.7.0]: https://github.com/naoyukik/emeditor-terminal/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/naoyukik/emeditor-terminal/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/naoyukik/emeditor-terminal/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/naoyukik/emeditor-terminal/compare/v0.3.0...v0.4.0
