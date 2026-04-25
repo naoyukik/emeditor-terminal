@@ -1,4 +1,4 @@
-use crate::domain::model::input::InputKey;
+use crate::domain::model::input_value::{InputKey, MouseButton, MouseEvent};
 use crate::domain::repository::key_translator_repository::KeyTranslatorRepository;
 
 /// VTシーケンス（ANSIエスケープシーケンス）への翻訳を行う実装
@@ -165,12 +165,48 @@ impl KeyTranslatorRepository for VtSequenceTranslatorDomainService {
 
         seq.map(|s| s.to_vec())
     }
+
+    fn translate_mouse(&self, event: MouseEvent) -> Option<Vec<u8>> {
+        let mut pb = match event.button {
+            MouseButton::Left => 0,
+            MouseButton::Middle => 1,
+            MouseButton::Right => 2,
+            MouseButton::None => 3, // ボタンなしの移動 (Hover)
+            MouseButton::WheelUp => 64,
+            MouseButton::WheelDown => 65,
+            MouseButton::WheelLeft => 66,
+            MouseButton::WheelRight => 67,
+        };
+
+        // ドラッグ（移動）フラグの追加
+        if event.is_drag || event.button == MouseButton::None {
+            pb += 32;
+        }
+
+        // 修飾キーフラグの追加
+        if event.modifiers.is_shift_pressed {
+            pb += 4;
+        }
+        if event.modifiers.is_alt_pressed {
+            pb += 8;
+        }
+        if event.modifiers.is_ctrl_pressed {
+            pb += 16;
+        }
+
+        let suffix = if event.is_release { 'm' } else { 'M' };
+
+        // SGR 1006: ESC [ < Pb ; Px ; Py M/m
+        // 座標は VT 空間では 1-based
+        let seq = format!("\x1b[<{};{};{}{}", pb, event.x + 1, event.y + 1, suffix);
+        Some(seq.into_bytes())
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::domain::model::input::Modifiers;
+    use crate::domain::model::input_value::Modifiers;
 
     #[test]
     fn test_ctrl_combinations() {
@@ -336,5 +372,114 @@ mod tests {
             },
         );
         assert_eq!(translator.translate(shift), None);
+    }
+
+    #[test]
+    fn test_mouse_clicks() {
+        let translator = VtSequenceTranslatorDomainService::new();
+        let modifiers = Modifiers::none();
+
+        // Left Click Press (Cell 10, 5)
+        let left_down = MouseEvent::new(MouseButton::Left, 10, 5, modifiers, false, false);
+        assert_eq!(
+            translator.translate_mouse(left_down),
+            Some(b"\x1b[<0;11;6M".to_vec())
+        );
+
+        // Left Click Release
+        let left_up = MouseEvent::new(MouseButton::Left, 10, 5, modifiers, true, false);
+        assert_eq!(
+            translator.translate_mouse(left_up),
+            Some(b"\x1b[<0;11;6m".to_vec())
+        );
+
+        // Right Click Press
+        let right_down = MouseEvent::new(MouseButton::Right, 20, 30, modifiers, false, false);
+        assert_eq!(
+            translator.translate_mouse(right_down),
+            Some(b"\x1b[<2;21;31M".to_vec())
+        );
+    }
+
+    #[test]
+    fn test_mouse_drag_and_hover() {
+        let translator = VtSequenceTranslatorDomainService::new();
+        let modifiers = Modifiers::none();
+
+        // Left Drag
+        let left_drag = MouseEvent::new(MouseButton::Left, 11, 5, modifiers, false, true);
+        assert_eq!(
+            translator.translate_mouse(left_drag),
+            Some(b"\x1b[<32;12;6M".to_vec())
+        );
+
+        // Hover (Move without button)
+        let hover = MouseEvent::new(MouseButton::None, 15, 20, modifiers, false, false);
+        assert_eq!(
+            translator.translate_mouse(hover),
+            Some(b"\x1b[<35;16;21M".to_vec())
+        );
+    }
+
+    #[test]
+    fn test_mouse_wheel() {
+        let translator = VtSequenceTranslatorDomainService::new();
+        let modifiers = Modifiers::none();
+
+        // Wheel Up
+        let wheel_up = MouseEvent::new(MouseButton::WheelUp, 0, 0, modifiers, false, false);
+        assert_eq!(
+            translator.translate_mouse(wheel_up),
+            Some(b"\x1b[<64;1;1M".to_vec())
+        );
+
+        // Wheel Down
+        let wheel_down = MouseEvent::new(MouseButton::WheelDown, 0, 0, modifiers, false, false);
+        assert_eq!(
+            translator.translate_mouse(wheel_down),
+            Some(b"\x1b[<65;1;1M".to_vec())
+        );
+    }
+
+    #[test]
+    fn test_mouse_modifiers() {
+        let translator = VtSequenceTranslatorDomainService::new();
+
+        // Ctrl + Left Click
+        let ctrl_left = MouseEvent::new(
+            MouseButton::Left,
+            0,
+            0,
+            Modifiers {
+                is_ctrl_pressed: true,
+                is_shift_pressed: false,
+                is_alt_pressed: false,
+            },
+            false,
+            false,
+        );
+        assert_eq!(
+            translator.translate_mouse(ctrl_left),
+            Some(b"\x1b[<16;1;1M".to_vec())
+        );
+
+        // Shift + Alt + Right Click
+        let shift_alt_right = MouseEvent::new(
+            MouseButton::Right,
+            5,
+            5,
+            Modifiers {
+                is_ctrl_pressed: false,
+                is_shift_pressed: true,
+                is_alt_pressed: true,
+            },
+            false,
+            false,
+        );
+        // Right(2) + Shift(4) + Alt(8) = 14
+        assert_eq!(
+            translator.translate_mouse(shift_alt_right),
+            Some(b"\x1b[<14;6;6M".to_vec())
+        );
     }
 }

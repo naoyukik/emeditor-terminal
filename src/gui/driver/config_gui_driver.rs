@@ -2,16 +2,16 @@ use crate::domain::model::terminal_config_value::{TerminalConfig, ThemeType};
 use crate::get_instance_handle;
 use crate::gui::common::{pixels_to_points, points_to_pixels};
 use crate::gui::driver::resource::*;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
+use std::sync::atomic::{AtomicBool, Ordering};
 use windows::Win32::Foundation::{HWND, LPARAM, WPARAM};
 use windows::Win32::Graphics::Gdi::LOGFONTW;
 use windows::Win32::UI::Controls::Dialogs::{
-    ChooseFontW, CF_INITTOLOGFONTSTRUCT, CF_SCREENFONTS, CHOOSEFONTW,
+    CF_INITTOLOGFONTSTRUCT, CF_SCREENFONTS, CHOOSEFONTW, ChooseFontW,
 };
 use windows::Win32::UI::WindowsAndMessaging::{
-    DialogBoxParamW, EndDialog, SendMessageW, SetDlgItemTextW, CB_ADDSTRING, CB_GETCURSEL,
-    CB_SETCURSEL, IDCANCEL, IDOK,
+    CB_ADDSTRING, CB_GETCURSEL, CB_SETCURSEL, DialogBoxParamW, EndDialog, IDCANCEL, IDOK,
+    SendMessageW, SetDlgItemTextW,
 };
 
 static IS_DIALOG_ACTIVE: AtomicBool = AtomicBool::new(false);
@@ -201,8 +201,7 @@ unsafe extern "system" fn settings_dlg_proc(
                         if let Ok(combo_hwnd) = windows::Win32::UI::WindowsAndMessaging::GetDlgItem(
                             Some(hwnd),
                             IDC_COMBO_THEME,
-                        )
-                        && !combo_hwnd.0.is_null()
+                        ) && !combo_hwnd.0.is_null()
                         {
                             let sel_idx = SendMessageW(
                                 combo_hwnd,
@@ -240,18 +239,19 @@ unsafe extern "system" fn settings_dlg_proc(
                         1
                     }
                     IDC_BTN_CHANGE_FONT => {
-                    let mut lf = LOGFONTW::default();
+                        let mut lf = LOGFONTW::default();
 
-                    if let Ok(lock) = TEMP_CONFIG.lock()
-                        && let Some(config) = lock.as_ref()
-                    {
-                        let face_name_units: Vec<u16> = config.font_face.encode_utf16().collect();
-                        let len = face_name_units.len().min(lf.lfFaceName.len() - 1);
-                        lf.lfFaceName[..len].copy_from_slice(&face_name_units[..len]);
-                        lf.lfHeight = points_to_pixels(hwnd, config.font_size);
-                        lf.lfWeight = config.font_weight;
-                        lf.lfItalic = if config.font_italic { 1 } else { 0 };
-                    }
+                        if let Ok(lock) = TEMP_CONFIG.lock()
+                            && let Some(config) = lock.as_ref()
+                        {
+                            let face_name_units: Vec<u16> =
+                                config.font_face.encode_utf16().collect();
+                            let len = face_name_units.len().min(lf.lfFaceName.len() - 1);
+                            lf.lfFaceName[..len].copy_from_slice(&face_name_units[..len]);
+                            lf.lfHeight = points_to_pixels(hwnd, config.font_size);
+                            lf.lfWeight = config.font_weight;
+                            lf.lfItalic = if config.font_italic { 1 } else { 0 };
+                        }
 
                         let mut cf = CHOOSEFONTW {
                             lStructSize: std::mem::size_of::<CHOOSEFONTW>() as u32,

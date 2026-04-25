@@ -1,4 +1,4 @@
-use crate::domain::model::input::{InputKey, Modifiers};
+use crate::domain::model::input_value::{InputKey, Modifiers};
 use crate::domain::model::window_id_value::WindowId;
 use crate::domain::repository::key_translator_repository::KeyTranslatorRepository;
 use crate::domain::service::vt_sequence_translator_domain_service::VtSequenceTranslatorDomainService;
@@ -6,7 +6,7 @@ use std::cell::RefCell;
 use windows::Win32::Foundation::{HWND, LPARAM, LRESULT, WPARAM};
 use windows::Win32::UI::Input::KeyboardAndMouse::{GetKeyState, VK_CONTROL, VK_MENU, VK_SHIFT};
 use windows::Win32::UI::WindowsAndMessaging::{
-    CallNextHookEx, PostMessageW, SetWindowsHookExW, UnhookWindowsHookEx, HHOOK, WH_KEYBOARD,
+    CallNextHookEx, HHOOK, PostMessageW, SetWindowsHookExW, UnhookWindowsHookEx, WH_KEYBOARD,
 };
 
 /// 描画更新を通知するメッセージ

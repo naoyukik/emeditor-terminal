@@ -1,8 +1,8 @@
 use crate::domain::model::window_id_value::WindowId;
 use std::mem::size_of;
-use windows::core::{w, PCWSTR};
 use windows::Win32::Foundation::{HWND, LPARAM, WPARAM};
-pub use windows::Win32::UI::WindowsAndMessaging::{MessageBoxW, SendMessageW, MB_ICONERROR, MB_OK};
+pub use windows::Win32::UI::WindowsAndMessaging::{MB_ICONERROR, MB_OK, MessageBoxW, SendMessageW};
+use windows::core::{PCWSTR, w};
 
 #[allow(dead_code)]
 const WM_USER: u32 = 0x0400;
@@ -159,11 +159,7 @@ pub fn emeditor_query_u32(window_id: WindowId, value_name: &str, default: u32) -
         )
     };
 
-    if result.0 == 0 {
-        data
-    } else {
-        default
-    }
+    if result.0 == 0 { data } else { default }
 }
 
 /// EmEditor の設定に文字列を保存する

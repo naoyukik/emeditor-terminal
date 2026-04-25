@@ -1,5 +1,7 @@
 use crate::domain::model::terminal_buffer_entity::TerminalBufferEntity;
-use crate::domain::model::terminal_types_entity::{CursorStyle, TerminalAttribute, TerminalColor};
+use crate::domain::model::terminal_types_entity::{
+    CursorStyle, MouseTrackingMode, TerminalAttribute, TerminalColor,
+};
 use vte::{Params, Perform};
 
 /// ターミナルプロトコル（ANSI/VT100等）の解釈と実行を担うドメインサービス
@@ -242,6 +244,25 @@ impl<'a> Perform for TerminalProtocolHandler<'a> {
                         match mode {
                             6 => self.buffer.set_origin_mode(true),
                             25 => self.buffer.set_cursor_visible(true),
+                            1000 => {
+                                log::debug!("Enabling Default Mouse Tracking (1000)");
+                                self.buffer
+                                    .set_mouse_tracking_mode(MouseTrackingMode::Default);
+                            }
+                            1002 => {
+                                log::debug!("Enabling Button Event Mouse Tracking (1002)");
+                                self.buffer
+                                    .set_mouse_tracking_mode(MouseTrackingMode::ButtonEvent);
+                            }
+                            1003 => {
+                                log::debug!("Enabling Any Event Mouse Tracking (1003)");
+                                self.buffer
+                                    .set_mouse_tracking_mode(MouseTrackingMode::AnyEvent);
+                            }
+                            1006 => {
+                                log::debug!("Enabling SGR Mouse Encoding (1006)");
+                                self.buffer.set_sgr_mouse_encoding(true);
+                            }
                             _ => {}
                         }
                     }
@@ -253,6 +274,14 @@ impl<'a> Perform for TerminalProtocolHandler<'a> {
                         match mode {
                             6 => self.buffer.set_origin_mode(false),
                             25 => self.buffer.set_cursor_visible(false),
+                            1000 | 1002 | 1003 => {
+                                log::debug!("Disabling Mouse Tracking");
+                                self.buffer.set_mouse_tracking_mode(MouseTrackingMode::None)
+                            }
+                            1006 => {
+                                log::debug!("Disabling SGR Mouse Encoding");
+                                self.buffer.set_sgr_mouse_encoding(false);
+                            }
                             _ => {}
                         }
                     }
