@@ -5,7 +5,7 @@ use unicode_width::UnicodeWidthStr;
 use super::terminal_grid_entity::TerminalGridEntity;
 use super::terminal_scrollback_entity::TerminalScrollbackEntity;
 pub use super::terminal_types_entity::{
-    Cell, Cursor, CursorStyle, TerminalAttribute, TerminalColor,
+    Cell, Cursor, CursorStyle, MouseTrackingMode, TerminalAttribute, TerminalColor,
 };
 
 pub struct TerminalBufferEntity {
@@ -21,6 +21,8 @@ pub struct TerminalBufferEntity {
     last_inverse_render_pos: Option<(usize, usize)>,
     saved_cursor: Option<(usize, usize)>,
     pending_cluster: String,
+    mouse_tracking_mode: MouseTrackingMode,
+    use_sgr_mouse_encoding: bool,
 }
 
 impl TerminalBufferEntity {
@@ -38,6 +40,8 @@ impl TerminalBufferEntity {
             last_inverse_render_pos: None,
             saved_cursor: None,
             pending_cluster: String::new(),
+            mouse_tracking_mode: MouseTrackingMode::None,
+            use_sgr_mouse_encoding: false,
         }
     }
 
@@ -443,5 +447,15 @@ impl TerminalBufferEntity {
     }
     pub fn reset_viewport(&mut self) {
         self.scrollback.reset_viewport();
+    }
+
+    pub fn get_mouse_tracking_mode(&self) -> MouseTrackingMode {
+        self.mouse_tracking_mode
+    }
+    pub fn set_mouse_tracking_mode(&mut self, mode: MouseTrackingMode) {
+        self.mouse_tracking_mode = mode;
+    }
+    pub fn set_sgr_mouse_encoding(&mut self, enabled: bool) {
+        self.use_sgr_mouse_encoding = enabled;
     }
 }

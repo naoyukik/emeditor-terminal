@@ -90,9 +90,46 @@ mod tests {
         let mut parser = AnsiParserDomainService::new();
         parser.parse(b"1\n2\n3\n4\n5", &mut buffer);
 
-        // 3 lines height, 5 lines input -> 2 lines in history
+        // 3 lines height, 5 lines input_value -> 2 lines in history
         assert_eq!(buffer.get_history_len(), 2);
         assert_eq!(buffer.get_line_at_visual_row(0).unwrap()[0].text, "3");
         assert_eq!(buffer.get_line_at_visual_row(2).unwrap()[0].text, "5");
+    }
+
+    #[test]
+    fn test_mouse_mode_parsing() {
+        use crate::domain::model::terminal_types_entity::MouseTrackingMode;
+        let mut buffer = TerminalBufferEntity::new(80, 25);
+        let mut parser = AnsiParserDomainService::new();
+
+        // Default Tracking (1000)
+        parser.parse(b"\x1b[?1000h", &mut buffer);
+        assert_eq!(buffer.get_mouse_tracking_mode(), MouseTrackingMode::Default);
+
+        // Button Event Tracking (1002)
+        parser.parse(b"\x1b[?1002h", &mut buffer);
+        assert_eq!(
+            buffer.get_mouse_tracking_mode(),
+            MouseTrackingMode::ButtonEvent
+        );
+
+        // Any Event Tracking (1003)
+        parser.parse(b"\x1b[?1003h", &mut buffer);
+        assert_eq!(
+            buffer.get_mouse_tracking_mode(),
+            MouseTrackingMode::AnyEvent
+        );
+
+        // Disable Tracking
+        parser.parse(b"\x1b[?1000l", &mut buffer);
+        assert_eq!(buffer.get_mouse_tracking_mode(), MouseTrackingMode::None);
+
+        // SGR Encoding (1006)
+        assert!(!buffer.is_sgr_mouse_encoding_enabled());
+        parser.parse(b"\x1b[?1006h", &mut buffer);
+        assert!(buffer.is_sgr_mouse_encoding_enabled());
+
+        parser.parse(b"\x1b[?1006l", &mut buffer);
+        assert!(!buffer.is_sgr_mouse_encoding_enabled());
     }
 }

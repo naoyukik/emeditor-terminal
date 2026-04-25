@@ -9,5 +9,5 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 ---
 
-- [ ] **Track: マウスイベントのパススルー実装 (SGR 1006)**
+- [~] **Track: マウスイベントのパススルー実装 (SGR 1006)**
 *Link: [./tracks/26_mouse_pass_through_20260423/](./tracks/26_mouse_pass_through_20260423/)*

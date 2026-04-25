@@ -2,9 +2,9 @@ use std::ffi::c_void;
 use std::mem::size_of;
 use windows::Win32::Foundation::{HWND, LPARAM, POINT, RECT};
 use windows::Win32::UI::Input::Ime::{
+    CANDIDATEFORM, CFS_EXCLUDE, CFS_RECT, COMPOSITIONFORM, GCS_COMPSTR, GCS_RESULTSTR,
     ImmGetCompositionStringW, ImmGetContext, ImmReleaseContext, ImmSetCandidateWindow,
-    ImmSetCompositionWindow, CANDIDATEFORM, CFS_EXCLUDE, CFS_RECT, COMPOSITIONFORM, GCS_COMPSTR,
-    GCS_RESULTSTR,
+    ImmSetCompositionWindow,
 };
 
 use windows::Win32::UI::Input::KeyboardAndMouse::GetFocus;
