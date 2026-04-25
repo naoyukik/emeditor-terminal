@@ -23,6 +23,7 @@ pub struct TerminalBufferEntity {
     pending_cluster: String,
     mouse_tracking_mode: MouseTrackingMode,
     use_sgr_mouse_encoding: bool,
+    last_mouse_pos: Option<(usize, usize)>,
 }
 
 impl TerminalBufferEntity {
@@ -42,6 +43,7 @@ impl TerminalBufferEntity {
             pending_cluster: String::new(),
             mouse_tracking_mode: MouseTrackingMode::None,
             use_sgr_mouse_encoding: false,
+            last_mouse_pos: None,
         }
     }
 
@@ -460,5 +462,12 @@ impl TerminalBufferEntity {
     }
     pub fn set_sgr_mouse_encoding(&mut self, enabled: bool) {
         self.use_sgr_mouse_encoding = enabled;
+    }
+
+    pub fn get_last_mouse_pos(&self) -> Option<(usize, usize)> {
+        self.last_mouse_pos
+    }
+    pub fn set_last_mouse_pos(&mut self, pos: Option<(usize, usize)>) {
+        self.last_mouse_pos = pos;
     }
 }

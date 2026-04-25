@@ -142,14 +142,26 @@ impl TerminalWorkflow {
     }
 
     /// マウスイベントを処理する
-    pub fn handle_mouse_event(&mut self, event: MouseEvent) -> std::io::Result<()> {
+    pub fn handle_mouse_event(&mut self, event: MouseEvent) -> std::io::Result<bool> {
         use crate::domain::model::input_value::MouseButton;
         use crate::domain::model::terminal_types_entity::MouseTrackingMode;
 
         let mode = self.buffer.get_mouse_tracking_mode();
 
         if mode == MouseTrackingMode::None {
-            return Ok(());
+            return Ok(false);
+        }
+
+        // SGR 1006 が有効でない場合は、現在サポートしていないため送信しない
+        if !self.buffer.is_sgr_mouse_encoding_enabled() {
+            return Ok(false);
+        }
+
+        // 座標が変わっていない移動（ホバーまたはドラッグ）は抑制する
+        if (event.button == MouseButton::None || event.is_drag)
+            && self.buffer.get_last_mouse_pos() == Some((event.x, event.y))
+        {
+            return Ok(false);
         }
 
         // モードに応じたフィルタリング
@@ -169,17 +181,17 @@ impl TerminalWorkflow {
             _ => false,
         };
 
-        if should_send
-            && let Some(seq) = self.translator.translate_mouse(event)
-        {
+        if should_send && let Some(seq) = self.translator.translate_mouse(event) {
             log::debug!(
                 "Sending mouse VT sequence: {:?}",
                 String::from_utf8_lossy(&seq)
             );
             self.reset_viewport();
-            return self.send_input(&seq);
+            self.buffer.set_last_mouse_pos(Some((event.x, event.y)));
+            self.send_input(&seq)?;
+            return Ok(true);
         }
 
-        Ok(())
+        Ok(false)
     }
 }

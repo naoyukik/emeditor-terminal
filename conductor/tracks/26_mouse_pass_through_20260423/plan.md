@@ -30,3 +30,10 @@
 
 ## Phase: Review Fixes
 - [x] Task: Apply review suggestions 5601d63
+- [x] Task: PR #180 のレビュー指摘事項の修正
+    - [x] `handle_mouse_event` の戻り値を bool に変更し、消費判定を可能にする
+    - [x] `window_message_resolver` でロックを解放してから `default_window_proc` を呼ぶ
+    - [x] 座標取得時の符号拡張修正 (`as i16 as i32`)
+    - [x] `use_sgr_mouse_encoding` の反映と getter 復旧
+    - [x] 同一セル内でのマウス移動送信の抑制
+    - [x] 実機およびユニットテストによる修正後の動作確認

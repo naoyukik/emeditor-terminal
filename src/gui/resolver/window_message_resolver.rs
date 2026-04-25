@@ -56,15 +56,16 @@ pub fn on_mousewheel(window_id: WindowId, wparam: usize, lparam: isize) -> isize
     let is_shift_pressed = unsafe { GetKeyState(VK_SHIFT.0 as i32) } < 0;
 
     let delta = (wparam >> 16) as i16;
-    let px = (lparam & 0xFFFF) as i32;
-    let py = ((lparam >> 16) & 0xFFFF) as i32;
+    let px = (lparam as i16) as i32;
+    let py = (lparam >> 16) as i16 as i32;
 
     let data_arc = get_terminal_data();
-    let mut window_data = data_arc.lock().unwrap();
+    let mut is_handled = false;
+    {
+        let mut window_data = data_arc.lock().unwrap();
 
-    // マウスレポーティングの確認
-    if !is_shift_pressed
-        && let Some(metrics) = window_data.renderer.get_metrics() {
+        // マウスレポーティングの確認
+        if !is_shift_pressed && let Some(metrics) = window_data.renderer.get_metrics() {
             // ScreenToClient 相当の変換が必要だが、lparam はスクリーン座標。
             // 簡単のため、マウスホイールイベントは現在のマウス位置のセル座標を取得する
             let mut pt = windows::Win32::Foundation::POINT { x: px, y: py };
@@ -98,14 +99,20 @@ pub fn on_mousewheel(window_id: WindowId, wparam: usize, lparam: isize) -> isize
                     false,
                 );
 
-                if let Ok(()) = window_data.service.handle_mouse_event(event) {
-                    WindowGuiDriver::invalidate_rect(window_id, false);
-                    return 0;
+                if let Ok(true) = window_data.service.handle_mouse_event(event) {
+                    is_handled = true;
                 }
             }
         }
+    }
 
-    // マウスレポーティングが無効、または Shift 押下時は従来のスクロール処理
+    if is_handled {
+        WindowGuiDriver::invalidate_rect(window_id, false);
+        return 0;
+    }
+
+    // マウスレポーティングが無効、または Shift 押下時、あるいはアプリがイベントを消費しなかった場合は従来のスクロール処理
+    let mut window_data = data_arc.lock().unwrap();
     let action = window_data.scroll_manager.handle_mousewheel(wparam);
     if let ScrollAction::ScrollBy(lines) = action {
         window_data.service.scroll_lines(lines);
@@ -121,14 +128,15 @@ pub fn on_mousehwheel(window_id: WindowId, wparam: usize, lparam: isize) -> isiz
     let is_shift_pressed = unsafe { GetKeyState(VK_SHIFT.0 as i32) } < 0;
 
     let delta = (wparam >> 16) as i16;
-    let px = (lparam & 0xFFFF) as i32;
-    let py = ((lparam >> 16) & 0xFFFF) as i32;
+    let px = (lparam as i16) as i32;
+    let py = (lparam >> 16) as i16 as i32;
 
     let data_arc = get_terminal_data();
-    let mut window_data = data_arc.lock().unwrap();
+    let mut is_handled = false;
+    {
+        let mut window_data = data_arc.lock().unwrap();
 
-    if !is_shift_pressed
-        && let Some(metrics) = window_data.renderer.get_metrics() {
+        if !is_shift_pressed && let Some(metrics) = window_data.renderer.get_metrics() {
             let mut pt = windows::Win32::Foundation::POINT { x: px, y: py };
             if let Some(hwnd) = window_data.window_handle {
                 unsafe {
@@ -159,12 +167,17 @@ pub fn on_mousehwheel(window_id: WindowId, wparam: usize, lparam: isize) -> isiz
                     false,
                 );
 
-                if let Ok(()) = window_data.service.handle_mouse_event(event) {
-                    WindowGuiDriver::invalidate_rect(window_id, false);
-                    return 0;
+                if let Ok(true) = window_data.service.handle_mouse_event(event) {
+                    is_handled = true;
                 }
             }
         }
+    }
+
+    if is_handled {
+        WindowGuiDriver::invalidate_rect(window_id, false);
+        return 0;
+    }
 
     WindowGuiDriver::default_window_proc(window_id, WM_MOUSEHWHEEL, wparam, lparam)
 }
@@ -240,67 +253,74 @@ fn dispatch_mouse_event(window_id: WindowId, msg: u32, wparam: usize, lparam: is
         return WindowGuiDriver::default_window_proc(window_id, msg, wparam, lparam);
     }
 
-    let px = (lparam & 0xFFFF) as i32;
-    let py = ((lparam >> 16) & 0xFFFF) as i32;
+    let px = (lparam as i16) as i32;
+    let py = (lparam >> 16) as i16 as i32;
 
     let data_arc = get_terminal_data();
-    let mut window_data = data_arc.lock().unwrap();
+    let mut is_handled = false;
+    {
+        let mut window_data = data_arc.lock().unwrap();
 
-    // ピクセル座標をセル座標に変換
-    if let Some(metrics) = window_data.renderer.get_metrics() {
-        let x = (px / metrics.base_width).max(0) as usize;
-        let y = (py / metrics.char_height).max(0) as usize;
+        // ピクセル座標をセル座標に変換
+        if let Some(metrics) = window_data.renderer.get_metrics() {
+            let x = (px / metrics.base_width).max(0) as usize;
+            let y = (py / metrics.char_height).max(0) as usize;
 
-        // 境界チェック
-        let buffer_width = window_data.service.get_buffer().get_width();
-        let buffer_height = window_data.service.get_buffer().get_height();
+            // 境界チェック
+            let buffer_width = window_data.service.get_buffer().get_width();
+            let buffer_height = window_data.service.get_buffer().get_height();
 
-        if x < buffer_width && y < buffer_height {
-            let button = match msg {
-                WM_LBUTTONDOWN | WM_LBUTTONUP => MouseButton::Left,
-                WM_RBUTTONDOWN | WM_RBUTTONUP => MouseButton::Right,
-                WM_MBUTTONDOWN | WM_MBUTTONUP => MouseButton::Middle,
-                _ => {
-                    // ドラッグ中か判定
-                    let is_left = (wparam & 0x0001) != 0;
-                    let is_right = (wparam & 0x0002) != 0;
-                    let is_middle = (wparam & 0x0010) != 0;
+            if x < buffer_width && y < buffer_height {
+                let button = match msg {
+                    WM_LBUTTONDOWN | WM_LBUTTONUP => MouseButton::Left,
+                    WM_RBUTTONDOWN | WM_RBUTTONUP => MouseButton::Right,
+                    WM_MBUTTONDOWN | WM_MBUTTONUP => MouseButton::Middle,
+                    _ => {
+                        // ドラッグ中か判定
+                        let is_left = (wparam & 0x0001) != 0;
+                        let is_right = (wparam & 0x0002) != 0;
+                        let is_middle = (wparam & 0x0010) != 0;
 
-                    if is_left {
-                        MouseButton::Left
-                    } else if is_right {
-                        MouseButton::Right
-                    } else if is_middle {
-                        MouseButton::Middle
-                    } else {
-                        MouseButton::None
+                        if is_left {
+                            MouseButton::Left
+                        } else if is_right {
+                            MouseButton::Right
+                        } else if is_middle {
+                            MouseButton::Middle
+                        } else {
+                            MouseButton::None
+                        }
                     }
+                };
+
+                let is_release = matches!(msg, WM_LBUTTONUP | WM_RBUTTONUP | WM_MBUTTONUP);
+                let is_drag = msg == WM_MOUSEMOVE && button != MouseButton::None;
+
+                let event = MouseEvent::new(
+                    button,
+                    x,
+                    y,
+                    Modifiers {
+                        is_ctrl_pressed,
+                        is_shift_pressed,
+                        is_alt_pressed,
+                    },
+                    is_release,
+                    is_drag,
+                );
+
+                if let Ok(true) = window_data.service.handle_mouse_event(event) {
+                    is_handled = true;
                 }
-            };
-
-            let is_release = matches!(msg, WM_LBUTTONUP | WM_RBUTTONUP | WM_MBUTTONUP);
-            let is_drag = msg == WM_MOUSEMOVE && button != MouseButton::None;
-
-            let event = MouseEvent::new(
-                button,
-                x,
-                y,
-                Modifiers {
-                    is_ctrl_pressed,
-                    is_shift_pressed,
-                    is_alt_pressed,
-                },
-                is_release,
-                is_drag,
-            );
-
-            if let Ok(()) = window_data.service.handle_mouse_event(event) {
-                // イベントが処理された場合（トラッキングモードが有効だった場合）
-                // 座標が変化していれば再描画を促す
-                WindowGuiDriver::invalidate_rect(window_id, false);
-                return 0;
             }
         }
+    }
+
+    if is_handled {
+        // イベントが処理された場合（トラッキングモードが有効だった場合）
+        // 座標が変化していれば再描画を促す
+        WindowGuiDriver::invalidate_rect(window_id, false);
+        return 0;
     }
 
     WindowGuiDriver::default_window_proc(window_id, msg, wparam, lparam)
