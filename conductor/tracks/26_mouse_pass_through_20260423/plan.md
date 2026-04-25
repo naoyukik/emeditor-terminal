@@ -27,3 +27,6 @@
 - [x] Task: 実機（EmEditor + Vim/tmux 等）によるマウス操作の手動検証
 - [x] Task: `cargo clippy` および `cargo fmt` の実行
 - [x] Task: Conductor - User Manual Verification 'Phase 3' (実機動作確認の承認)
+
+## Phase: Review Fixes
+- [x] Task: Apply review suggestions 5601d63
