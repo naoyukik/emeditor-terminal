@@ -455,6 +455,9 @@ impl TerminalBufferEntity {
     pub fn set_mouse_tracking_mode(&mut self, mode: MouseTrackingMode) {
         self.mouse_tracking_mode = mode;
     }
+    pub fn is_sgr_mouse_encoding_enabled(&self) -> bool {
+        self.use_sgr_mouse_encoding
+    }
     pub fn set_sgr_mouse_encoding(&mut self, enabled: bool) {
         self.use_sgr_mouse_encoding = enabled;
     }

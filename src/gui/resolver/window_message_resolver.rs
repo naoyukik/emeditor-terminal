@@ -91,7 +91,7 @@ pub fn on_mousewheel(window_id: WindowId, wparam: usize, lparam: isize) -> isize
                     y,
                     Modifiers {
                         is_ctrl_pressed,
-                        is_shift_pressed: false,
+                        is_shift_pressed,
                         is_alt_pressed,
                     },
                     false,
@@ -152,7 +152,7 @@ pub fn on_mousehwheel(window_id: WindowId, wparam: usize, lparam: isize) -> isiz
                     y,
                     Modifiers {
                         is_ctrl_pressed,
-                        is_shift_pressed: false,
+                        is_shift_pressed,
                         is_alt_pressed,
                     },
                     false,
