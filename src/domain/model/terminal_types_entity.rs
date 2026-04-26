@@ -61,6 +61,15 @@ pub enum CursorStyle {
     SteadyBar,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum MouseTrackingMode {
+    #[default]
+    None,
+    Default,     // 1000: ボタンの押し下げ/離上を送信
+    ButtonEvent, // 1002: ボタンの押し下げ/離上 + ドラッグを送信
+    AnyEvent,    // 1003: 全ての移動イベントを送信
+}
+
 pub struct Cursor {
     pub x: usize,
     pub y: usize,

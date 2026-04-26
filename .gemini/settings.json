@@ -70,25 +70,25 @@
           {
             "name": "check-ampersand",
             "type": "command",
-            "command": "$PYTHON_COMMAND $GEMINI_PROJECT_DIR/.gemini/hooks/detect_double_ampersand.py",
+            "command": "uv run python .gemini/hooks/detect_double_ampersand.py",
             "description": "PowerShellでの&&利用を制限する"
           },
           {
             "name": "restrict-git-add-all",
             "type": "command",
-            "command": "$PYTHON_COMMAND $GEMINI_PROJECT_DIR/.gemini/hooks/restrict_git_add_all.py",
+            "command": "uv run python .gemini/hooks/restrict_git_add_all.py",
             "description": "git add . や -A を制限する"
           },
           {
             "name": "suggest-conductor-skill",
             "type": "command",
-            "command": "$PYTHON_COMMAND $GEMINI_PROJECT_DIR/.gemini/hooks/suggest_conductor_skill.py",
+            "command": "uv run python .gemini/hooks/suggest_conductor_skill.py",
             "description": "/conductor コマンド検出時にスキルの使用を促す"
           },
           {
             "name": "check-get-content",
             "type": "command",
-            "command": "$PYTHON_COMMAND $GEMINI_PROJECT_DIR/.gemini/hooks/detect_get_content_command.py",
+            "command": "uv run python .gemini/hooks/detect_get_content_command.py",
             "description": "PowerShellでのGet-Content利用を制限する"
           }
         ]
@@ -99,7 +99,7 @@
           {
             "name": "architecture-guard",
             "type": "command",
-            "command": "$PYTHON_COMMAND $GEMINI_PROJECT_DIR/.gemini/hooks/validate_architecture.py",
+            "command": "uv run python .gemini/hooks/validate_architecture.py",
             "description": "レイヤー間の依存方向と命名規則（Suffix Rule）を強制する"
           }
         ]
@@ -112,7 +112,7 @@
           {
             "name": "suggest-conductor-skill",
             "type": "command",
-            "command": "$PYTHON_COMMAND $GEMINI_PROJECT_DIR/.gemini/hooks/suggest_conductor_skill.py",
+            "command": "uv run python .gemini/hooks/suggest_conductor_skill.py",
             "description": "/conductor コマンド検出時にスキルの使用を促す"
           }
         ]
@@ -123,9 +123,9 @@
         "matcher": "startup",
         "hooks": [
           {
-            "name": "python-memory-loader",
+            "name": "memory-loader",
             "type": "command",
-            "command": "$PYTHON_COMMAND $GEMINI_PROJECT_DIR/.gemini/hooks/init_memory.py",
+            "command": "uv run python .gemini/hooks/init_memory.py",
             "description": "汎用的なメモリロード・フック"
           }
         ]
@@ -138,7 +138,7 @@
           {
             "name": "mempal_save_hook",
             "type": "command",
-            "command": "$PYTHON_COMMAND $GEMINI_PROJECT_DIR/.gemini/hooks/mempal_save_hook.py",
+            "command": "uv run python .gemini/hooks/mempal_save_hook.py",
             "description": "セッション終了時にMempalaceにメモリを保存する"
           }
         ]

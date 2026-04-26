@@ -4,16 +4,16 @@ use crate::domain::model::terminal_buffer_entity::{
 use crate::gui::common::points_to_pixels_from_hdc;
 use std::collections::HashMap;
 use unicode_width::UnicodeWidthStr;
-use windows::core::PCWSTR;
 use windows::Win32::Foundation::{COLORREF, RECT, SIZE};
 use windows::Win32::Graphics::Gdi::{
-    BitBlt, CreateCompatibleBitmap, CreateCompatibleDC, CreateFontIndirectW, CreateSolidBrush,
-    DeleteDC, DeleteObject, ExtTextOutW, FillRect, GetTextExtentPoint32W, GetTextMetricsW,
-    InvertRect, SelectObject, SetBkColor, SetTextColor, CLIP_DEFAULT_PRECIS, DEFAULT_CHARSET,
-    DEFAULT_QUALITY, ETO_OPAQUE, ETO_OPTIONS, FF_MODERN, FIXED_PITCH, FONT_CHARSET,
-    FONT_CLIP_PRECISION, FONT_OUTPUT_PRECISION, FONT_QUALITY, HDC, HFONT, HGDIOBJ, LOGFONTW,
-    OUT_DEFAULT_PRECIS, SRCCOPY, TEXTMETRICW,
+    BitBlt, CLIP_DEFAULT_PRECIS, CreateCompatibleBitmap, CreateCompatibleDC, CreateFontIndirectW,
+    CreateSolidBrush, DEFAULT_CHARSET, DEFAULT_QUALITY, DeleteDC, DeleteObject, ETO_OPAQUE,
+    ETO_OPTIONS, ExtTextOutW, FF_MODERN, FIXED_PITCH, FONT_CHARSET, FONT_CLIP_PRECISION,
+    FONT_OUTPUT_PRECISION, FONT_QUALITY, FillRect, GetTextExtentPoint32W, GetTextMetricsW, HDC,
+    HFONT, HGDIOBJ, InvertRect, LOGFONTW, OUT_DEFAULT_PRECIS, SRCCOPY, SelectObject, SetBkColor,
+    SetTextColor, TEXTMETRICW,
 };
+use windows::core::PCWSTR;
 
 pub struct TerminalGuiDriverContext {
     pub hdc: HDC,
@@ -49,7 +49,7 @@ const HGDI_ERROR_VALUE: isize = -1;
 struct CreatedDcGuard(HDC);
 impl Drop for CreatedDcGuard {
     fn drop(&mut self) {
-        if !self.0 .0.is_null() {
+        if !self.0.0.is_null() {
             // SAFETY: 生成された DC を確実に削除し、リソースリークを防ぐ。
             unsafe {
                 let _ = DeleteDC(self.0);
@@ -61,7 +61,7 @@ impl Drop for CreatedDcGuard {
 struct GdiObjectGuard(HGDIOBJ);
 impl Drop for GdiObjectGuard {
     fn drop(&mut self) {
-        if !self.0 .0.is_null() {
+        if !self.0.0.is_null() {
             // SAFETY: 生成された GDI オブジェクトを確実に削除し、リソースリークを防ぐ。
             unsafe {
                 let _ = DeleteObject(self.0);
@@ -126,7 +126,7 @@ impl TerminalGuiDriver {
         for (_, send_h_font) in self.fonts.drain() {
             // SAFETY: キャッシュされていたフォントハンドルを破棄する。
             unsafe {
-                let _ = DeleteObject(HGDIOBJ(send_h_font.0 .0));
+                let _ = DeleteObject(HGDIOBJ(send_h_font.0.0));
             }
         }
         self.metrics = None;

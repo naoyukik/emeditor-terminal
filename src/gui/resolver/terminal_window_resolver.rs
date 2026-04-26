@@ -22,13 +22,15 @@ pub struct TerminalWindowResolver {
 impl TerminalWindowResolver {
     /// ターミナルデータを遅延初期化する。
     fn new_default() -> Self {
+        use crate::domain::service::vt_sequence_translator_domain_service::VtSequenceTranslatorDomainService;
         use crate::infra::repository::conpty_repository_impl::DummyOutputRepository;
         use crate::infra::repository::emeditor_config_repository_impl::EmEditorConfigRepositoryImpl;
 
         let output_repo = Box::new(DummyOutputRepository);
         let config_repo = Box::new(EmEditorConfigRepositoryImpl::new(WindowId(0)));
+        let translator = Box::new(VtSequenceTranslatorDomainService::new());
         let is_dark = crate::infra::driver::emeditor_io_driver::is_system_dark_mode();
-        let service = TerminalWorkflow::new(80, 25, output_repo, config_repo, is_dark);
+        let service = TerminalWorkflow::new(80, 25, output_repo, config_repo, translator, is_dark);
 
         TerminalWindowResolver {
             service,

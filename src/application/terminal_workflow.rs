@@ -1,7 +1,9 @@
 use crate::domain::model::color_theme_value::ColorTheme;
+use crate::domain::model::input_value::MouseEvent;
 use crate::domain::model::terminal_buffer_entity::TerminalBufferEntity;
 use crate::domain::model::terminal_config_value::TerminalConfig;
 use crate::domain::repository::configuration_repository::{ConfigError, ConfigurationRepository};
+use crate::domain::repository::key_translator_repository::KeyTranslatorRepository;
 use crate::domain::repository::terminal_output_repository::TerminalOutputRepository;
 use crate::domain::service::ansi_parser_domain_service::AnsiParserDomainService;
 
@@ -10,6 +12,7 @@ pub struct TerminalWorkflow {
     parser: AnsiParserDomainService,
     output_repo: Box<dyn TerminalOutputRepository>,
     config_repo: Box<dyn ConfigurationRepository>,
+    translator: Box<dyn KeyTranslatorRepository>,
     // キャッシュされた設定情報
     font_face: String,
     font_size: i32,
@@ -28,6 +31,7 @@ impl TerminalWorkflow {
         rows: usize,
         output_repo: Box<dyn TerminalOutputRepository>,
         config_repo: Box<dyn ConfigurationRepository>,
+        translator: Box<dyn KeyTranslatorRepository>,
         is_dark: bool,
     ) -> Self {
         let config = config_repo.load();
@@ -51,6 +55,7 @@ impl TerminalWorkflow {
             parser: AnsiParserDomainService::new(),
             output_repo,
             config_repo,
+            translator,
             font_face,
             font_size,
             font_weight,
@@ -134,5 +139,59 @@ impl TerminalWorkflow {
     /// 現在のビューポートのオフセットを取得する
     pub fn get_viewport_offset(&self) -> usize {
         self.buffer.get_viewport_offset()
+    }
+
+    /// マウスイベントを処理する
+    pub fn handle_mouse_event(&mut self, event: MouseEvent) -> std::io::Result<bool> {
+        use crate::domain::model::input_value::MouseButton;
+        use crate::domain::model::terminal_types_entity::MouseTrackingMode;
+
+        let mode = self.buffer.get_mouse_tracking_mode();
+
+        if mode == MouseTrackingMode::None {
+            return Ok(false);
+        }
+
+        // SGR 1006 が有効でない場合は、現在サポートしていないため送信しない
+        if !self.buffer.is_sgr_mouse_encoding_enabled() {
+            return Ok(false);
+        }
+
+        // 座標が変わっていない移動（ホバーまたはドラッグ）は抑制する
+        if (event.button == MouseButton::None || event.is_drag)
+            && self.buffer.get_last_mouse_pos() == Some((event.x, event.y))
+        {
+            return Ok(false);
+        }
+
+        // モードに応じたフィルタリング
+        let should_send = match mode {
+            MouseTrackingMode::Default => {
+                // 1000: ボタンプレス/リリースのみ（ドラッグ/ホバー除外）
+                !event.is_drag && event.button != MouseButton::None
+            }
+            MouseTrackingMode::ButtonEvent => {
+                // 1002: ボタンプレス/リリース + ドラッグ（ホバー除外）
+                event.button != MouseButton::None
+            }
+            MouseTrackingMode::AnyEvent => {
+                // 1003: 全て送信
+                true
+            }
+            _ => false,
+        };
+
+        if should_send && let Some(seq) = self.translator.translate_mouse(event) {
+            log::debug!(
+                "Sending mouse VT sequence: {:?}",
+                String::from_utf8_lossy(&seq)
+            );
+            self.reset_viewport();
+            self.buffer.set_last_mouse_pos(Some((event.x, event.y)));
+            self.send_input(&seq)?;
+            return Ok(true);
+        }
+
+        Ok(false)
     }
 }

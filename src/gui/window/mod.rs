@@ -2,25 +2,26 @@ use crate::domain::model::window_id_value::WindowId;
 use crate::gui::driver::window_gui_driver::WindowGuiDriver;
 use crate::gui::resolver::terminal_window_resolver::get_terminal_data;
 use crate::infra::driver::conpty_io_driver::SendHandle;
-use crate::infra::driver::emeditor_io_driver::{MessageBoxW, SendMessageW, MB_ICONERROR, MB_OK};
 use crate::infra::driver::emeditor_io_driver::{
     CUSTOM_BAR_BOTTOM, CUSTOM_BAR_INFO, EE_CUSTOM_BAR_OPEN,
 };
+use crate::infra::driver::emeditor_io_driver::{MB_ICONERROR, MB_OK, MessageBoxW, SendMessageW};
 use std::mem::size_of;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread;
-use windows::core::{w, PCWSTR};
 use windows::Win32::Foundation::{HWND, LPARAM, LRESULT, WPARAM};
 use windows::Win32::Graphics::Gdi::HBRUSH;
 use windows::Win32::Storage::FileSystem::ReadFile;
 use windows::Win32::UI::WindowsAndMessaging::{
-    CreateWindowExW, DefWindowProcW, PostMessageW, RegisterClassW, CS_HREDRAW, CS_VREDRAW,
-    CW_USEDEFAULT, WINDOW_EX_STYLE, WM_APP, WM_CHAR, WM_DESTROY, WM_ERASEBKGND, WM_GETDLGCODE,
+    CS_HREDRAW, CS_VREDRAW, CW_USEDEFAULT, CreateWindowExW, DefWindowProcW, PostMessageW,
+    RegisterClassW, WINDOW_EX_STYLE, WM_APP, WM_CHAR, WM_DESTROY, WM_ERASEBKGND, WM_GETDLGCODE,
     WM_IME_COMPOSITION, WM_IME_ENDCOMPOSITION, WM_IME_SETCONTEXT, WM_IME_STARTCOMPOSITION,
-    WM_KEYDOWN, WM_KEYUP, WM_KILLFOCUS, WM_LBUTTONDOWN, WM_MOUSEWHEEL, WM_PAINT, WM_SETFOCUS,
-    WM_SIZE, WM_SYSCHAR, WM_SYSCOMMAND, WM_SYSKEYDOWN, WM_SYSKEYUP, WM_VSCROLL, WNDCLASSW,
-    WS_CHILD, WS_CLIPCHILDREN, WS_CLIPSIBLINGS, WS_VISIBLE,
+    WM_KEYDOWN, WM_KEYUP, WM_KILLFOCUS, WM_LBUTTONDOWN, WM_LBUTTONUP, WM_MBUTTONDOWN, WM_MBUTTONUP,
+    WM_MOUSEHWHEEL, WM_MOUSEMOVE, WM_MOUSEWHEEL, WM_PAINT, WM_RBUTTONDOWN, WM_RBUTTONUP,
+    WM_SETFOCUS, WM_SIZE, WM_SYSCHAR, WM_SYSCOMMAND, WM_SYSKEYDOWN, WM_SYSKEYUP, WM_VSCROLL,
+    WNDCLASSW, WS_CHILD, WS_CLIPCHILDREN, WS_CLIPSIBLINGS, WS_VISIBLE,
 };
+use windows::core::{PCWSTR, w};
 
 use crate::gui::resolver::window_message_resolver as handlers;
 
@@ -69,6 +70,9 @@ pub fn ensure_conpty_started(hwnd_client: HWND, hwnd_editor: HWND, cols: i16, ro
                 );
 
                 let is_dark = crate::infra::driver::emeditor_io_driver::is_system_dark_mode();
+                let translator = Box::new(
+                    crate::domain::service::vt_sequence_translator_domain_service::VtSequenceTranslatorDomainService::new(),
+                );
 
                 window_data.service = crate::application::TerminalWorkflow::new(
                     cols as usize,
@@ -79,6 +83,7 @@ pub fn ensure_conpty_started(hwnd_client: HWND, hwnd_editor: HWND, cols: i16, ro
                             parent_id,
                         ),
                     ),
+                    translator,
                     is_dark,
                 );
                 window_data.is_conpty_started = true;
@@ -239,14 +244,22 @@ pub fn cleanup_terminal() {
     let mut window_data = data_arc.lock().unwrap();
 
     // Workflow に新しいダミーサービスを注入してリセット
+    use crate::domain::service::vt_sequence_translator_domain_service::VtSequenceTranslatorDomainService;
     use crate::infra::repository::conpty_repository_impl::DummyOutputRepository;
     use crate::infra::repository::emeditor_config_repository_impl::EmEditorConfigRepositoryImpl;
 
     let output_repo = Box::new(DummyOutputRepository);
     let config_repo = Box::new(EmEditorConfigRepositoryImpl::new(WindowId(0)));
+    let translator = Box::new(VtSequenceTranslatorDomainService::new());
     let is_dark = crate::infra::driver::emeditor_io_driver::is_system_dark_mode();
-    let service =
-        crate::application::TerminalWorkflow::new(80, 25, output_repo, config_repo, is_dark);
+    let service = crate::application::TerminalWorkflow::new(
+        80,
+        25,
+        output_repo,
+        config_repo,
+        translator,
+        is_dark,
+    );
 
     window_data.reset_service(service);
 }
@@ -255,9 +268,16 @@ pub extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LP
     let window_id = WindowId(hwnd.0 as isize);
     match msg {
         WM_VSCROLL => LRESULT(handlers::on_vscroll(window_id, wparam.0, lparam.0)),
-        WM_MOUSEWHEEL => LRESULT(handlers::on_mousewheel(window_id, wparam.0)),
+        WM_MOUSEWHEEL => LRESULT(handlers::on_mousewheel(window_id, wparam.0, lparam.0)),
+        WM_MOUSEHWHEEL => LRESULT(handlers::on_mousehwheel(window_id, wparam.0, lparam.0)),
         WM_PAINT => LRESULT(handlers::on_paint(window_id)),
-        WM_LBUTTONDOWN => LRESULT(handlers::on_lbuttondown(window_id)),
+        WM_LBUTTONDOWN => LRESULT(handlers::on_lbuttondown(window_id, wparam.0, lparam.0)),
+        WM_LBUTTONUP => LRESULT(handlers::on_lbuttonup(window_id, wparam.0, lparam.0)),
+        WM_RBUTTONDOWN => LRESULT(handlers::on_rbuttondown(window_id, wparam.0, lparam.0)),
+        WM_RBUTTONUP => LRESULT(handlers::on_rbuttonup(window_id, wparam.0, lparam.0)),
+        WM_MBUTTONDOWN => LRESULT(handlers::on_mbuttondown(window_id, wparam.0, lparam.0)),
+        WM_MBUTTONUP => LRESULT(handlers::on_mbuttonup(window_id, wparam.0, lparam.0)),
+        WM_MOUSEMOVE => LRESULT(handlers::on_mousemove(window_id, wparam.0, lparam.0)),
         WM_SETFOCUS => LRESULT(handlers::on_set_focus(window_id)),
         WM_KILLFOCUS => LRESULT(handlers::on_kill_focus()),
         WM_KEYDOWN => LRESULT(handlers::on_keydown(window_id, msg, wparam.0, lparam.0)),

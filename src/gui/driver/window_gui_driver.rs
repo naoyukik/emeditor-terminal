@@ -2,7 +2,7 @@ use crate::domain::model::window_id_value::WindowId;
 use crate::gui::resolver::terminal_window_resolver::get_terminal_data;
 use windows::Win32::Foundation::{HWND, LPARAM, RECT, WPARAM};
 use windows::Win32::Graphics::Gdi::{
-    BeginPaint, EndPaint, InvalidateRect, UpdateWindow, PAINTSTRUCT,
+    BeginPaint, EndPaint, InvalidateRect, PAINTSTRUCT, UpdateWindow,
 };
 use windows::Win32::UI::Input::KeyboardAndMouse::SetFocus;
 use windows::Win32::UI::WindowsAndMessaging::{
