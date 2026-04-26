@@ -1,8 +1,0 @@
-{
-  "track_id": "26_mouse_pass_through_20260423",
-  "type": "feature",
-  "status": "new",
-  "created_at": "2026-04-23T11:00:00Z",
-  "updated_at": "2026-04-23T11:00:00Z",
-  "description": "GitHub Issue 26: マウスイベントのパススルー実装 (SGR 1006)"
-}
