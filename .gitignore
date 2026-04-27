@@ -66,6 +66,7 @@
 
 # AI files
 *.local.md
+AGENTS.override.md
 
 # EmEditor SDK Documentation
 /sdk
