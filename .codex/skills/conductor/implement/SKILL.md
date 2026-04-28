@@ -1,5 +1,5 @@
 ---
-name: implement
+name: conductor:implement
 description: Executes the tasks defined in the specified track's plan
 ---
 

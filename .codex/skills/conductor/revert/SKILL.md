@@ -1,5 +1,5 @@
 ---
-name: revert
+name: conductor:revert
 description: Reverts previous work
 ---
 
