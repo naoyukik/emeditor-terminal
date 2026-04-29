@@ -78,6 +78,9 @@ AGENTS.override.md
 # Codex CLI
 .codex/config.toml
 
+# Junie CLI
+.junie
+
 # EmEditor SDK Documentation
 /sdk
 
