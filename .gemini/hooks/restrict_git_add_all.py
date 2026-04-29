@@ -14,7 +14,7 @@ def main():
 
         # git add . / git add -A / git add --all を検出
         # 空白の数やクォートの有無に対応
-        if re.search(r'git\s+add\s+(\.(?=\s|$)|-A|--all)(\s+|$)', command):
+        if re.search(r'git\s+add\s+(\.(?:[\\/])?(?=\s|$)|-A)(\s+|$)', command):
             print(json.dumps({
                 "decision": "deny",
                 "reason": "git add . or -A is prohibited. Please specify files individually, or use 'git add conductor/' for documentation.",

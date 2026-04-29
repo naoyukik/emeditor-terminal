@@ -30,8 +30,8 @@ CRITICAL: You must validate the success of every tool call. If any tool call fai
 
 2.  **Locate and Parse Tracks Registry:**
     -   Resolve the **Tracks Registry**.
-    -   Read and parse this file. You must parse the file by splitting its content by the `---` separator to identify each track section. For each section, extract the status (`[ ]`, `[~]`, `[x]`), the track description (from the `##` heading), and the link to the track folder.
-    -   **CRITICAL:** If no track sections are found after parsing, announce: "The tracks file is empty or malformed. No tracks to implement." and halt.
+    -   Read and parse this file. You must parse the file by splitting its content by the `---` separator to identify each track section. For each section, extract the status (`[ ]`, `[~]`, `[x]`), the track description, and the link to the track folder. When extracting the status and track description, support both of these track header formats: `## [ ] Track: <track_description>` and `- [ ] **Track: <track_description>**`. Treat either format as a valid track section header.
+    -   **CRITICAL:** If no valid track sections are found after parsing, announce: "The tracks file is empty or malformed. No tracks to implement." and halt.
 
 3.  **Continue:** Immediately proceed to the next step to select a track.
 
@@ -76,7 +76,7 @@ CRITICAL: You must validate the success of every tool call. If any tool call fai
 
 2.  **Update Status to 'In Progress':**
     -   Before beginning any work, you MUST update the status of the selected track in the **Tracks Registry** file.
-    -   This requires finding the specific heading for the track (e.g., `## [ ] Track: <Description>`) and replacing it with the updated status (e.g., `## [~] Track: <Description>`) in the **Tracks Registry** file you identified earlier.
+    -   This requires finding the specific entry for the track (e.g., `## [ ] Track: <Description>` or `- [ ] **Track: <Description>**`) and replacing the status (e.g., `[~]`) in the **Tracks Registry** file you identified earlier.
 
 3.  **Load Track Context:**
     a. **Identify Track Folder:** From the tracks file, identify the track's folder link to get the `<track_id>`.
@@ -94,7 +94,7 @@ CRITICAL: You must validate the success of every tool call. If any tool call fai
 
 5.  **Finalize Track:**
     -   After all tasks in the track's local **Implementation Plan** are completed, you MUST update the track's status in the **Tracks Registry**.
-    -   This requires finding the specific heading for the track (e.g., `## [~] Track: <Description>`) and replacing it with the completed status (e.g., `## [x] Track: <Description>`).
+    -   This requires finding the specific entry for the track and replacing the status with the completed status (e.g., `[x]`).
     -   **Commit Changes:** Stage the **Tracks Registry** file and commit with the message `chore(conductor): Mark track '<track_description>' as complete`.
     -   Announce that the track is fully complete and the tracks file has been updated.
 
@@ -199,7 +199,7 @@ CRITICAL: You must validate the success of every tool call. If any tool call fai
     *   **If user chooses "Archive":**
         i.   **Create Archive Directory:** Check for the existence of `conductor/archive/`. If it does not exist, create it.
         ii.  **Archive Track Folder:** Move the track's folder from its current location (resolved via the **Tracks Directory**) to `conductor/archive/<track_id>`.
-        iii. **Remove from Tracks File:** Read the content of the **Tracks Registry** file, remove the entire section for the completed track (the part that starts with `---` and contains the track description), and write the modified content back to the file.
+        iii. **Remove from Tracks File:** Read the content of the **Tracks Registry** file, remove the entire entry/section for the completed track, and write the modified content back to the file.
         iv.  **Commit Changes:** Stage the **Tracks Registry** file and `conductor/archive/`. Commit with the message `chore(conductor): Archive track '<track_description>'`.
         v.   **Announce Success:** Announce: "Track '<track_description>' has been successfully archived."
     *   **If user chooses "Delete":**
@@ -211,7 +211,7 @@ CRITICAL: You must validate the success of every tool call. If any tool call fai
         ii. **Handle Confirmation:**
             - **If 'yes'**:
                 a. **Delete Track Folder:** Resolve the **Tracks Directory** and permanently delete the track's folder from `<Tracks Directory>/<track_id>`.
-                b. **Remove from Tracks File:** Read the content of the **Tracks Registry** file, remove the entire section for the completed track, and write the modified content back to the file.
+                b. **Remove from Tracks File:** Read the content of the **Tracks Registry** file, remove the entire entry/section for the completed track, and write the modified content back to the file.
                 c. **Commit Changes:** Stage the **Tracks Registry** file and the deletion of the track directory. Commit with the message `chore(conductor): Delete track '<track_description>'`.
                 d. **Announce Success:** Announce: "Track '<track_description>' has been permanently deleted."
             - **If 'no'**:

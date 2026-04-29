@@ -29,7 +29,7 @@ prefix_rule(
 
 # Automatically allow safe git commands
 prefix_rule(
-    pattern = ["git", ["status", "diff", "log", "rev-parse", "config", "branch"]],
+    pattern = ["git", ["status", "diff", "log", "rev-parse", "config", "branch", "remote"]],
     decision = "allow",
     justification = "Safe git read and inspection commands are allowed",
     match = [
@@ -37,6 +37,7 @@ prefix_rule(
         "git diff HEAD",
         "git log -n 3",
         "git branch --show-current",
+        "git remote get-url origin",
     ]
 )
 
@@ -73,12 +74,13 @@ prefix_rule(
 
 # Automatically allow safe gh commands
 prefix_rule(
-    pattern = ["gh", ["issue", "pr", "repo"], "view"],
+    pattern = ["gh", ["issue", "pr", "repo", "version"]],
     decision = "allow",
-    justification = "Safe GitHub CLI view commands are allowed",
+    justification = "Safe GitHub CLI view and version commands are allowed",
     match = [
         "gh issue view 17",
         "gh pr view 138",
+        "gh version",
     ]
 )
 
@@ -95,6 +97,18 @@ prefix_rule(
     pattern = ["git", "add", "."],
     decision = "forbidden",
     justification = "git add . の使用はプロジェクト規約により厳禁されている。ファイルを個別に指定せよ。",
+)
+
+prefix_rule(
+    pattern = ["git", "add", "./"],
+    decision = "forbidden",
+    justification = "git add ./ の使用はプロジェクト規約により厳禁されている。ファイルを個別に指定せよ。",
+)
+
+prefix_rule(
+    pattern = ["git", "add", ".\\"],
+    decision = "forbidden",
+    justification = "git add .\\ の使用はプロジェクト規約により厳禁されている。ファイルを個別に指定せよ。",
 )
 
 prefix_rule(
