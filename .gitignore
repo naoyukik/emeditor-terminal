@@ -68,6 +68,9 @@
 *.local.md
 AGENTS.override.md
 
+# Gemini CLI
+.gemini/settings.json
+
 # EmEditor SDK Documentation
 /sdk
 
@@ -77,3 +80,4 @@ AGENTS.override.md
 # MemPalace per-project files
 mempalace.yaml
 entities.json
+

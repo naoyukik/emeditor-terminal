@@ -7,6 +7,9 @@
 !*.local.md
 !AGENTS.override.md
 
+# Gemini CLI
+!.gemini/settings.json
+
 # EmEditor SDK Documentation
 !/sdk
 
