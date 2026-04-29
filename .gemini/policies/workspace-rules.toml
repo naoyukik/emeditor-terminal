@@ -121,7 +121,7 @@ priority = 100
 # Explicitly deny forbidden patterns (Legacy exclude behavior)
 [[rule]]
 toolName = "run_shell_command"
-commandRegex = "git add (\\.(?=\\s|$)|-A)(\\s|$)"
+commandRegex = "git add (\\.(?:[\\\\/])?(?=\\s|$)|-A)(\\s|$)"
 decision = "deny"
 denyMessage = "git add . または -A の使用はプロジェクト規約により厳禁されている。ファイルを個別に指定せよ。"
 priority = 999
