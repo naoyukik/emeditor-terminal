@@ -94,7 +94,7 @@ priority = 100
 # Automatically allow safe git commands
 [[rule]]
 toolName = "run_shell_command"
-commandPrefix = ["gh issue view", "gh pr view", "gh repo view", "gh version"]
+commandPrefix = ["gh issue view", "gh pr view", "gh repo view", "gh version", "gh issue list"]
 decision = "allow"
 priority = 100
 
