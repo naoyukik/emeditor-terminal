@@ -42,7 +42,7 @@
 - **空行**
 - **参照**: `ref: IssueNumber` を記述すること。IssueNumberはGitブランチの `^[0-9]+-` にマッチする数字のこと
 - **空行**
-- **署名**: メッセージ末尾に `Co-Authored-Byトレイラー` をAIが自分のものを付与すること。
+- **署名**: メッセージ末尾に `Co-Authored-By:` トレイラーを付与すること。キー名は必ず `Co-Authored-By:` のままとし、AIごとに差し替えるのは `名前 <メールアドレス>` の値部分のみとする。
 
 e.g. ブランチ名: 110-implement-font-style-selection
 ```text

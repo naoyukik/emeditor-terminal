@@ -112,6 +112,12 @@ prefix_rule(
 )
 
 prefix_rule(
+    pattern = ["git", "add", "--all"],
+    decision = "forbidden",
+    justification = "git add --all の使用はプロジェクト規約により厳禁されている。ファイルを個別に指定せよ。",
+)
+
+prefix_rule(
     pattern = ["git", "add", "-A"],
     decision = "forbidden",
     justification = "git add -A の使用はプロジェクト規約により厳禁されている。ファイルを個別に指定せよ。",
