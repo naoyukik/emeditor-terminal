@@ -5,16 +5,32 @@
 
 ---
 
-## **1. Git 操作原則 (Git Standards)**
+## **1. プロジェクト構造 (Repository Layout)**
+
+- `src/`: Rust ソースコード。レイヤードアーキテクチャに基づき厳格に分割されている。
+- `conductor/`: Conductor エクステンションによる設計・計画ドキュメント。
+- `sdk/`: EmEditor Plugin SDK 関連資料。
+- `external_sdk/`: 外部依存の SDK やライブラリ。
+- `temporary.local/`: Git にコミットしない一時ファイル（コミットログ等）の保管場所。
+- `install.ps1`: EmEditor 実機へのビルド・インストールスクリプト。
+
+## **2. ビルド・開発コマンド (Build & Development)**
+
+- **ビルド・インストール**: `powershell .\install.ps1` を実行し、実機での動作を確認せよ。
+- **Lint**: `cargo clippy` を実行し、警告をゼロに保て。
+- **Format**: `cargo fmt` でコードスタイルを統一せよ。
+- **テスト**: `cargo test` を実行し、ロジックの正当性を担保せよ。
+
+## **3. Git 操作原則 (Git Standards)**
 
 履歴の整合性と透明性を保つため、一括操作を避け、厳密なステージングを行うこと。
 
-- **個別指定の徹底**: 変更したファイルは原則として個別に `git add <file>` で指定すること。`git add .` や `git add -A` は禁止する。
-- **ドットフォルダのコミット**: ドットフォルダをコミットする際も、`.gemini/...` のようなリポジトリ相対パスでファイルを個別に指定すること。 
-- **ディレクトリ単位の例外**: `conductor/` 配下のドキュメントのみ、整合性確保のため `git add conductor/` すること。
-- **事前監査**: ステージングの前後で必ず `git diff` を実行し、意図しない変更が含まれていないか確認すること。
+- **個別指定の徹底**: 変更したファイルは原則として個別に `git add <file>` で指定すること。`git add .` や `git add -A` は禁止。
+- **ドットフォルダ**: `.gemini/...` 等もリポジトリ相対パスで個別に指定すること。 
+- **Conductor 例外**: `conductor/` 配下のみ、整合性確保のため `git add conductor/` を許可する。
+- **事前監査**: ステージング前後で `git diff` を実行し、意図しない変更（デバッグ残し等）を排除せよ。
 
-## **2. コミット規約 (Commit Convention)**
+## **4. コミット規約 (Commit Convention)**
 
 [Conventional Commits](https://www.conventionalcommits.org/en/) を採用し、以下の形式を維持すること。
 **必ず日本語で記述すること。**
@@ -26,7 +42,7 @@
 - **空行**
 - **参照**: `ref: IssueNumber` を記述すること。IssueNumberはGitブランチの `^[0-9]+-` にマッチする数字のこと
 - **空行**
-- **署名**: メッセージ末尾に `Co-Authored-By: gemini-cli <218195315+gemini-cli@users.noreply.github.com>` を付与すること。
+- **署名**: メッセージ末尾に `Co-Authored-By:` トレイラーを付与すること。キー名は必ず `Co-Authored-By:` のままとし、AIごとに差し替えるのは `名前 <メールアドレス>` の値部分のみとする。
 
 e.g. ブランチ名: 110-implement-font-style-selection
 ```text
@@ -39,46 +55,44 @@ ref: 110
 Co-Authored-By: gemini-cli <218195315+gemini-cli@users.noreply.github.com>
 ```
 
+## **5. アーキテクチャ原則 (Architecture Principles)**
 
-## **3. コミュニケーションと言語 (Communication)**
+「Strict Rigid レイヤードアーキテクチャ」を遵守せよ。
 
-- **日本語の使用**: 全ての対話、レポート、プラン作成、およびコミットメッセージにおいて、常に日本語を使用すること。
-- **Extensions**: Conductorやcode-review等のExtensionsの機能が呼び出されて会話する際、必ず日本語を使用してください。
-- **AcePilotのトーン**: 冷静、知的、かつ厳格な「だ・である」調（常体）を維持すること。
+- **サフィックスによる責務分割**: `_resolver`, `_gui_driver`, `_workflow`, `_entity`, `_repository_impl`, `_io_driver`。
+- **依存の方向**: 常に「外側 → 内側（Domain/Application）」へ。
+- **API 隔離**: `windows-rs` の型は `_gui_driver` と `_io_driver` にのみ封印すること。
+- **詳細**: `conductor/code_styleguides/architecture_rules.md` を参照せよ。
 
-## **4. アーキテクチャ原則 (Architecture Principles)**
+## **6. Done の定義 (Definition of Done)**
 
-本プロジェクトは「Strict Rigid レイヤードアーキテクチャ」を基盤とする。
+タスクの完了は、以下の条件をすべて満たした状態を指す。
 
-- **物理的隔離**: ファイル名サフィックス（`_resolver`, `_gui_driver`, `_workflow`, `_entity`, `_repository_impl`, `_io_driver`）による責務の固定。
-- **依存の方向性**: 依存の矢印は常に「外側 → 内側（Domain/Application）」へ向けること。
-- **API 隔離**: Windows API (windows-rs) の型は `_gui_driver` と `_io_driver` にのみ封印すること。
-- **詳細規定**: `conductor/code_styleguides/architecture_rules.md` を最高位の設計指針として参照すること。
+- [ ] 実装が `Architecture Principles` に準拠している。
+- [ ] `cargo clippy` および `cargo fmt` がパスしている。
+- [ ] `install.ps1` による実機動作確認が成功し、ユーザーの承認を得ている。
+- [ ] 関連する設計ドキュメント（Conductor）が更新されている。
+- [ ] 適切なテストコードが追加または更新されている。
 
-## **5. 検証と安定性 (Validation & Stability)**
+## **7. 継続的な改善 (Retro-action)**
 
-- **手動検証の義務**: 「ユーザー手動検証」タスクは、必ずユーザーによる実機確認と明示的な承認を得ること。
-- **実機優先**: 開発中は `install.ps1` を活用し、常に EmEditor 実機での動作を優先して確認すること。
+- 同じ間違いを二度繰り返した場合、直ちに原因を特定し、本 `AGENTS.md` または関連する `styleguide` を更新して再発を防止せよ。
+- ユーザーからのフィードバックや、開発中に発見した「より良い手法」は、積極的にプロジェクトの知識ベースへ反映させること。
 
-## **6. Temporaryファイル**
+## **8. コミュニケーションと言語 (Communication)**
 
-Gitのコミットメッセージ等、一時的に使用されるファイルを管理するためのルール。
-
-- **保存フォルダ**: `./temporary.local` に保存すること。このフォルダは.gitignoreによって除外されているのでGit環境を汚さない。内部に作成するファイルは、いつ消されても良い内容とすること。
+- **日本語の使用**: 対話、レポート、プラン、コミットメッセージ、および各 Extensions の出力において常に日本語を使用せよ。
+- **トーン**: 冷静、知的、かつ厳格な「だ・である」調（常体）を維持せよ。
 
 ---
 
 ## **開発参考資料**
-- **EmEditor Plugin SDK**: [EmEditor Plugin SDK 公式ドキュメント](https://www.emeditor.com/sdk/)
-  - EmEditor のサンプルコードやプラグイン開発に関するドキュメント。
-  - プロジェクト内の `sdk/` ディレクトリにも SDK 関連の資料が含まれている。
-- **Learn Microsoft**: `learn-microsoft` MCP Serverによってドキュメントを検索可能。
-  - Windows APIや関連技術の公式ドキュメント。
+- **EmEditor Plugin SDK**: [公式ドキュメント](https://www.emeditor.com/sdk/)（`sdk/` 内も参照）
+- **Learn Microsoft**: `learn-microsoft` ツールにより Windows API を検索可能。
 
 ---
 
 ## **プロジェクト情報**
 - **リポジトリ**: https://github.com/naoyukik/emeditor-terminal
-- **リモート(origin)**: https://github.com/naoyukik/emeditor-terminal.git
 - **主要言語**: Rust (Win32 API)
 - **ログ位置**: `$env:TEMP\emeditor_terminal.log`

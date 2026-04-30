@@ -59,6 +59,10 @@
 /emeditor-terminal.eeWorkspace
 /emeditor-terminal.eesln
 
+# Python settings
+uv.lock
+pyproject.toml
+
 # Exclude everything below this point from gminiignore
 # local files
 # A folder for storing files you want to manage but not commit
@@ -66,6 +70,16 @@
 
 # AI files
 *.local.md
+AGENTS.override.md
+
+# Gemini CLI
+.gemini/settings.json
+
+# Codex CLI
+.codex/config.toml
+
+# Junie CLI
+.junie
 
 # EmEditor SDK Documentation
 /sdk

@@ -1,0 +1,124 @@
+# Workspace level policies for emeditor-terminal
+# Converted from .gemini/policies/workspace-rules.toml
+
+# Automatically allow standard build-in read-only tools
+prefix_rule(
+    pattern = [["read_file", "list_directory", "glob", "grep_search", "activate_skill", "cli_help"]],
+    decision = "allow",
+    justification = "Standard read-only tools and skill activation are allowed",
+    match = [
+        "read_file path/to/file",
+        "glob **/*.rs",
+        "activate_skill rust-coding-conventions",
+    ]
+)
+
+# Automatically allow read-only tools from JetBrains MCP
+prefix_rule(
+    pattern = [["build_project", "find_files_by_glob", "find_files_by_name_keyword", "get_all_open_file_paths", "get_file_problems", "get_file_text_by_path", "get_project_dependencies", "get_project_modules", "get_repositories", "get_symbol_info", "list_directory_tree", "open_file_in_editor", "search_file", "search_in_files_by_regex", "search_in_files_by_text", "search_regex", "search_symbol", "search_text"]],
+    decision = "allow",
+    justification = "JetBrains MCP read-only tools are allowed",
+)
+
+# Automatically allow read-only tools from Learn Microsoft MCP
+prefix_rule(
+    pattern = ["microsoft_docs_search"],
+    decision = "allow",
+    justification = "Microsoft documentation search is allowed",
+)
+
+# Automatically allow safe git commands
+prefix_rule(
+    pattern = ["git", ["status", "diff", "log", "rev-parse", "config", "branch", "remote"]],
+    decision = "allow",
+    justification = "Safe git read and inspection commands are allowed",
+    match = [
+        "git status",
+        "git diff HEAD",
+        "git log -n 3",
+        "git branch --show-current",
+        "git remote get-url origin",
+    ]
+)
+
+# Automatically allow safe build/check commands
+prefix_rule(
+    pattern = ["cargo", ["check", "clippy", "fmt", "test", "build"]],
+    decision = "allow",
+    justification = "Standard cargo build and check commands are allowed",
+    match = [
+        "cargo check",
+        "cargo clippy",
+        "cargo test",
+    ]
+)
+
+# Automatically allow common utility commands
+prefix_rule(
+    pattern = [["ls", "dir", "cat", "tail", "mkdir", "Test-Path", "Get-Content", "Get-Item"]],
+    decision = "allow",
+    justification = "Common file and directory utilities are allowed",
+    match = [
+        "ls -la",
+        "cat README.md",
+        "Test-Path .env",
+    ]
+)
+
+# Automatically allow standard GitHub read operations
+prefix_rule(
+    pattern = [["get_label", "issue_read", "list_issue_types", "list_issues", "list_pull_requests", "pull_request_read", "search_issues", "search_pull_requests"]],
+    decision = "allow",
+    justification = "GitHub MCP read operations are allowed",
+)
+
+# Automatically allow safe gh commands
+prefix_rule(
+    pattern = ["gh", ["issue", "pr", "repo", "version"]],
+    decision = "allow",
+    justification = "Safe GitHub CLI view and version commands are allowed",
+    match = [
+        "gh issue view 17",
+        "gh pr view 138",
+        "gh version",
+    ]
+)
+
+# Automatically allow memory operations
+prefix_rule(
+    pattern = [["memory", "mempalace"]],
+    decision = "allow",
+    justification = "Knowledge graph and memory palace operations are allowed",
+)
+
+# Explicitly deny forbidden patterns (Legacy exclude behavior)
+# 分割して定義することで誤検知を抑制する
+prefix_rule(
+    pattern = ["git", "add", "."],
+    decision = "forbidden",
+    justification = "git add . の使用はプロジェクト規約により厳禁されている。ファイルを個別に指定せよ。",
+)
+
+prefix_rule(
+    pattern = ["git", "add", "./"],
+    decision = "forbidden",
+    justification = "git add ./ の使用はプロジェクト規約により厳禁されている。ファイルを個別に指定せよ。",
+)
+
+prefix_rule(
+    pattern = ["git", "add", ".\\"],
+    decision = "forbidden",
+    justification = "git add .\\ の使用はプロジェクト規約により厳禁されている。ファイルを個別に指定せよ。",
+)
+
+prefix_rule(
+    pattern = ["git", "add", "--all"],
+    decision = "forbidden",
+    justification = "git add --all の使用はプロジェクト規約により厳禁されている。ファイルを個別に指定せよ。",
+)
+
+prefix_rule(
+    pattern = ["git", "add", "-A"],
+    decision = "forbidden",
+    justification = "git add -A の使用はプロジェクト規約により厳禁されている。ファイルを個別に指定せよ。",
+)

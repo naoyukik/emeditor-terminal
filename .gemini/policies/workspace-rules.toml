@@ -57,7 +57,7 @@ priority = 50
 # Automatically allow safe git commands
 [[rule]]
 toolName = "run_shell_command"
-commandPrefix = ["git status", "git diff", "git log", "git rev-parse", "git config --get", "git branch --show-current"]
+commandPrefix = ["git status", "git diff", "git log", "git rev-parse", "git config --get", "git branch --show-current", "git remote get-url origin"]
 decision = "allow"
 priority = 100
 
@@ -94,7 +94,7 @@ priority = 100
 # Automatically allow safe git commands
 [[rule]]
 toolName = "run_shell_command"
-commandPrefix = ["gh issue view", "gh pr view", "gh repo view"]
+commandPrefix = ["gh issue view", "gh pr view", "gh repo view", "gh version", "gh issue list"]
 decision = "allow"
 priority = 100
 
@@ -121,7 +121,7 @@ priority = 100
 # Explicitly deny forbidden patterns (Legacy exclude behavior)
 [[rule]]
 toolName = "run_shell_command"
-commandRegex = "git add (\\.|-A)"
+commandRegex = "git add (\\.(?:[\\\\/])?(?=\\s|$)|-A|--all)(\\s|$)"
 decision = "deny"
-denyMessage = "git add . または -A の使用はプロジェクト規約により厳禁されている。ファイルを個別に指定せよ。"
+denyMessage = "git add .、-A、または --all の使用はプロジェクト規約により厳禁されている。ファイルを個別に指定せよ。"
 priority = 999

@@ -5,9 +5,20 @@
 
 # AI files
 !*.local.md
+!AGENTS.override.md
+
+# Gemini CLI
+!.gemini/settings.json
+
+# Codex CLI
+!.codex/config.toml
 
 # EmEditor SDK Documentation
 !/sdk
 
 # Windows sandbox files
 !/sandbox
+
+# MemPalace per-project files
+!mempalace.yaml
+!entities.json
