@@ -165,30 +165,53 @@ impl TerminalWorkflow {
                 return Ok(true);
             }
 
-            // 左クリックでカーソル移動 (水平方向のみ)
-            if event.button == MouseButton::Left && !event.is_release && !event.is_drag {
-                let (cur_x, cur_y) = self.buffer.get_cursor_pos();
-                let viewport_offset = self.buffer.get_viewport_offset();
+            // 左クリックでカーソル移動 (水平方向のみ) または テキスト選択
+            if event.button == MouseButton::Left && !event.is_release {
+                if !event.is_drag {
+                    // 通常のクリック: カーソル移動の試行
+                    let (cur_x, cur_y) = self.buffer.get_cursor_pos();
+                    let viewport_offset = self.buffer.get_viewport_offset();
 
-                // ビューポートが最下部であり、クリック行がカーソル行と一致する場合
-                if viewport_offset == 0 && event.y == cur_y {
-                    let mut seq = Vec::new();
-                    if event.x > cur_x {
-                        let diff = event.x - cur_x;
-                        for _ in 0..diff {
-                            seq.extend_from_slice(b"\x1b[C"); // Right
+                    if viewport_offset == 0 && event.y == cur_y {
+                        let mut seq = Vec::new();
+                        if event.x > cur_x {
+                            let diff = event.x - cur_x;
+                            for _ in 0..diff {
+                                seq.extend_from_slice(b"\x1b[C");
+                            }
+                        } else if event.x < cur_x {
+                            let diff = cur_x - event.x;
+                            for _ in 0..diff {
+                                seq.extend_from_slice(b"\x1b[D");
+                            }
                         }
-                    } else if event.x < cur_x {
-                        let diff = cur_x - event.x;
-                        for _ in 0..diff {
-                            seq.extend_from_slice(b"\x1b[D"); // Left
+
+                        if !seq.is_empty() {
+                            // クリック時は選択範囲をクリア
+                            self.buffer.set_selection_range(None);
+                            self.send_input(&seq)?;
+                            return Ok(true);
                         }
                     }
-
-                    if !seq.is_empty() {
-                        self.send_input(&seq)?;
-                        return Ok(true);
+                    // カーソル移動対象でないクリックでも、選択範囲をクリアする
+                    self.buffer.set_selection_range(None);
+                } else {
+                    // ドラッグ中: 選択範囲の更新
+                    let current_range = self.buffer.get_selection_range();
+                    match current_range {
+                        Some((start, _)) => {
+                            self.buffer
+                                .set_selection_range(Some((start, (event.x, event.y))));
+                        }
+                        None => {
+                            // ドラッグ開始（Downを逃していた場合や移動開始時）
+                            self.buffer.set_selection_range(Some((
+                                (event.x, event.y),
+                                (event.x, event.y),
+                            )));
+                        }
                     }
+                    return Ok(true); // 再描画を促す
                 }
             }
             return Ok(false);
@@ -426,5 +449,64 @@ mod tests {
         // 左に 5 回移動するはず (\x1b[D が 5回)
         let expected = b"\x1b[D\x1b[D\x1b[D\x1b[D\x1b[D";
         assert_eq!(sent.lock().unwrap().get(0).unwrap(), expected);
+        assert!(workflow.buffer.get_selection_range().is_none());
+    }
+
+    #[test]
+    fn test_handle_mouse_event_selection_drag() {
+        let sent = Arc::new(Mutex::new(Vec::new()));
+        let mut workflow = TerminalWorkflow::new(
+            80,
+            25,
+            Box::new(MockOutputRepo { sent: sent.clone() }),
+            Box::new(MockConfigRepo),
+            Box::new(MockTranslator),
+            Box::new(MockClipboardRepo {
+                text: "".to_string(),
+            }),
+            false,
+        );
+
+        // ドラッグ開始 (10, 5)
+        let event_start = MouseEvent::new(
+            MouseButton::Left,
+            10,
+            5,
+            Modifiers::none(),
+            false,
+            true, // is_drag
+        );
+
+        let result = workflow.handle_mouse_event(event_start).unwrap();
+        assert!(result);
+        let range = workflow.buffer.get_selection_range().unwrap();
+        assert_eq!(range, ((10, 5), (10, 5)));
+
+        // ドラッグ移動 (20, 6)
+        let event_move = MouseEvent::new(
+            MouseButton::Left,
+            20,
+            6,
+            Modifiers::none(),
+            false,
+            true, // is_drag
+        );
+
+        let result = workflow.handle_mouse_event(event_move).unwrap();
+        assert!(result);
+        let range = workflow.buffer.get_selection_range().unwrap();
+        assert_eq!(range, ((10, 5), (20, 6)));
+
+        // クリックで解除
+        let event_click = MouseEvent::new(
+            MouseButton::Left,
+            5,
+            5,
+            Modifiers::none(),
+            false,
+            false, // not drag
+        );
+        workflow.handle_mouse_event(event_click).unwrap();
+        assert!(workflow.buffer.get_selection_range().is_none());
     }
 }

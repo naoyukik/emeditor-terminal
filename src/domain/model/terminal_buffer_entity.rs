@@ -24,6 +24,7 @@ pub struct TerminalBufferEntity {
     mouse_tracking_mode: MouseTrackingMode,
     use_sgr_mouse_encoding: bool,
     last_mouse_pos: Option<(usize, usize)>,
+    selection_range: Option<((usize, usize), (usize, usize))>, // ((start_x, start_y), (end_x, end_y))
 }
 
 impl TerminalBufferEntity {
@@ -44,6 +45,7 @@ impl TerminalBufferEntity {
             mouse_tracking_mode: MouseTrackingMode::None,
             use_sgr_mouse_encoding: false,
             last_mouse_pos: None,
+            selection_range: None,
         }
     }
 
@@ -469,5 +471,12 @@ impl TerminalBufferEntity {
     }
     pub fn set_last_mouse_pos(&mut self, pos: Option<(usize, usize)>) {
         self.last_mouse_pos = pos;
+    }
+
+    pub fn get_selection_range(&self) -> Option<((usize, usize), (usize, usize))> {
+        self.selection_range
+    }
+    pub fn set_selection_range(&mut self, range: Option<((usize, usize), (usize, usize))>) {
+        self.selection_range = range;
     }
 }

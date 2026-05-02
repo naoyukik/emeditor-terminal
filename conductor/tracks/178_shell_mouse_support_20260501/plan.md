@@ -3,7 +3,7 @@
 ## フェーズ 1: 問題の把握と詳細設計 (Discovery & Detailed Design) [Done]
 - [x] Task: `autonomous-researcher` による詳細調査と `evidence_report.md` の作成
 - [x] Task: 調査結果に基づいた `plan.md` の以降のタスクの具体化。
-- [ ] Task: Conductor - ユーザー手動検証 'フェーズ 1' (Protocol in workflow.md)
+- [x] Task: Conductor - ユーザー手動検証 'フェーズ 1' (Protocol in workflow.md)
 
 ## フェーズ 2: クリップボード・リポジトリの導入と貼り付けの実装 [Done]
 - [x] Task: ドメイン層の定義
@@ -19,8 +19,8 @@
 - [x] Task: 動作確認とテスト
     - [x] Action: クリップボード取得および貼り付けロジックのユニットテスト (Mock使用) を追加。
     - [x] Action: `cargo clippy`, `cargo fmt` を実行。
-- [ ] Task: コミット
-- [ ] Task: Conductor - ユーザー手動検証 'フェーズ 2' (Protocol in workflow.md)
+- [x] Task: コミット
+- [x] Task: Conductor - ユーザー手動検証 'フェーズ 2' (Protocol in workflow.md)
 
 ## フェーズ 3: 左クリックによるカーソル移動機能の実装 [Done]
 - [x] Task: カーソル移動ロジックの実装
@@ -28,5 +28,23 @@
 - [x] Task: 動作確認とテスト
     - [x] Action: 距離計算とシーケンス生成のテストを追加。
     - [x] Action: `cargo clippy`, `cargo fmt` を実行。
+- [x] Task: コミット
+- [x] Task: Conductor - ユーザー手動検証 'フェーズ 3' (Protocol in workflow.md)
+
+## フェーズ 4: テキスト選択機能の調査 (Discovery - Selection) [Done]
+- [x] Task: `autonomous-researcher` による詳細調査と `evidence_report.md` の追記
+- [x] Task: 調査結果に基づいた `plan.md` の以降のタスクの具体化。
+- [ ] Task: Conductor - ユーザー手動検証 'フェーズ 4' (Protocol in workflow.md)
+
+## フェーズ 5: テキスト選択機能の実装 (Implementation - Selection)
+- [ ] Task: 選択状態の管理ロジック実装
+    - [ ] Sub-task: `TerminalBufferEntity` もしくは `TerminalWorkflow` に選択範囲（開始座標・終了座標）を保持する変数を追加。
+- [ ] Task: ドラッグイベントの処理
+    - [ ] Sub-task: `dispatch_mouse_event` でドラッグ開始・継続・終了を正しく判定し、選択範囲を更新する。
+- [ ] Task: 描画反映
+    - [ ] Sub-task: `TerminalGuiDriver::render` にて、選択範囲に含まれるセルの背景色を変更する（反転表示等）。
+- [ ] Task: コード品質の確保とテスト
+    - [ ] Sub-task: 選択座標計算ロジックのテスト追加。
+    - [ ] Sub-task: `cargo clippy`, `cargo fmt` を実行。
 - [ ] Task: コミット
-- [ ] Task: Conductor - ユーザー手動検証 'フェーズ 3' (Protocol in workflow.md)
+- [ ] Task: Conductor - ユーザー手動検証 'フェーズ 5' (Protocol in workflow.md)
