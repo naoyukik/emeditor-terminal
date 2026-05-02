@@ -2,6 +2,7 @@ use crate::domain::model::color_theme_value::ColorTheme;
 use crate::domain::model::input_value::MouseEvent;
 use crate::domain::model::terminal_buffer_entity::TerminalBufferEntity;
 use crate::domain::model::terminal_config_value::TerminalConfig;
+use crate::domain::repository::clipboard_repository::ClipboardRepository;
 use crate::domain::repository::configuration_repository::{ConfigError, ConfigurationRepository};
 use crate::domain::repository::key_translator_repository::KeyTranslatorRepository;
 use crate::domain::repository::terminal_output_repository::TerminalOutputRepository;
@@ -13,6 +14,7 @@ pub struct TerminalWorkflow {
     output_repo: Box<dyn TerminalOutputRepository>,
     config_repo: Box<dyn ConfigurationRepository>,
     translator: Box<dyn KeyTranslatorRepository>,
+    clipboard_repo: Box<dyn ClipboardRepository>,
     // キャッシュされた設定情報
     font_face: String,
     font_size: i32,
@@ -32,6 +34,7 @@ impl TerminalWorkflow {
         output_repo: Box<dyn TerminalOutputRepository>,
         config_repo: Box<dyn ConfigurationRepository>,
         translator: Box<dyn KeyTranslatorRepository>,
+        clipboard_repo: Box<dyn ClipboardRepository>,
         is_dark: bool,
     ) -> Self {
         let config = config_repo.load();
@@ -56,6 +59,7 @@ impl TerminalWorkflow {
             output_repo,
             config_repo,
             translator,
+            clipboard_repo,
             font_face,
             font_size,
             font_weight,
@@ -149,6 +153,16 @@ impl TerminalWorkflow {
         let mode = self.buffer.get_mouse_tracking_mode();
 
         if mode == MouseTrackingMode::None {
+            // 右クリックで貼り付け (Down時に実行)
+            if event.button == MouseButton::Right && !event.is_release && !event.is_drag {
+                if let Ok(text) = self.clipboard_repo.get_text() {
+                    if !text.is_empty() {
+                        self.reset_viewport();
+                        self.send_input(text.as_bytes())?;
+                        return Ok(true);
+                    }
+                }
+            }
             return Ok(false);
         }
 
@@ -193,5 +207,130 @@ impl TerminalWorkflow {
         }
 
         Ok(false)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::domain::model::input_value::{Modifiers, MouseButton};
+    use crate::domain::model::terminal_config_value::TerminalConfig;
+    use crate::domain::repository::clipboard_repository::ClipboardRepository;
+    use crate::domain::repository::configuration_repository::ConfigurationRepository;
+    use crate::domain::repository::key_translator_repository::KeyTranslatorRepository;
+    use crate::domain::repository::terminal_output_repository::TerminalOutputRepository;
+    use std::sync::{Arc, Mutex};
+
+    struct MockOutputRepo {
+        sent: Arc<Mutex<Vec<Vec<u8>>>>,
+    }
+    impl TerminalOutputRepository for MockOutputRepo {
+        fn send_input(&self, data: &[u8]) -> std::io::Result<()> {
+            self.sent.lock().unwrap().push(data.to_vec());
+            Ok(())
+        }
+        fn resize(&self, _cols: u16, _rows: u16) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+
+    struct MockConfigRepo;
+    impl ConfigurationRepository for MockConfigRepo {
+        fn load(&self) -> TerminalConfig {
+            TerminalConfig::default()
+        }
+        fn save(&self, _config: &TerminalConfig) -> Result<(), ConfigError> {
+            Ok(())
+        }
+        fn get_terminal_config(&self) -> TerminalConfig {
+            TerminalConfig::default()
+        }
+    }
+
+    struct MockTranslator;
+    impl KeyTranslatorRepository for MockTranslator {
+        fn translate(&self, _key: crate::domain::model::input_value::InputKey) -> Option<Vec<u8>> {
+            None
+        }
+        fn translate_mouse(&self, _event: MouseEvent) -> Option<Vec<u8>> {
+            None
+        }
+    }
+
+    struct MockClipboardRepo {
+        text: String,
+    }
+    impl ClipboardRepository for MockClipboardRepo {
+        fn get_text(&self) -> Result<String, String> {
+            Ok(self.text.clone())
+        }
+    }
+
+    #[test]
+    fn test_handle_mouse_event_paste() {
+        let sent = Arc::new(Mutex::new(Vec::new()));
+        let mut workflow = TerminalWorkflow::new(
+            80,
+            25,
+            Box::new(MockOutputRepo {
+                sent: sent.clone(),
+            }),
+            Box::new(MockConfigRepo),
+            Box::new(MockTranslator),
+            Box::new(MockClipboardRepo {
+                text: "hello".to_string(),
+            }),
+            false,
+        );
+
+        let event = MouseEvent::new(
+            MouseButton::Right,
+            10,
+            10,
+            Modifiers::none(),
+            false, // Down
+            false,
+        );
+
+        let result = workflow.handle_mouse_event(event).unwrap();
+        assert!(result);
+        assert_eq!(sent.lock().unwrap().get(0).unwrap(), b"hello");
+    }
+
+    #[test]
+    fn test_handle_mouse_event_no_paste_if_tracking_on() {
+        let sent = Arc::new(Mutex::new(Vec::new()));
+        let mut workflow = TerminalWorkflow::new(
+            80,
+            25,
+            Box::new(MockOutputRepo {
+                sent: sent.clone(),
+            }),
+            Box::new(MockConfigRepo),
+            Box::new(MockTranslator),
+            Box::new(MockClipboardRepo {
+                text: "hello".to_string(),
+            }),
+            false,
+        );
+
+        // トラッキングを有効にする
+        use crate::domain::model::terminal_types_entity::MouseTrackingMode;
+        workflow.buffer.set_mouse_tracking_mode(MouseTrackingMode::Default);
+        workflow.buffer.set_sgr_mouse_encoding(true);
+
+        let event = MouseEvent::new(
+            MouseButton::Right,
+            10,
+            10,
+            Modifiers::none(),
+            false, // Down
+            false,
+        );
+
+        let result = workflow.handle_mouse_event(event).unwrap();
+        // トラッキング有効時は MockTranslator が None を返すので false になるはず
+        assert!(!result);
+        assert!(sent.lock().unwrap().is_empty());
     }
 }
