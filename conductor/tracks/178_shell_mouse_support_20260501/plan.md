@@ -22,11 +22,11 @@
 - [ ] Task: コミット
 - [ ] Task: Conductor - ユーザー手動検証 'フェーズ 2' (Protocol in workflow.md)
 
-## フェーズ 3: 左クリックによるカーソル移動機能の実装
-- [ ] Task: カーソル移動ロジックの実装
-    - [ ] Action: `TerminalWorkflow::handle_mouse_event` にて、`mode == None` 且つ左クリック時に現在カーソルと同一行であれば、水平距離分の矢印キーシーケンスを `send_input` する処理を追加。
-- [ ] Task: 動作確認とテスト
-    - [ ] Action: 距離計算とシーケンス生成のテストを追加。
-    - [ ] Action: `cargo clippy`, `cargo fmt` を実行。
+## フェーズ 3: 左クリックによるカーソル移動機能の実装 [Done]
+- [x] Task: カーソル移動ロジックの実装
+    - [x] Action: `TerminalWorkflow::handle_mouse_event` にて、`mode == None` 且つ左クリック時に現在カーソルと同一行であれば、水平距離分の矢印キーシーケンスを `send_input` する処理を追加。
+- [x] Task: 動作確認とテスト
+    - [x] Action: 距離計算とシーケンス生成のテストを追加。
+    - [x] Action: `cargo clippy`, `cargo fmt` を実行。
 - [ ] Task: コミット
 - [ ] Task: Conductor - ユーザー手動検証 'フェーズ 3' (Protocol in workflow.md)
