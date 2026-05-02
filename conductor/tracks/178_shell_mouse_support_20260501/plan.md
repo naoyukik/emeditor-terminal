@@ -66,3 +66,14 @@
     - [x] Action: `cargo clippy`, `cargo fmt` を実行。
 - [ ] Task: コミット
 - [ ] Task: Conductor - ユーザー手動検証 'フェーズ 7' (Protocol in workflow.md)
+
+## フェーズ 8: Ctrl+C コピー機能の調査と実装 [Done]
+- [x] Task: キー入力処理経路の特定
+    - [x] Action: `KeyboardGuiDriver` (IO経由) から `TerminalWorkflow::handle_key_event` を呼び出すように変更。
+- [x] Task: コピーロジックの統合
+    - [x] Action: `TerminalWorkflow` にて、選択範囲あり + Ctrl+C 押下時にクリップボードへコピーし、イベントを消費する処理を追加。
+- [x] Task: コード品質の確保とテスト
+    - [x] Action: Ctrl+C 押下時の挙動（コピー vs 信号送信）のユニットテストを追加。
+    - [x] Action: `cargo clippy`, `cargo fmt` を実行。
+- [ ] Task: コミット
+- [ ] Task: Conductor - ユーザー手動検証 'フェーズ 8' (Protocol in workflow.md)

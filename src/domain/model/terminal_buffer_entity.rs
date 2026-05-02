@@ -497,13 +497,17 @@ impl TerminalBufferEntity {
         for y in s_y..=e_y {
             if let Some(line) = self.get_line_at_visual_row(y) {
                 let start_col = if y == s_y { s_x } else { 0 };
-                let end_col = if y == e_y { e_x } else { self.width.saturating_sub(1) };
+                let end_col = if y == e_y {
+                    e_x
+                } else {
+                    self.width.saturating_sub(1)
+                };
 
                 for x in start_col..=end_col {
-                    if let Some(cell) = line.get(x) {
-                        if !cell.is_wide_continuation {
-                            selected_text.push_str(&cell.text);
-                        }
+                    if let Some(cell) = line.get(x)
+                        && !cell.is_wide_continuation
+                    {
+                        selected_text.push_str(&cell.text);
                     }
                 }
                 if y < e_y {

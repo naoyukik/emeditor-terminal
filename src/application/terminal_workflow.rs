@@ -1,5 +1,5 @@
 use crate::domain::model::color_theme_value::ColorTheme;
-use crate::domain::model::input_value::MouseEvent;
+use crate::domain::model::input_value::{InputKey, MouseEvent};
 use crate::domain::model::terminal_buffer_entity::TerminalBufferEntity;
 use crate::domain::model::terminal_config_value::TerminalConfig;
 use crate::domain::repository::clipboard_repository::ClipboardRepository;
@@ -143,6 +143,27 @@ impl TerminalWorkflow {
     /// 現在のビューポートのオフセットを取得する
     pub fn get_viewport_offset(&self) -> usize {
         self.buffer.get_viewport_offset()
+    }
+
+    /// キー入力イベントを処理する
+    pub fn handle_key_event(&mut self, key: InputKey) -> std::io::Result<Option<Vec<u8>>> {
+        // Ctrl+C (VK_C = 0x43)
+        if key.vk_code == 0x43
+            && key.modifiers.is_ctrl_pressed
+            && !key.modifiers.is_shift_pressed
+            && !key.modifiers.is_alt_pressed
+            && self.buffer.get_selection_range().is_some()
+        {
+            let text = self.buffer.get_selected_text();
+            if !text.is_empty() {
+                let _ = self.clipboard_repo.set_text(&text);
+            }
+            self.buffer.set_selection_range(None);
+            return Ok(Some(Vec::new())); // コピーしたので、ターミナルには何も送らない
+        }
+
+        // 通常の翻訳
+        Ok(self.translator.translate(key))
     }
 
     /// マウスイベントを処理する
@@ -555,19 +576,98 @@ mod tests {
         workflow.buffer.set_selection_range(Some(((0, 0), (1, 0))));
 
         // 右クリック
-        let event = MouseEvent::new(
-            MouseButton::Right,
-            10,
-            10,
-            Modifiers::none(),
-            false,
-            false,
-        );
+        let event = MouseEvent::new(MouseButton::Right, 10, 10, Modifiers::none(), false, false);
 
         let result = workflow.handle_mouse_event(event).unwrap();
         assert!(result);
         assert_eq!(*clipboard_text.lock().unwrap(), "AB");
         assert!(workflow.buffer.get_selection_range().is_none());
         assert!(sent.lock().unwrap().is_empty()); // 貼り付けは行われない
+    }
+
+    #[test]
+    fn test_handle_key_event_copy_on_ctrl_c() {
+        let sent = Arc::new(Mutex::new(Vec::new()));
+        let clipboard_text = Arc::new(Mutex::new("".to_string()));
+        let mut workflow = TerminalWorkflow::new(
+            80,
+            25,
+            Box::new(MockOutputRepo { sent: sent.clone() }),
+            Box::new(MockConfigRepo),
+            Box::new(MockTranslator),
+            Box::new(MockClipboardRepo {
+                text: clipboard_text.clone(),
+            }),
+            false,
+        );
+
+        // テキストを書き込む
+        workflow.buffer.print_cell('X');
+        workflow.buffer.print_cell('Y');
+        workflow.buffer.flush_pending_cluster();
+
+        // 範囲を選択 (0,0) to (1,0) -> "XY"
+        workflow.buffer.set_selection_range(Some(((0, 0), (1, 0))));
+
+        // Ctrl+C (VK_C = 0x43)
+        let key = InputKey::new(
+            0x43,
+            Modifiers {
+                is_ctrl_pressed: true,
+                is_shift_pressed: false,
+                is_alt_pressed: false,
+            },
+        );
+
+        let result = workflow.handle_key_event(key).unwrap();
+        assert_eq!(result, Some(Vec::new())); // Handled (empty seq)
+        assert_eq!(*clipboard_text.lock().unwrap(), "XY");
+        assert!(workflow.buffer.get_selection_range().is_none());
+    }
+
+    #[test]
+    fn test_handle_key_event_no_copy_if_no_selection() {
+        let sent = Arc::new(Mutex::new(Vec::new()));
+        let clipboard_text = Arc::new(Mutex::new("".to_string()));
+
+        struct MockTranslatorWithCtrlC;
+        impl KeyTranslatorRepository for MockTranslatorWithCtrlC {
+            fn translate(&self, key: InputKey) -> Option<Vec<u8>> {
+                if key.vk_code == 0x43 && key.modifiers.is_ctrl_pressed {
+                    Some(vec![3])
+                } else {
+                    None
+                }
+            }
+            fn translate_mouse(&self, _event: MouseEvent) -> Option<Vec<u8>> {
+                None
+            }
+        }
+
+        let mut workflow = TerminalWorkflow::new(
+            80,
+            25,
+            Box::new(MockOutputRepo { sent: sent.clone() }),
+            Box::new(MockConfigRepo),
+            Box::new(MockTranslatorWithCtrlC),
+            Box::new(MockClipboardRepo {
+                text: clipboard_text.clone(),
+            }),
+            false,
+        );
+
+        // 選択範囲なし
+        let key = InputKey::new(
+            0x43,
+            Modifiers {
+                is_ctrl_pressed: true,
+                is_shift_pressed: false,
+                is_alt_pressed: false,
+            },
+        );
+
+        let result = workflow.handle_key_event(key).unwrap();
+        assert_eq!(result, Some(vec![3])); // Standard translation
+        assert_eq!(*clipboard_text.lock().unwrap(), "");
     }
 }
