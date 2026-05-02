@@ -1,9 +1,10 @@
 use crate::domain::repository::clipboard_repository::ClipboardRepository;
-use windows::Win32::Foundation::HGLOBAL;
+use windows::Win32::Foundation::{HANDLE, HGLOBAL};
 use windows::Win32::System::DataExchange::{
-    CloseClipboard, GetClipboardData, IsClipboardFormatAvailable, OpenClipboard,
+    CloseClipboard, EmptyClipboard, GetClipboardData, IsClipboardFormatAvailable, OpenClipboard,
+    SetClipboardData,
 };
-use windows::Win32::System::Memory::{GlobalLock, GlobalUnlock};
+use windows::Win32::System::Memory::{GMEM_MOVEABLE, GlobalAlloc, GlobalLock, GlobalUnlock};
 use windows::Win32::System::Ole::CF_UNICODETEXT;
 
 pub struct WindowsClipboardRepositoryImpl;
@@ -42,6 +43,45 @@ impl ClipboardRepository for WindowsClipboardRepositoryImpl {
 
             let _ = CloseClipboard();
             result
+        }
+    }
+
+    fn set_text(&self, text: &str) -> Result<(), String> {
+        let wide_text: Vec<u16> = text.encode_utf16().chain(std::iter::once(0)).collect();
+        let size = wide_text.len() * std::mem::size_of::<u16>();
+
+        // SAFETY: Win32 クリップボード API の標準的な書き込み手順。
+        unsafe {
+            if OpenClipboard(None).is_err() {
+                return Err("Failed to open clipboard".to_string());
+            }
+
+            let _ = EmptyClipboard();
+
+            let h_mem = GlobalAlloc(GMEM_MOVEABLE, size);
+            if h_mem.is_err() {
+                let _ = CloseClipboard();
+                return Err("Failed to allocate global memory".to_string());
+            }
+            let handle = h_mem.unwrap();
+
+            let ptr = GlobalLock(handle);
+            if ptr.is_null() {
+                let _ = CloseClipboard();
+                return Err("Failed to lock global memory".to_string());
+            }
+
+            std::ptr::copy_nonoverlapping(wide_text.as_ptr(), ptr as *mut u16, wide_text.len());
+
+            let _ = GlobalUnlock(handle);
+
+            if SetClipboardData(CF_UNICODETEXT.0 as u32, Some(HANDLE(handle.0))).is_err() {
+                let _ = CloseClipboard();
+                return Err("Failed to set clipboard data".to_string());
+            }
+
+            let _ = CloseClipboard();
+            Ok(())
         }
     }
 }

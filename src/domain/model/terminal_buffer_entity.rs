@@ -479,4 +479,38 @@ impl TerminalBufferEntity {
     pub fn set_selection_range(&mut self, range: Option<((usize, usize), (usize, usize))>) {
         self.selection_range = range;
     }
+
+    pub fn get_selected_text(&self) -> String {
+        let ((start_x, start_y), (end_x, end_y)) = match self.selection_range {
+            Some(r) => r,
+            None => return String::new(),
+        };
+
+        // 開始点と終了点を正規化
+        let (s_x, s_y, e_x, e_y) = if start_y < end_y || (start_y == end_y && start_x <= end_x) {
+            (start_x, start_y, end_x, end_y)
+        } else {
+            (end_x, end_y, start_x, start_y)
+        };
+
+        let mut selected_text = String::new();
+        for y in s_y..=e_y {
+            if let Some(line) = self.get_line_at_visual_row(y) {
+                let start_col = if y == s_y { s_x } else { 0 };
+                let end_col = if y == e_y { e_x } else { self.width.saturating_sub(1) };
+
+                for x in start_col..=end_col {
+                    if let Some(cell) = line.get(x) {
+                        if !cell.is_wide_continuation {
+                            selected_text.push_str(&cell.text);
+                        }
+                    }
+                }
+                if y < e_y {
+                    selected_text.push('\n');
+                }
+            }
+        }
+        selected_text
+    }
 }

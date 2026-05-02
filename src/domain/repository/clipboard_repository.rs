@@ -2,4 +2,6 @@
 pub trait ClipboardRepository: Send + Sync {
     /// クリップボードからテキストを取得する
     fn get_text(&self) -> Result<String, String>;
+    /// クリップボードにテキストを設定する
+    fn set_text(&self, text: &str) -> Result<(), String>;
 }

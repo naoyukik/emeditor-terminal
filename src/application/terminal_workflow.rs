@@ -153,16 +153,26 @@ impl TerminalWorkflow {
         let mode = self.buffer.get_mouse_tracking_mode();
 
         if mode == MouseTrackingMode::None {
-            // 右クリックで貼り付け (Down時に実行)
-            if event.button == MouseButton::Right
-                && !event.is_release
-                && !event.is_drag
-                && let Ok(text) = self.clipboard_repo.get_text()
-                && !text.is_empty()
-            {
-                self.reset_viewport();
-                self.send_input(text.as_bytes())?;
-                return Ok(true);
+            // 右クリックでコピーまたは貼り付け (Down時に実行)
+            if event.button == MouseButton::Right && !event.is_release && !event.is_drag {
+                // 選択範囲があればコピー
+                if self.buffer.get_selection_range().is_some() {
+                    let text = self.buffer.get_selected_text();
+                    if !text.is_empty() {
+                        let _ = self.clipboard_repo.set_text(&text);
+                    }
+                    self.buffer.set_selection_range(None);
+                    return Ok(true);
+                }
+
+                // 選択範囲がなければ貼り付け
+                if let Ok(text) = self.clipboard_repo.get_text()
+                    && !text.is_empty()
+                {
+                    self.reset_viewport();
+                    self.send_input(text.as_bytes())?;
+                    return Ok(true);
+                }
             }
 
             // 左クリックでカーソル移動 (水平方向のみ) または テキスト選択
@@ -309,17 +319,22 @@ mod tests {
     }
 
     struct MockClipboardRepo {
-        text: String,
+        text: Arc<Mutex<String>>,
     }
     impl ClipboardRepository for MockClipboardRepo {
         fn get_text(&self) -> Result<String, String> {
-            Ok(self.text.clone())
+            Ok(self.text.lock().unwrap().clone())
+        }
+        fn set_text(&self, text: &str) -> Result<(), String> {
+            *self.text.lock().unwrap() = text.to_string();
+            Ok(())
         }
     }
 
     #[test]
     fn test_handle_mouse_event_paste() {
         let sent = Arc::new(Mutex::new(Vec::new()));
+        let clipboard_text = Arc::new(Mutex::new("hello".to_string()));
         let mut workflow = TerminalWorkflow::new(
             80,
             25,
@@ -327,7 +342,7 @@ mod tests {
             Box::new(MockConfigRepo),
             Box::new(MockTranslator),
             Box::new(MockClipboardRepo {
-                text: "hello".to_string(),
+                text: clipboard_text.clone(),
             }),
             false,
         );
@@ -349,6 +364,7 @@ mod tests {
     #[test]
     fn test_handle_mouse_event_no_paste_if_tracking_on() {
         let sent = Arc::new(Mutex::new(Vec::new()));
+        let clipboard_text = Arc::new(Mutex::new("hello".to_string()));
         let mut workflow = TerminalWorkflow::new(
             80,
             25,
@@ -356,7 +372,7 @@ mod tests {
             Box::new(MockConfigRepo),
             Box::new(MockTranslator),
             Box::new(MockClipboardRepo {
-                text: "hello".to_string(),
+                text: clipboard_text.clone(),
             }),
             false,
         );
@@ -386,6 +402,7 @@ mod tests {
     #[test]
     fn test_handle_mouse_event_cursor_move_right() {
         let sent = Arc::new(Mutex::new(Vec::new()));
+        let clipboard_text = Arc::new(Mutex::new("".to_string()));
         let mut workflow = TerminalWorkflow::new(
             80,
             25,
@@ -393,7 +410,7 @@ mod tests {
             Box::new(MockConfigRepo),
             Box::new(MockTranslator),
             Box::new(MockClipboardRepo {
-                text: "".to_string(),
+                text: clipboard_text.clone(),
             }),
             false,
         );
@@ -415,11 +432,13 @@ mod tests {
         // 右に 5 回移動するはず (\x1b[C が 5回)
         let expected = b"\x1b[C\x1b[C\x1b[C\x1b[C\x1b[C";
         assert_eq!(sent.lock().unwrap().get(0).unwrap(), expected);
+        assert!(workflow.buffer.get_selection_range().is_none());
     }
 
     #[test]
     fn test_handle_mouse_event_cursor_move_left() {
         let sent = Arc::new(Mutex::new(Vec::new()));
+        let clipboard_text = Arc::new(Mutex::new("".to_string()));
         let mut workflow = TerminalWorkflow::new(
             80,
             25,
@@ -427,7 +446,7 @@ mod tests {
             Box::new(MockConfigRepo),
             Box::new(MockTranslator),
             Box::new(MockClipboardRepo {
-                text: "".to_string(),
+                text: clipboard_text.clone(),
             }),
             false,
         );
@@ -455,6 +474,7 @@ mod tests {
     #[test]
     fn test_handle_mouse_event_selection_drag() {
         let sent = Arc::new(Mutex::new(Vec::new()));
+        let clipboard_text = Arc::new(Mutex::new("".to_string()));
         let mut workflow = TerminalWorkflow::new(
             80,
             25,
@@ -462,7 +482,7 @@ mod tests {
             Box::new(MockConfigRepo),
             Box::new(MockTranslator),
             Box::new(MockClipboardRepo {
-                text: "".to_string(),
+                text: clipboard_text.clone(),
             }),
             false,
         );
@@ -508,5 +528,46 @@ mod tests {
         );
         workflow.handle_mouse_event(event_click).unwrap();
         assert!(workflow.buffer.get_selection_range().is_none());
+    }
+
+    #[test]
+    fn test_handle_mouse_event_copy_on_right_click() {
+        let sent = Arc::new(Mutex::new(Vec::new()));
+        let clipboard_text = Arc::new(Mutex::new("".to_string()));
+        let mut workflow = TerminalWorkflow::new(
+            80,
+            25,
+            Box::new(MockOutputRepo { sent: sent.clone() }),
+            Box::new(MockConfigRepo),
+            Box::new(MockTranslator),
+            Box::new(MockClipboardRepo {
+                text: clipboard_text.clone(),
+            }),
+            false,
+        );
+
+        // テキストを書き込む
+        workflow.buffer.print_cell('A');
+        workflow.buffer.print_cell('B');
+        workflow.buffer.flush_pending_cluster();
+
+        // 範囲を選択 (0,0) to (1,0) -> "AB"
+        workflow.buffer.set_selection_range(Some(((0, 0), (1, 0))));
+
+        // 右クリック
+        let event = MouseEvent::new(
+            MouseButton::Right,
+            10,
+            10,
+            Modifiers::none(),
+            false,
+            false,
+        );
+
+        let result = workflow.handle_mouse_event(event).unwrap();
+        assert!(result);
+        assert_eq!(*clipboard_text.lock().unwrap(), "AB");
+        assert!(workflow.buffer.get_selection_range().is_none());
+        assert!(sent.lock().unwrap().is_empty()); // 貼り付けは行われない
     }
 }

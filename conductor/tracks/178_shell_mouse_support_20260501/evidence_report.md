@@ -46,3 +46,18 @@
 - `src/gui/resolver/window_message_resolver.rs:256` (Shift バイパス処理)
 - `src/application/terminal_workflow.rs:141` (トラッキングモード判定)
 - Windows Terminal の挙動: デフォルトで右クリック貼り付けが有効。
+
+## 追記: 選択範囲のコピー機能 (Issue #178)
+
+### Discovery Summary (Copy)
+- **課題**: テキスト選択範囲が存在する場合に、右クリックでその内容をクリップボードにコピーしたい。
+- **制約**: `ClipboardRepository` は現在 `get_text` (読み取り) のみ対応しているため、`set_text` (書き込み) を追加する必要がある。
+- **成功条件**:
+  - 選択範囲が存在する状態で、ターミナル内を右クリックすると選択範囲のテキストがコピーされる。
+  - コピー後、選択範囲は解除される（一般的なターミナルの挙動）。
+  - 選択範囲がない場合の右クリックは、既存の「クリップボードからの貼り付け」として動作する。
+
+### Implementation Design
+1. **Domain**: `TerminalBufferEntity` に `get_selected_text(&self) -> String` を実装。
+2. **Infra**: `ClipboardRepository` に `set_text` を追加し、Win32 API (`SetClipboardData`) で実装。
+3. **Application**: `handle_mouse_event` の右クリック処理を、選択範囲の有無で分岐させる。
