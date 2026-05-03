@@ -19,6 +19,7 @@
   - `Win32_UI_Input_Ime`: IME制御 (Composition String, Candidate Window)。
   - `Win32_UI_Controls`, `Win32_UI_Controls_Dialogs`: リソースベースのダイアログ、および標準フォント選択ダイアログの制御。
   - **windows-registry**: OS のダークモード設定の検出に `windows-rs` 本体の API ではなく、より安全な `windows-registry` クレートを使用。
+  - `Win32_System_DataExchange`, `Win32_System_Memory`, `Win32_System_Ole`: システムクリップボードへのアクセス。
 - **simplelog / log**: デバッグログ出力。
 - **vte**: ANSI/VT エスケープシーケンスのパース。業界標準のステートマシン実装により、高信頼・高性能なパースを実現。
 - **unicode-width / unicode-segmentation**: 高精度なテキスト測定と書記素クラスター境界判定に使用。
@@ -44,13 +45,14 @@
     - **Configuration**: `TerminalConfig` による構成管理。
     - **Domain Service**: `_domain_service.rs`
     - **Repository (IF)**: `_repository.rs`
+      - **`clipboard_repository.rs`**: クリップボードアクセスの抽象化。
 - **Application 層 (`src/application/`)**: ユースケースの調整。`_workflow.rs`
 - **Infrastructure 層 (`src/infra/`)**: OS/外部 I/O。
     - **Repository Impl**: `_repository_impl.rs`
+      - **`windows_clipboard_repository_impl.rs`**: Win32 クリップボード API の実装。
     - **IO Driver**: `_io_driver.rs` (Win32 API を封印)
 - **Presentation / GUI 層 (`src/gui/`)**:
     - **Resolver**: `_resolver.rs` (OSメッセージ解釈・変換)
     - **GUI Driver**: `_gui_driver.rs` (描画・IME・Win32操作を封印)
       - **`window_gui_driver.rs`**: ウィンドウの生存確認、フォーカス、破棄、および親ハンドル (editor_handle) の適切な管理を担う低層ドライバ。
 - **FFI 境界 (`src/lib.rs`)**: EmEditor SDK と Rust の仲介役。
-
