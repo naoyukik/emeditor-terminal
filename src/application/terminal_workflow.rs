@@ -162,6 +162,19 @@ impl TerminalWorkflow {
             return Ok(Some(Vec::new())); // コピーしたので、ターミナルには何も送らない
         }
 
+        // Ctrl+V (VK_V = 0x56)
+        if key.vk_code == 0x56
+            && key.modifiers.is_ctrl_pressed
+            && !key.modifiers.is_shift_pressed
+            && !key.modifiers.is_alt_pressed
+            && let Ok(text) = self.clipboard_repo.get_text()
+            && !text.is_empty()
+        {
+            self.reset_viewport();
+            self.send_input(text.as_bytes())?;
+            return Ok(Some(Vec::new())); // 貼り付けたので、キー自体は送らない
+        }
+
         // 通常の翻訳
         Ok(self.translator.translate(key))
     }
@@ -669,5 +682,36 @@ mod tests {
         let result = workflow.handle_key_event(key).unwrap();
         assert_eq!(result, Some(vec![3])); // Standard translation
         assert_eq!(*clipboard_text.lock().unwrap(), "");
+    }
+
+    #[test]
+    fn test_handle_key_event_paste_on_ctrl_v() {
+        let sent = Arc::new(Mutex::new(Vec::new()));
+        let clipboard_text = Arc::new(Mutex::new("paste content".to_string()));
+        let mut workflow = TerminalWorkflow::new(
+            80,
+            25,
+            Box::new(MockOutputRepo { sent: sent.clone() }),
+            Box::new(MockConfigRepo),
+            Box::new(MockTranslator),
+            Box::new(MockClipboardRepo {
+                text: clipboard_text.clone(),
+            }),
+            false,
+        );
+
+        // Ctrl+V (VK_V = 0x56)
+        let key = InputKey::new(
+            0x56,
+            Modifiers {
+                is_ctrl_pressed: true,
+                is_shift_pressed: false,
+                is_alt_pressed: false,
+            },
+        );
+
+        let result = workflow.handle_key_event(key).unwrap();
+        assert_eq!(result, Some(Vec::new())); // Handled (empty seq)
+        assert_eq!(sent.lock().unwrap().get(0).unwrap(), b"paste content");
     }
 }

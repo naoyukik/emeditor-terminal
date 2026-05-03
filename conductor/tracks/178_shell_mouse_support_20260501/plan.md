@@ -77,3 +77,12 @@
     - [x] Action: `cargo clippy`, `cargo fmt` を実行。
 - [ ] Task: コミット
 - [ ] Task: Conductor - ユーザー手動検証 'フェーズ 8' (Protocol in workflow.md)
+
+## フェーズ 9: Ctrl+V 高速貼り付けの実装 [Done]
+- [x] Task: Ctrl+V のインターセプト
+    - [x] Action: `TerminalWorkflow::handle_key_event` にて Ctrl+V (0x56) を検知し、直接クリップボードから貼り付けるロジックを追加。
+- [x] Task: コード品質の確保とテスト
+    - [x] Action: Ctrl+V による貼り付け動作のユニットテストを追加。
+    - [x] Action: `cargo clippy`, `cargo fmt` を実行。
+- [ ] Task: コミット
+- [ ] Task: Conductor - ユーザー手動検証 'フェーズ 9' (Protocol in workflow.md)
