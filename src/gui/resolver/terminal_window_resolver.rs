@@ -33,8 +33,15 @@ impl TerminalWindowResolver {
             crate::infra::repository::windows_clipboard_repository_impl::WindowsClipboardRepositoryImpl,
         );
         let is_dark = crate::infra::driver::emeditor_io_driver::is_system_dark_mode();
-        let service =
-            TerminalWorkflow::new(80, 25, output_repo, config_repo, translator, clipboard_repo, is_dark);
+        let service = TerminalWorkflow::new(
+            80,
+            25,
+            output_repo,
+            config_repo,
+            translator,
+            clipboard_repo,
+            is_dark,
+        );
 
         TerminalWindowResolver {
             service,
