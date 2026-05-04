@@ -86,3 +86,21 @@
     - [x] Action: `cargo clippy`, `cargo fmt` を実行。
 - [ ] Task: コミット
 - [ ] Task: Conductor - ユーザー手動検証 'フェーズ 9' (Protocol in workflow.md)
+
+## フェーズ 10: PRレビュー指摘への対応 (Review Fixes) [Done]
+- [x] Task: クリップボード処理の安全性向上とリソース管理の修正
+    - [x] Action: `set_text` での `GlobalFree` 呼び出し追加によるメモリリーク修正。
+    - [x] Action: `get_text` での `GlobalSize` 利用による範囲外読み取り (UB) 回避。
+    - [x] Action: `IsClipboardFormatAvailable` の判定を `is_ok()` から適切な形式に変更（確認済み）。
+- [x] Task: マウスイベント処理の洗練
+    - [x] Action: 左ボタン `Down` 時の即時カーソル移動を廃止し、`Up`（ドラッグなし確定時）に移動するようロジック変更。
+    - [x] Action: `is_in_selection` の未使用引数削除。
+- [x] Task: ドキュメントおよび設定の整理
+    - [x] Action: `Cargo.toml` から不要な `Win32_UI_Shell` を削除。
+    - [x] Action: `terminal_gui_driver.rs` の誤字修正。
+    - [x] Action: `spec.md` の文言不整合修正とチェック状態の更新。
+- [x] Task: コード品質の確保とテスト
+    - [x] Action: 変更後の挙動に対するテストの調整・追加。
+    - [x] Action: `cargo clippy`, `cargo fmt` を実行。
+- [ ] Task: コミット
+- [ ] Task: Conductor - ユーザー手動検証 'フェーズ 10' (Protocol in workflow.md)

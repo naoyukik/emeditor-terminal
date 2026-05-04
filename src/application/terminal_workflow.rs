@@ -209,10 +209,32 @@ impl TerminalWorkflow {
                 }
             }
 
-            // 左クリックでカーソル移動 (水平方向のみ) または テキスト選択
-            if event.button == MouseButton::Left && !event.is_release {
-                if !event.is_drag {
-                    // 通常のクリック: カーソル移動の試行
+            // 左クリックでのテキスト選択またはカーソル移動
+            if event.button == MouseButton::Left {
+                if !event.is_release {
+                    if !event.is_drag {
+                        // ダウン時：選択範囲をクリア
+                        self.buffer.set_selection_range(None);
+                    } else {
+                        // ドラッグ中：選択範囲の更新
+                        let current_range = self.buffer.get_selection_range();
+                        match current_range {
+                            Some((start, _)) => {
+                                self.buffer
+                                    .set_selection_range(Some((start, (event.x, event.y))));
+                            }
+                            None => {
+                                // ドラッグ開始
+                                self.buffer.set_selection_range(Some((
+                                    (event.x, event.y),
+                                    (event.x, event.y),
+                                )));
+                            }
+                        }
+                        return Ok(true); // 再描画を促す
+                    }
+                } else if !event.is_drag && self.buffer.get_selection_range().is_none() {
+                    // アップ時（ドラッグなし且つ選択範囲なし）：カーソル移動の試行
                     let (cur_x, cur_y) = self.buffer.get_cursor_pos();
                     let viewport_offset = self.buffer.get_viewport_offset();
 
@@ -231,31 +253,10 @@ impl TerminalWorkflow {
                         }
 
                         if !seq.is_empty() {
-                            // クリック時は選択範囲をクリア
-                            self.buffer.set_selection_range(None);
                             self.send_input(&seq)?;
                             return Ok(true);
                         }
                     }
-                    // カーソル移動対象でないクリックでも、選択範囲をクリアする
-                    self.buffer.set_selection_range(None);
-                } else {
-                    // ドラッグ中: 選択範囲の更新
-                    let current_range = self.buffer.get_selection_range();
-                    match current_range {
-                        Some((start, _)) => {
-                            self.buffer
-                                .set_selection_range(Some((start, (event.x, event.y))));
-                        }
-                        None => {
-                            // ドラッグ開始（Downを逃していた場合や移動開始時）
-                            self.buffer.set_selection_range(Some((
-                                (event.x, event.y),
-                                (event.x, event.y),
-                            )));
-                        }
-                    }
-                    return Ok(true); // 再描画を促す
                 }
             }
             return Ok(false);
@@ -457,7 +458,7 @@ mod tests {
             10, // 10列目をクリック
             5,  // 5行目（カーソルと同一行）
             Modifiers::none(),
-            false, // Down
+            true, // Up
             false,
         );
 
@@ -493,7 +494,7 @@ mod tests {
             5, // 5列目をクリック
             5, // 5行目
             Modifiers::none(),
-            false, // Down
+            true, // Up
             false,
         );
 

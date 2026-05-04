@@ -1,10 +1,12 @@
 use crate::domain::repository::clipboard_repository::ClipboardRepository;
-use windows::Win32::Foundation::{HANDLE, HGLOBAL};
+use windows::Win32::Foundation::{GlobalFree, HANDLE, HGLOBAL};
 use windows::Win32::System::DataExchange::{
     CloseClipboard, EmptyClipboard, GetClipboardData, IsClipboardFormatAvailable, OpenClipboard,
     SetClipboardData,
 };
-use windows::Win32::System::Memory::{GMEM_MOVEABLE, GlobalAlloc, GlobalLock, GlobalUnlock};
+use windows::Win32::System::Memory::{
+    GMEM_MOVEABLE, GlobalAlloc, GlobalLock, GlobalSize, GlobalUnlock,
+};
 use windows::Win32::System::Ole::CF_UNICODETEXT;
 
 pub struct WindowsClipboardRepositoryImpl;
@@ -23,8 +25,10 @@ impl ClipboardRepository for WindowsClipboardRepositoryImpl {
                     let h_global = HGLOBAL(handle.0);
                     let ptr = GlobalLock(h_global);
                     if !ptr.is_null() {
+                        let size_in_bytes = GlobalSize(h_global);
+                        let max_len = size_in_bytes / 2;
                         let mut len = 0;
-                        while *(ptr as *const u16).add(len) != 0 {
+                        while len < max_len && *(ptr as *const u16).add(len) != 0 {
                             len += 1;
                         }
                         let wide_slice = std::slice::from_raw_parts(ptr as *const u16, len);
@@ -59,25 +63,26 @@ impl ClipboardRepository for WindowsClipboardRepositoryImpl {
             let _ = EmptyClipboard();
 
             let h_mem = GlobalAlloc(GMEM_MOVEABLE, size);
-            if h_mem.is_err() {
+            if let Ok(handle) = h_mem {
+                let ptr = GlobalLock(handle);
+                if ptr.is_null() {
+                    let _ = GlobalFree(Some(handle));
+                    let _ = CloseClipboard();
+                    return Err("Failed to lock global memory".to_string());
+                }
+
+                std::ptr::copy_nonoverlapping(wide_text.as_ptr(), ptr as *mut u16, wide_text.len());
+
+                let _ = GlobalUnlock(handle);
+
+                if SetClipboardData(CF_UNICODETEXT.0 as u32, Some(HANDLE(handle.0))).is_err() {
+                    let _ = GlobalFree(Some(handle));
+                    let _ = CloseClipboard();
+                    return Err("Failed to set clipboard data".to_string());
+                }
+            } else {
                 let _ = CloseClipboard();
                 return Err("Failed to allocate global memory".to_string());
-            }
-            let handle = h_mem.unwrap();
-
-            let ptr = GlobalLock(handle);
-            if ptr.is_null() {
-                let _ = CloseClipboard();
-                return Err("Failed to lock global memory".to_string());
-            }
-
-            std::ptr::copy_nonoverlapping(wide_text.as_ptr(), ptr as *mut u16, wide_text.len());
-
-            let _ = GlobalUnlock(handle);
-
-            if SetClipboardData(CF_UNICODETEXT.0 as u32, Some(HANDLE(handle.0))).is_err() {
-                let _ = CloseClipboard();
-                return Err("Failed to set clipboard data".to_string());
             }
 
             let _ = CloseClipboard();

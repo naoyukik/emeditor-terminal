@@ -388,7 +388,7 @@ impl TerminalGuiDriver {
         };
 
         let bg_colorref = self.color_to_colorref(&TerminalColor::Default, true, theme);
-        // SAFETY: 背景塗りつぶし用のブラシ作成 e 描画。
+        // SAFETY: 背景塗りつぶし用のブラシ作成と描画。
         unsafe {
             let h_brush = CreateSolidBrush(bg_colorref);
             if !h_brush.0.is_null() {
@@ -433,8 +433,7 @@ impl TerminalGuiDriver {
                         }
 
                         let start_attr = &cell.attribute;
-                        let is_selected_start =
-                            is_in_selection(cell_idx, visual_row, selection, buffer.get_width());
+                        let is_selected_start = is_in_selection(cell_idx, visual_row, selection);
                         let mut run_text = String::new();
                         let mut run_dx = Vec::new();
 
@@ -447,8 +446,7 @@ impl TerminalGuiDriver {
                                 break;
                             }
                             // 選択状態が変化した場合はランを切断する
-                            if is_in_selection(cell_idx, visual_row, selection, buffer.get_width())
-                                != is_selected_start
+                            if is_in_selection(cell_idx, visual_row, selection) != is_selected_start
                             {
                                 break;
                             }
@@ -636,12 +634,7 @@ impl TerminalGuiDriver {
     }
 }
 
-fn is_in_selection(
-    x: usize,
-    y: usize,
-    range: Option<((usize, usize), (usize, usize))>,
-    _width: usize,
-) -> bool {
+fn is_in_selection(x: usize, y: usize, range: Option<((usize, usize), (usize, usize))>) -> bool {
     let ((start_x, start_y), (end_x, end_y)) = match range {
         Some(r) => r,
         None => return false,
