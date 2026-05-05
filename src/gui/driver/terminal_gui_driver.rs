@@ -640,6 +640,10 @@ fn is_in_selection(x: usize, y: usize, range: Option<((usize, usize), (usize, us
         None => return false,
     };
 
+    if start_x == end_x && start_y == end_y {
+        return false;
+    }
+
     // 開始点と終了点を正規化（どちらが先でもよいように）
     let (s_x, s_y, e_x, e_y) = if start_y < end_y || (start_y == end_y && start_x <= end_x) {
         (start_x, start_y, end_x, end_y)
