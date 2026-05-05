@@ -28,6 +28,29 @@ Conductor において「調査」を目的としたトラック（実装を含�
 - EmEditor SDK を扱う場合は `references/emeditor_sdk.md` を先に確認すること。
 - 調査ログは `assets/evidence_report_template.md` に従って記録すること。
 
+### Sequential Thinking 連携規約
+
+本スキルでは、`sequential-thinking` を「常時実行の儀式」ではなく、調査品質を上げるための必須チェックポイントとして扱う。
+
+- **必須タイミング**:
+  - Phase 1 完了時: 要求の再記述、制約、成功条件、未確定事項の整理
+  - Phase 3 開始前: 何が未確定で、何を質問しないと設計判断できないかの棚卸し
+  - Phase 4 開始前: 比較案の軸、主リスク、推奨理由の妥当性確認
+- **Phase 2 の扱い**:
+  - 調査開始前に 1 回だけ使い、探索視点の不足がないか確認する
+  - 調査中は毎回使わない。重要な発見が揃った時点で再度使い、次に掘るべき論点を整理する
+- **主な用途**:
+  - 調査観点の不足確認
+  - 仮説と事実の分離
+  - 次に読むべきファイル、確認すべき API、質問すべき論点の絞り込み
+  - 案比較時の評価軸と見落としの点検
+- **禁止事項**:
+  - 単純な検索結果確認のたびに `sequential-thinking` を呼び出してはならない
+  - 思考ログを増やすこと自体を目的化してはならない
+- **記録方針**:
+  - `evidence_report.md` には思考ログ全文ではなく、各チェックポイントで確定した要点のみを要約して残すこと
+  - 要約には「何を確認したか」「何が未確定か」「次に何を調べるか」を含めること
+
 ### Phase 1: Discovery (要求理解)
 
 **目的**: 何を達成すべきかを明確化する。  
@@ -122,6 +145,7 @@ Conductor において「調査」を目的としたトラック（実装を含�
 - Codebase Findings
 - Clarifying Questions と回答状況
 - Architecture Options と推奨案
+- Sequential Thinking Checkpoints Summary
 - Evidence（URL、要点、規約整合、未確定リスク）
 
 Conductor の spec/plan がある場合は、その近傍に `evidence_report.md` を保存すること。
