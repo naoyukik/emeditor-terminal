@@ -416,6 +416,7 @@ impl TerminalGuiDriver {
                 buffer.get_cursor_pos()
             };
             let viewport_offset = buffer.get_viewport_offset();
+            let selection = buffer.get_selection_range();
 
             for visual_row in 0..buffer.get_height() {
                 let mut x_offset = 0;
@@ -432,6 +433,7 @@ impl TerminalGuiDriver {
                         }
 
                         let start_attr = &cell.attribute;
+                        let is_selected_start = is_in_selection(cell_idx, visual_row, selection);
                         let mut run_text = String::new();
                         let mut run_dx = Vec::new();
 
@@ -443,6 +445,12 @@ impl TerminalGuiDriver {
                             if c.is_wide_continuation || &c.attribute != start_attr {
                                 break;
                             }
+                            // 選択状態が変化した場合はランを切断する
+                            if is_in_selection(cell_idx, visual_row, selection) != is_selected_start
+                            {
+                                break;
+                            }
+
                             run_text.push_str(&c.text);
                             let utf16_len = c.text.encode_utf16().count();
                             let w = c.text.width().clamp(1, 2) as i32 * base_width;
@@ -475,10 +483,13 @@ impl TerminalGuiDriver {
 
                             let mut fg = self.color_to_colorref(&start_attr.fg, false, theme);
                             let mut bg = self.color_to_colorref(&start_attr.bg, true, theme);
-                            if start_attr.is_inverse {
+
+                            // 選択範囲内、または反転属性の場合は色を反転
+                            if start_attr.is_inverse ^ is_selected_start {
                                 std::mem::swap(&mut fg, &mut bg);
                             }
-                            if !start_attr.is_inverse
+
+                            if !(start_attr.is_inverse ^ is_selected_start)
                                 && start_attr.bg != TerminalColor::Default
                                 && start_attr.fg == TerminalColor::Default
                             {
@@ -621,4 +632,40 @@ impl TerminalGuiDriver {
             }
         }
     }
+}
+
+fn is_in_selection(x: usize, y: usize, range: Option<((usize, usize), (usize, usize))>) -> bool {
+    let ((start_x, start_y), (end_x, end_y)) = match range {
+        Some(r) => r,
+        None => return false,
+    };
+
+    if start_x == end_x && start_y == end_y {
+        return false;
+    }
+
+    // 開始点と終了点を正規化（どちらが先でもよいように）
+    let (s_x, s_y, e_x, e_y) = if start_y < end_y || (start_y == end_y && start_x <= end_x) {
+        (start_x, start_y, end_x, end_y)
+    } else {
+        (end_x, end_y, start_x, start_y)
+    };
+
+    // ストリーム選択の判定
+    if y < s_y || y > e_y {
+        return false;
+    }
+    if y > s_y && y < e_y {
+        return true;
+    }
+    if s_y == e_y {
+        return y == s_y && x >= s_x && x <= e_x;
+    }
+    if y == s_y {
+        return x >= s_x;
+    }
+    if y == e_y {
+        return x <= e_x;
+    }
+    false
 }

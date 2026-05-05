@@ -21,6 +21,14 @@
 
 ## Phase 2: Codebase Exploration
 
+### 推奨ツール
+- **JetBrains MCP**:
+  - `mcp_jetbrains_search_symbol`: クラス・関数名のセマンティック検索
+  - `mcp_jetbrains_get_symbol_info`: 定義・型情報の確認
+  - `mcp_jetbrains_search_text`: 全文検索によるスニペット確認
+- **Subagents**:
+  - `codebase_investigator`: 大規模なコードリーディング、影響調査、アーキテクチャ解析の委譲
+
 ### 必須観点
 - 類似機能の実装経路（入口 -> 主要処理 -> 出口）
 - レイヤー責務と依存方向（外側 -> 内側）

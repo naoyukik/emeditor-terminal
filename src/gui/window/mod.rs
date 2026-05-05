@@ -73,6 +73,9 @@ pub fn ensure_conpty_started(hwnd_client: HWND, hwnd_editor: HWND, cols: i16, ro
                 let translator = Box::new(
                     crate::domain::service::vt_sequence_translator_domain_service::VtSequenceTranslatorDomainService::new(),
                 );
+                let clipboard_repo = Box::new(
+                    crate::infra::repository::windows_clipboard_repository_impl::WindowsClipboardRepositoryImpl,
+                );
 
                 window_data.service = crate::application::TerminalWorkflow::new(
                     cols as usize,
@@ -84,6 +87,7 @@ pub fn ensure_conpty_started(hwnd_client: HWND, hwnd_editor: HWND, cols: i16, ro
                         ),
                     ),
                     translator,
+                    clipboard_repo,
                     is_dark,
                 );
                 window_data.is_conpty_started = true;
@@ -251,6 +255,9 @@ pub fn cleanup_terminal() {
     let output_repo = Box::new(DummyOutputRepository);
     let config_repo = Box::new(EmEditorConfigRepositoryImpl::new(WindowId(0)));
     let translator = Box::new(VtSequenceTranslatorDomainService::new());
+    let clipboard_repo = Box::new(
+        crate::infra::repository::windows_clipboard_repository_impl::WindowsClipboardRepositoryImpl,
+    );
     let is_dark = crate::infra::driver::emeditor_io_driver::is_system_dark_mode();
     let service = crate::application::TerminalWorkflow::new(
         80,
@@ -258,6 +265,7 @@ pub fn cleanup_terminal() {
         output_repo,
         config_repo,
         translator,
+        clipboard_repo,
         is_dark,
     );
 

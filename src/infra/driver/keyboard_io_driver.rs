@@ -1,7 +1,5 @@
 use crate::domain::model::input_value::{InputKey, Modifiers};
 use crate::domain::model::window_id_value::WindowId;
-use crate::domain::repository::key_translator_repository::KeyTranslatorRepository;
-use crate::domain::service::vt_sequence_translator_domain_service::VtSequenceTranslatorDomainService;
 use std::cell::RefCell;
 use windows::Win32::Foundation::{HWND, LPARAM, LRESULT, WPARAM};
 use windows::Win32::UI::Input::KeyboardAndMouse::{GetKeyState, VK_CONTROL, VK_MENU, VK_SHIFT};
@@ -123,7 +121,6 @@ extern "system" fn keyboard_hook_proc(code: i32, wparam: WPARAM, lparam: LPARAM)
                 vk_code,
                 is_alt_pressed,
             ) {
-                let translator = VtSequenceTranslatorDomainService::new();
                 let input_key = InputKey::new(
                     vk_code,
                     Modifiers {
@@ -133,12 +130,14 @@ extern "system" fn keyboard_hook_proc(code: i32, wparam: WPARAM, lparam: LPARAM)
                     },
                 );
 
-                if let Some(seq) = translator.translate(input_key) {
-                    let data_arc =
-                        crate::gui::resolver::terminal_window_resolver::get_terminal_data();
-                    let mut window_data = data_arc.lock().unwrap();
-                    window_data.service.reset_viewport();
-                    let _ = window_data.service.send_input(&seq);
+                let data_arc = crate::gui::resolver::terminal_window_resolver::get_terminal_data();
+                let mut window_data = data_arc.lock().unwrap();
+
+                if let Ok(Some(seq)) = window_data.service.handle_key_event(input_key) {
+                    if !seq.is_empty() {
+                        window_data.service.reset_viewport();
+                        let _ = window_data.service.send_input(&seq);
+                    }
                     drop(window_data);
 
                     // SAFETY: 有効なウィンドウハンドルに対して描画更新を通知する。

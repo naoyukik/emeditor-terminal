@@ -248,10 +248,7 @@ fn dispatch_mouse_event(window_id: WindowId, msg: u32, wparam: usize, lparam: is
     let is_ctrl_pressed = unsafe { GetKeyState(VK_CONTROL.0 as i32) } < 0;
     let is_alt_pressed = unsafe { GetKeyState(VK_MENU.0 as i32) } < 0;
 
-    // Shiftキー押下時はバイパス（ローカル処理を優先）
-    if is_shift_pressed {
-        return WindowGuiDriver::default_window_proc(window_id, msg, wparam, lparam);
-    }
+    // NOTE: Issue #178 により、Shift押下時もターミナル側で処理を行うためバイパスを削除
 
     let px = (lparam as i16) as i32;
     let py = (lparam >> 16) as i16 as i32;
