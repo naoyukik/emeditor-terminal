@@ -4,7 +4,8 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "danger": "echo \"Error: no test specified\" && exit 1"
+    "danger": "echo \"Error: no test specified\" && exit 1",
+    "changelog": "changelog"
   },
   "keywords": [],
   "author": "naoyukik",
