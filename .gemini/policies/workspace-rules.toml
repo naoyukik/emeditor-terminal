@@ -118,6 +118,12 @@ toolName = ["*"]
 decision = "allow"
 priority = 100
 
+[[rule]]
+mcpName = "osvScanner"
+toolName = ["scan_vulnerable_dependencies"]
+decision = "allow"
+priority = 100
+
 # Explicitly deny forbidden patterns (Legacy exclude behavior)
 [[rule]]
 toolName = "run_shell_command"

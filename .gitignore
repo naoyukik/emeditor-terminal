@@ -62,6 +62,7 @@
 # Python settings
 uv.lock
 pyproject.toml
+__pycache__
 
 # Exclude everything below this point from gminiignore
 # local files
