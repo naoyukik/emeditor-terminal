@@ -101,8 +101,8 @@ pub fn ensure_conpty_started(hwnd_client: HWND, hwnd_editor: HWND, cols: i16, ro
                 let mut buffer = [0u8; 1024];
                 let mut bytes_read = 0;
                 loop {
-                    // SAFETY: 有効なパイプハンドルに対して同期読み取りを行う。
-                    // 読み取り結果は bytes_read に格納される。
+                    // SAFETY: 有効なパイプハンドル (output_handle) に対して同期読み取りを行う。
+                    // パイプは ConptyIoDriver によって生存期間が管理されており、バッファサイズは buffer の長さに制限されているため安全。
                     let read_result = unsafe {
                         ReadFile(
                             output_handle.0,
@@ -126,8 +126,8 @@ pub fn ensure_conpty_started(hwnd_client: HWND, hwnd_editor: HWND, cols: i16, ro
                         window_data.service.process_output(raw_bytes);
                     }
 
-                    // SAFETY: 有効なウィンドウハンドルに対して描画更新を通知する。
-                    // PostMessageW はスレッドセーフである。
+                    // SAFETY: 有効なウィンドウハンドル (send_hwnd) に対して描画更新を通知するカスタムメッセージを送信する。
+                    // PostMessageW はスレッドセーフであり、UI スレッドのメッセージキューに安全にリクエストを積むことができる。
                     unsafe {
                         let _ =
                             PostMessageW(Some(send_hwnd.0), WM_APP_REPAINT, WPARAM(0), LPARAM(0));
@@ -144,8 +144,12 @@ pub fn ensure_conpty_started(hwnd_client: HWND, hwnd_editor: HWND, cols: i16, ro
 }
 
 pub fn open_custom_bar(hwnd_editor: HWND) -> bool {
-    // SAFETY: ウィンドウクラスの登録、ウィンドウの作成、およびメッセージ送信は
-    // Win32 API の標準的な手順に従っており、有効なハンドルとリソースを使用する。
+    // SAFETY: Win32 ウィンドウリソースの初期化と作成。
+    // - RegisterClassW, CreateWindowExW, SendMessageW, MessageBoxW を使用。
+    // - クラス登録 (RegisterClassW) は AtomicBool で二重登録を防止している。
+    // - ウィンドウプロシージャ (wnd_proc) はシステムコールバックとして適切に定義されている。
+    // - すべての文字列ポインタは PCWSTR/w! マクロによりヌル終端が保証されている。
+    // - 親ウィンドウ (hwnd_editor) およびインスタンスハンドルは有効なものを使用している。
     unsafe {
         let h_instance = crate::get_instance_handle();
 

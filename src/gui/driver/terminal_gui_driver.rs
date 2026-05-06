@@ -355,6 +355,8 @@ impl TerminalGuiDriver {
 
             self.render_internal(h_mem_dc, client_rect, buffer, composition, theme, config);
 
+            // SAFETY: メモリ DC から実デバイスコンテキスト (HDC) へ描画内容を一括転送する。
+            // hdc および h_mem_dc は有効であることが保証されており、転送矩形は client_rect に基づくため安全。
             let _ = BitBlt(
                 hdc,
                 client_rect.left,
@@ -389,6 +391,8 @@ impl TerminalGuiDriver {
 
         let bg_colorref = self.color_to_colorref(&TerminalColor::Default, true, theme);
         // SAFETY: 背景塗りつぶし用のブラシ作成と描画。
+        // CreateSolidBrush で作成したブラシは GdiObjectGuard により確実に削除される。
+        // hdc は有効なメモリ DC であり、描画範囲は relative_rect 内に制限される。
         unsafe {
             let h_brush = CreateSolidBrush(bg_colorref);
             if !h_brush.0.is_null() {
@@ -406,6 +410,11 @@ impl TerminalGuiDriver {
         };
 
         // SAFETY: 各セルの描画およびカーソル反転。
+        // Win32 GDI API (SetTextColor, SetBkColor, ExtTextOutW, InvertRect) を使用。
+        // - hdc は有効なメモリ DC である。
+        // - フォントオブジェクトの選択と復元は SelectedObjectGuard により安全に管理される。
+        // - ExtTextOutW に渡される PCWSTR および 配列ポインタは、同一スコープ内で生成された Vec のデータであり有効。
+        // - 文字列長および配列サイズは Rust の安全な型 (Vec, String) に基づき適切に計算されている。
         unsafe {
             let char_height = metrics.char_height;
             let base_width = metrics.base_width;
