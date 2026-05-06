@@ -4,5 +4,5 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 ---
 
-- [ ] **Track: Gemini CLIによるセキュリティチェックを行う**
+- [x] **Track: Gemini CLIによるセキュリティチェックを行う**
 *Link: [./tracks/185_security_audit_20260506/](./tracks/185_security_audit_20260506/)*
