@@ -5,6 +5,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
+### Security
+- Gemini CLI Security Extensionのセキュリティチェックを実施
+  - pnpm update を実行し、jws, picomatch, qs パッケージにおける計5件の脆弱性（High 2件含む）を解消
 
 ## [0.8.0] - 2026-05-06
 ### Added
