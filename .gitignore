@@ -55,6 +55,9 @@
 # npm package
 /node_modules
 
+# Mise settings
+mise.toml
+
 # EmEditor settings
 /emeditor-terminal.eeWorkspace
 /emeditor-terminal.eesln
