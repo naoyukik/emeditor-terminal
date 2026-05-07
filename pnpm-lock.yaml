@@ -9,11 +9,11 @@ importers:
   .:
     devDependencies:
       danger:
-        specifier: ^13.0.7
+        specifier: 13.0.7
         version: 13.0.7
       keep-a-changelog:
-        specifier: ^2.6.2
-        version: 2.8.0
+        specifier: 2.6.2
+        version: 2.6.2
 
 packages:
 
@@ -254,8 +254,8 @@ packages:
   jws@3.2.3:
     resolution: {integrity: sha512-byiJ0FLRdLdSVSReO/U4E7RoEyOCKnEnEPMjq3HxWtvzLsV08/i5RQKsFVNkCldrCaPr2vDNAOMsfs8T/Hze7g==}
 
-  keep-a-changelog@2.8.0:
-    resolution: {integrity: sha512-RG9LRYRPy9jxBD/TRGoTwOAsWLF8iMcWFnQZP78MZk5a5TgCH9ceLy2wgpHGQHKp7jfAqS//1aj5Gu7U6/+PrA==}
+  keep-a-changelog@2.6.2:
+    resolution: {integrity: sha512-YSebqNvqzsTcDYJ4jxO1w8vFa74J0R+8Ks0ZOtHQwdJho2EPuzOtAgRkpMd/0NxiQ0toqJgl7CPMz1urZs9pxg==}
     hasBin: true
 
   lodash.includes@4.3.0:
@@ -719,7 +719,7 @@ snapshots:
       jwa: 1.4.2
       safe-buffer: 5.2.1
 
-  keep-a-changelog@2.8.0:
+  keep-a-changelog@2.6.2:
     dependencies:
       '@deno/shim-deno': 0.18.2
 
