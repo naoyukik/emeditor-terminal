@@ -146,7 +146,8 @@ pub fn ensure_conpty_started(hwnd_client: HWND, hwnd_editor: HWND, cols: i16, ro
 pub fn open_custom_bar(hwnd_editor: HWND) -> bool {
     // SAFETY: Win32 ウィンドウリソースの初期化と作成。
     // - RegisterClassW, CreateWindowExW, SendMessageW, MessageBoxW を使用。
-    // - クラス登録 (RegisterClassW) は AtomicBool で二重登録を防止している。
+    // - クラス登録 (RegisterClassW) は成功後に AtomicBool で不要な再登録を抑制する。
+    //   初回の同時呼び出しは競合し得るが、ERROR_CLASS_ALREADY_EXISTS を成功扱いにすることで安全に許容している。
     // - ウィンドウプロシージャ (wnd_proc) はシステムコールバックとして適切に定義されている。
     // - すべての文字列ポインタは PCWSTR/w! マクロによりヌル終端が保証されている。
     // - 親ウィンドウ (hwnd_editor) およびインスタンスハンドルは有効なものを使用している。
@@ -181,8 +182,10 @@ pub fn open_custom_bar(hwnd_editor: HWND) -> bool {
 
             if RegisterClassW(&wc) == 0 {
                 let err = windows::Win32::Foundation::GetLastError();
-                log::error!("Failed to register window class: {:?}", err);
-                return false;
+                if err != windows::Win32::Foundation::ERROR_CLASS_ALREADY_EXISTS {
+                    log::error!("Failed to register window class: {:?}", err);
+                    return false;
+                }
             }
             CLASS_REGISTERED.store(true, Ordering::SeqCst);
         }

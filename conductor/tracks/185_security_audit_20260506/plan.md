@@ -22,3 +22,13 @@
     - [x] `install.ps1` を実行し、ターミナル機能が正常に動作するか確認する。 (※ユーザー承認待ち)
 - [x] Task: 修正内容をコミットする（`AGENTS.md` の規約に従う）。
 - [x] Task: Conductor - ユーザー手動検証 'フェーズ 2' (Protocol in workflow.md)
+
+## フェーズ 3: PR 191 レビュー指摘の反映
+- [x] Task: `src/gui/window/mod.rs` の `open_custom_bar` に対する PR コメントを再評価する。
+    - [x] `CLASS_REGISTERED` の `load`→`RegisterClassW`→`store` 競合を、`compare_exchange` または `ERROR_CLASS_ALREADY_EXISTS` 許容で解消する方針を確定する。
+    - [x] 実装を変えない場合でも、`// SAFETY:` コメントを「単一スレッド前提」など実際の保証範囲に合わせて修正する。
+- [x] Task: `src/gui/driver/terminal_gui_driver.rs` の `BitBlt` 周辺の `// SAFETY:` コメントを修正する。
+    - [x] `hdc` の有効性が呼び出し元前提であることと、その前提の成立箇所を明記する。
+- [x] Task: PR 191 レビュー対応後に自動検証を再実行する。
+    - [x] `cargo fmt`
+    - [x] `cargo clippy`

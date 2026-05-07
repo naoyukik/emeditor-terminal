@@ -356,7 +356,10 @@ impl TerminalGuiDriver {
             self.render_internal(h_mem_dc, client_rect, buffer, composition, theme, config);
 
             // SAFETY: メモリ DC から実デバイスコンテキスト (HDC) へ描画内容を一括転送する。
-            // hdc および h_mem_dc は有効であることが保証されており、転送矩形は client_rect に基づくため安全。
+            // hdc は WindowGuiDriver::perform_paint から渡される BeginPaint 由来の描画コンテキストであり、
+            // この render 呼び出しのスコープ内では有効であることを前提としている。
+            // h_mem_dc は CreateCompatibleDC の非 NULL チェック後に CreatedDcGuard で管理されている。
+            // 転送矩形は client_rect に基づくため安全である。
             let _ = BitBlt(
                 hdc,
                 client_rect.left,

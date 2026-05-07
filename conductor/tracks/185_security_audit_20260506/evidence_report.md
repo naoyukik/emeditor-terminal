@@ -30,3 +30,29 @@ Gemini CLI (`gemini-cli-security`) および手動の静的解析を用いて、
 - `/security:analyze` (OSV-Scanner) の再実行時に脆弱性が検出されない。
 - すべての `unsafe` ブロックに規約に沿った Safety Comment が存在する。
 - 修正後も `install.ps1` による実機ビルド・動作に支障がない。
+
+## 5. PR 191 レビューコメント整理 (2026-05-07)
+
+### 5.1 コメント一覧
+1. `src/gui/window/mod.rs:151`
+   - 指摘: `CLASS_REGISTERED` の二重登録防止説明が実装と一致しておらず、同時呼び出し時に `RegisterClassW` を重複実行し得る。
+   - 分類: Critical / Safety
+   - 対応方針: 今回の PR で必ず修正する。少なくとも Safety Comment の保証範囲を是正し、可能なら実装も二重登録許容に揃える。
+2. `src/gui/driver/terminal_gui_driver.rs:359`
+   - 指摘: `BitBlt` の Safety Comment が `hdc` の有効性をこの関数内で保証しているように読めるが、実際は呼び出し元前提である。
+   - 分類: Critical / Safety
+   - 対応方針: 今回の PR で必ず修正する。実装変更は必須ではないが、前提条件の記述を正確化する。
+
+### 5.2 スコープ判断
+- 2 件とも今回の PR で追加した Safety Comment の妥当性に直接関わる。
+- したがって Future Ticket 送りではなく、PR 191 の中で閉じるべきレビュー対応と判断する。
+
+### 5.3 対応結果
+- `src/gui/window/mod.rs`
+  - `RegisterClassW` の重複実行は `ERROR_CLASS_ALREADY_EXISTS` を成功扱いにする現実装で許容する方針とし、Safety Comment もその保証範囲に合わせて修正した。
+- `src/gui/driver/terminal_gui_driver.rs`
+  - `BitBlt` の Safety Comment を、`hdc` が `WindowGuiDriver::perform_paint` の `BeginPaint` 由来である前提まで含めて具体化した。
+- 検証結果
+  - `cargo fmt`: 成功
+  - `cargo clippy`: 成功
+  - JetBrains build: 成功
