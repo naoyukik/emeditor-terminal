@@ -44,7 +44,7 @@ priority = 50
 
 # Automatically allow built-in read-only tools
 [[rule]]
-toolName = ["read_file", "list_directory", "glob", "grep_search"]
+toolName = ["read_file", "list_directory", "glob", "grep_search", "update_topic"]
 decision = "allow"
 priority = 50
 
@@ -71,7 +71,7 @@ priority = 100
 # Automatically allow common utility commands
 [[rule]]
 toolName = "run_shell_command"
-commandPrefix = ["ls ", "dir ", "cat ", "tail ", "mkdir ", "Test-Path", "Get-Content", "Get-Item"]
+commandPrefix = ["ls ", "dir ", "cat ", "tail ", "mkdir ", "Test-Path", "Get-Content", "Get-Item", "grep"]
 decision = "allow"
 priority = 100
 
@@ -115,6 +115,18 @@ priority = 100
 [[rule]]
 mcpName = "mempalace"
 toolName = ["*"]
+decision = "allow"
+priority = 100
+
+[[rule]]
+mcpName = "osvScanner"
+toolName = ["scan_vulnerable_dependencies"]
+decision = "allow"
+priority = 100
+
+[[rule]]
+mcpName = "securityServer"
+toolName = ["get_files_to_audit", "get_line_count"]
 decision = "allow"
 priority = 100
 

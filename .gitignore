@@ -55,6 +55,9 @@
 # npm package
 /node_modules
 
+# Mise settings
+mise.toml
+
 # EmEditor settings
 /emeditor-terminal.eeWorkspace
 /emeditor-terminal.eesln
@@ -62,6 +65,7 @@
 # Python settings
 uv.lock
 pyproject.toml
+__pycache__
 
 # Exclude everything below this point from gminiignore
 # local files

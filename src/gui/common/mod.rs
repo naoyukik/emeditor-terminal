@@ -26,7 +26,7 @@ pub(crate) unsafe fn pixels_to_points(
 ) -> i32 {
     use windows::Win32::Graphics::Gdi::{GetDC, ReleaseDC};
     // SAFETY: 引数の HWND は呼び出し元で有効であることが保証されている必要がある。
-    // GetDC はウィンドウのデバイスコンテキストを取得し、その戻り値は ReleaseDC で解放される。
+    // GetDC で取得したデバイスコンテキストは、同じ HWND に対して ReleaseDC で確実に解放され、リソースリークを防ぐ。
     unsafe {
         let hdc = GetDC(Some(hwnd));
         if hdc.is_invalid() {
@@ -45,7 +45,7 @@ pub(crate) unsafe fn pixels_to_points_from_hdc(
 ) -> i32 {
     use windows::Win32::Graphics::Gdi::{GetDeviceCaps, LOGPIXELSY};
     // SAFETY: 引数の HDC は呼び出し元で有効であることが保証されている必要がある。
-    // GetDeviceCaps はデバイスの性能情報を取得する。
+    // GetDeviceCaps はデバイスの性能情報を取得する読み取り専用操作であり、副作用はない。
     unsafe {
         let dpi_y = GetDeviceCaps(Some(hdc), LOGPIXELSY);
         if dpi_y == 0 {
@@ -59,7 +59,7 @@ pub(crate) unsafe fn pixels_to_points_from_hdc(
 pub(crate) unsafe fn points_to_pixels(hwnd: windows::Win32::Foundation::HWND, points: i32) -> i32 {
     use windows::Win32::Graphics::Gdi::{GetDC, ReleaseDC};
     // SAFETY: 引数の HWND は呼び出し元で有効であることが保証されている必要がある。
-    // GetDC はウィンドウのデバイスコンテキストを取得し、その戻り値は ReleaseDC で解放される。
+    // GetDC で取得したデバイスコンテキストは、同じ HWND に対して ReleaseDC で確実に解放され、リソースリークを防ぐ。
     unsafe {
         let hdc = GetDC(Some(hwnd));
         if hdc.is_invalid() {
@@ -78,7 +78,7 @@ pub(crate) unsafe fn points_to_pixels_from_hdc(
 ) -> i32 {
     use windows::Win32::Graphics::Gdi::{GetDeviceCaps, LOGPIXELSY};
     // SAFETY: 引数の HDC は呼び出し元で有効であることが保証されている必要がある。
-    // GetDeviceCaps はデバイスの性能情報を取得する。
+    // GetDeviceCaps はデバイスの性能情報を取得する読み取り専用操作であり、副作用はない。
     unsafe {
         let dpi_y = GetDeviceCaps(Some(hdc), LOGPIXELSY);
         if dpi_y == 0 {

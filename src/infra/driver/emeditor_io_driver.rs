@@ -92,8 +92,10 @@ pub fn emeditor_query_string(window_id: WindowId, value_name: &str, default: &st
             dwFlags: 0,
         };
 
-        // SAFETY: HWND は有効な EmEditor ウィンドウハンドルであることを前提とし、
-        // 取得されるデータサイズに合わせてバッファを管理している。
+        // SAFETY: HWND は有効な EmEditor ウィンドウハンドルであることを前提とする。
+        // - SendMessageW に渡す構造体 (REG_QUERY_VALUE_INFO) は EmEditor SDK の仕様に従ってアライメント・初期化されている。
+        // - lpData および lpcbData に渡されるポインタは、同一スコープ内で有効なバッファ (Vec) またはスタック変数のものであり安全。
+        // - 文字列バッファ (buffer) は、EmEditor 側から要求されるサイズ (cb_data) に基づいて適切にリサイズ・管理されている。
         let result = unsafe {
             SendMessageW(
                 hwnd,
@@ -149,7 +151,8 @@ pub fn emeditor_query_u32(window_id: WindowId, value_name: &str, default: u32) -
         dwFlags: 0,
     };
 
-    // SAFETY: メッセージ経由での設定取得は、指定したメモリ領域への書き込みのみを行う。
+    // SAFETY: EmEditor の設定 (REG_DWORD) を取得するための同期メッセージ送信。
+    // - lpData はスタック変数 (data: u32) への有効なポインタであり、cb_data (4バイト) の書き込みを許容しているため安全。
     let result = unsafe {
         SendMessageW(
             hwnd,
@@ -182,7 +185,9 @@ pub fn emeditor_set_string(window_id: WindowId, value_name: &str, value: &str) -
         dwFlags: 0,
     };
 
-    // SAFETY: メッセージ経由での設定保存は、読み取り専用のバッファポインタを渡すため安全。
+    // SAFETY: EmEditor の設定へ文字列を書き込むための同期メッセージ送信。
+    // - lpData に渡されるのは、Vec から生成された読み取り専用のバッファポインタであり、
+    //   EmEditor 側は cbData バイト分を読み取ることだけが許可されるため安全。
     unsafe {
         SendMessageW(
             hwnd,
@@ -213,7 +218,9 @@ pub fn emeditor_set_u32(window_id: WindowId, value_name: &str, value: u32) -> i3
         dwFlags: 0,
     };
 
-    // SAFETY: メッセージ経由での設定保存は、読み取り専用のバッファポインタを渡すため安全。
+    // SAFETY: EmEditor の設定へ数値 (DWORD) を書き込むための同期メッセージ送信。
+    // - lpData はスタック変数 (value: u32) への有効なポインタであり、EmEditor 側は
+    //   cbData (4バイト) の読み取りのみを行うため安全。
     unsafe {
         SendMessageW(
             hwnd,
@@ -229,7 +236,8 @@ pub fn emeditor_set_u32(window_id: WindowId, value_name: &str, value: u32) -> i3
 pub fn output_string(window_id: WindowId, text: &str) {
     let hwnd = HWND(window_id.0 as _);
     let wide_text: Vec<u16> = text.encode_utf16().chain(std::iter::once(0)).collect();
-    // SAFETY: メッセージ経由での文字列出力は安全。
+    // SAFETY: EmEditor のアウトプットバーに文字列を表示するメッセージ送信。
+    // - wparam(0) および lparam (ヌル終端文字列ポインタ) は EmEditor SDK 仕様に従っており安全。
     unsafe {
         let _ = SendMessageW(
             hwnd,

@@ -1,0 +1,8 @@
+{
+  "track_id": "185_security_audit_20260506",
+  "type": "chore",
+  "status": "new",
+  "created_at": "2026-05-06T00:00:00Z",
+  "updated_at": "2026-05-06T00:00:00Z",
+  "description": "Gemini CLIによるセキュリティチェックを行う"
+}

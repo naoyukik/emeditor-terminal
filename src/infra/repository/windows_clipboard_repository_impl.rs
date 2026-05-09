@@ -14,6 +14,10 @@ pub struct WindowsClipboardRepositoryImpl;
 impl ClipboardRepository for WindowsClipboardRepositoryImpl {
     fn get_text(&self) -> Result<String, String> {
         // SAFETY: Win32 クリップボード API の標準的な使用手順に従う。
+        // - OpenClipboard / CloseClipboard を確実にペアで呼び出し、他プロセスとの排他制御を管理する。
+        // - GetClipboardData で取得したハンドルはシステムが所有しており、GlobalFree してはならない。
+        // - GlobalLock / GlobalUnlock により、取得したグローバルメモリへのアクセスを安全に行う。
+        // - バッファサイズは GlobalSize に基づき、ヌル終端を考慮して適切に制限されている。
         unsafe {
             if OpenClipboard(None).is_err() {
                 return Err("Failed to open clipboard".to_string());
@@ -55,6 +59,10 @@ impl ClipboardRepository for WindowsClipboardRepositoryImpl {
         let size = wide_text.len() * std::mem::size_of::<u16>();
 
         // SAFETY: Win32 クリップボード API の標準的な書き込み手順。
+        // - GlobalAlloc で割り当てたメモリの所有権は、SetClipboardData が成功した時点でシステムに移転する。
+        // - SetClipboardData が失敗した、あるいはそれ以前の段階でエラーとなった場合は、
+        //   GlobalFree を呼び出してリソースリークを防ぐ必要がある。
+        // - すべての操作は Open/CloseClipboard のペア内で行われ、EmptyClipboard により所有権を確立している。
         unsafe {
             if OpenClipboard(None).is_err() {
                 return Err("Failed to open clipboard".to_string());
