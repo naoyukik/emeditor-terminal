@@ -21,6 +21,10 @@
 - [x] Task: 実機での動作確認を実施する。
     - [x] `install.ps1` を実行し、ターミナル機能が正常に動作するか確認する。 (※ユーザー承認待ち)
 - [x] Task: 修正内容をコミットする（`AGENTS.md` の規約に従う）。
+- [x] Task: PR レビュー指摘と CI エラーの修正
+    - [x] `package.json` に `pnpm.allowedBuilds` を追加し `core-js` を許可する。
+    - [x] `src/gui/window/mod.rs` のクラス登録をスレッドセーフに修正。
+    - [x] `src/gui/driver/terminal_gui_driver.rs` の Safety Comment を修正。
 - [x] Task: Conductor - ユーザー手動検証 'フェーズ 2' (Protocol in workflow.md)
 
 ## フェーズ 3: PR 191 レビュー指摘の反映
