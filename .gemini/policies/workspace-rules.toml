@@ -44,7 +44,7 @@ priority = 50
 
 # Automatically allow built-in read-only tools
 [[rule]]
-toolName = ["read_file", "list_directory", "glob", "grep_search"]
+toolName = ["read_file", "list_directory", "glob", "grep_search", "update_topic"]
 decision = "allow"
 priority = 50
 
@@ -71,7 +71,7 @@ priority = 100
 # Automatically allow common utility commands
 [[rule]]
 toolName = "run_shell_command"
-commandPrefix = ["ls ", "dir ", "cat ", "tail ", "mkdir ", "Test-Path", "Get-Content", "Get-Item"]
+commandPrefix = ["ls ", "dir ", "cat ", "tail ", "mkdir ", "Test-Path", "Get-Content", "Get-Item", "grep"]
 decision = "allow"
 priority = 100
 
