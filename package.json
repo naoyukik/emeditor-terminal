@@ -11,7 +11,7 @@
   "author": "naoyukik",
   "license": "MIT",
   "private": true,
-  "packageManager": "pnpm@11.0.3",
+  "packageManager": "pnpm@11.0.6",
   "devDependencies": {
     "danger": "13.0.7",
     "keep-a-changelog": "2.6.2"
