@@ -26,3 +26,4 @@
 - [ ] Task: `cargo clippy` および `cargo fmt` を実行し、警告を解消する。
 - [ ] Task: `AGENTS.md` の規約に従い、コミットを作成する。
 - [ ] Task: Conductor - ユーザー手動検証 'フェーズ 4' (Protocol in workflow.md)
+
