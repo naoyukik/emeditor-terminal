@@ -72,6 +72,24 @@ impl TerminalBufferEntity {
             return;
         }
         self.pending_cluster.push(c);
+        self.process_graphemes();
+    }
+
+    #[allow(dead_code)]
+    pub fn print_string(&mut self, s: &str) {
+        if self.cursor.x < self.width
+            && self.cursor.y < self.height
+            && self.current_attribute.is_inverse
+        {
+            self.last_inverse_render_pos = Some((self.cursor.x, self.cursor.y));
+        }
+        // 制御文字は個別に処理されるべきだが、一括書き込み内では無視するかフィルタリングする
+        // vte から渡される文字列は基本的に印字可能文字のみのはず
+        self.pending_cluster.push_str(s);
+        self.process_graphemes();
+    }
+
+    fn process_graphemes(&mut self) {
         let mut clusters: Vec<String> = self
             .pending_cluster
             .graphemes(true)
@@ -516,5 +534,62 @@ impl TerminalBufferEntity {
             }
         }
         selected_text
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_print_string_basic() {
+        let mut buffer = TerminalBufferEntity::new(10, 5);
+        buffer.print_string("Hello");
+        buffer.flush_pending_cluster();
+        let (x, y) = buffer.get_cursor_pos();
+        assert_eq!(x, 5);
+        assert_eq!(y, 0);
+
+        let line = buffer.get_line_at_visual_row(0).unwrap();
+        let text: String = line.iter().take(5).map(|c| c.text.clone()).collect();
+        assert_eq!(text, "Hello");
+    }
+
+    #[test]
+    fn test_print_string_wrap() {
+        let mut buffer = TerminalBufferEntity::new(5, 5);
+        buffer.print_string("HelloWorld");
+        buffer.flush_pending_cluster();
+        let (x, y) = buffer.get_cursor_pos();
+        assert_eq!(x, 5);
+        assert_eq!(y, 1); // "Hello" (5) at row 0, cursor at end. "World" (5) at row 1.
+        // Wait, current logic:
+        // row 0: H, e, l, l, o (x=5)
+        // Next 'W': x+1 > 5? Yes. x=0, index(). row 1: W...
+        // After "World", x=5. y=1.
+
+        let line0 = buffer.get_line_at_visual_row(0).unwrap();
+        let text0: String = line0.iter().map(|c| c.text.clone()).collect();
+        assert_eq!(text0, "Hello");
+
+        let line1 = buffer.get_line_at_visual_row(1).unwrap();
+        let text1: String = line1.iter().map(|c| c.text.clone()).collect();
+        assert_eq!(text1, "World");
+    }
+
+    #[test]
+    fn test_print_string_graphemes() {
+        let mut buffer = TerminalBufferEntity::new(10, 5);
+        // "家族" (Family) emoji is often multiple code points
+        buffer.print_string("👨‍👩‍👧‍👦");
+        buffer.flush_pending_cluster();
+        let (x, y) = buffer.get_cursor_pos();
+        assert_eq!(x, 2); // Should be width 2
+        assert_eq!(y, 0);
+
+        let line = buffer.get_line_at_visual_row(0).unwrap();
+        assert_eq!(line[0].text, "👨‍👩‍👧‍👦");
+        assert_eq!(line[1].text, " ");
+        assert!(line[1].is_wide_continuation);
     }
 }
