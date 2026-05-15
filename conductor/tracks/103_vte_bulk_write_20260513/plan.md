@@ -13,14 +13,14 @@
 - [x] Task: Conductor - ユーザー手動検証 'フェーズ 2' (Protocol in workflow.md)
 
 ## フェーズ 3: 一括書き込みメソッドの導入 (Bulk Write Implementation)
-- [~] Task: `src/domain/model/terminal_buffer_entity.rs` に `print_string(&str)` を実装する。既存の `print_cell` ロジック（書記素クラスタ、行折り返し、反転属性位置の記録）を文字列全体に対して効率的に適用するようにリファクタリングする。
-- [ ] Task: `TerminalBufferEntity::print_string` が結合文字、ワイド文字、および行末での折り返しを正しく処理できることを確認するユニットテストを追加する。
-- [ ] Task: `cargo clippy` および `cargo fmt` を実行し、警告を解消する。
-- [ ] Task: `AGENTS.md` の規約に従い、コミットを作成する。
-- [ ] Task: Conductor - ユーザー手動検証 'フェーズ 3' (Protocol in workflow.md)
+- [x] Task: `src/domain/model/terminal_buffer_entity.rs` に `print_string(&str)` を実装する。既存の `print_cell` ロジック（書記素クラスタ、行折り返し、反転属性位置の記録）を文字列全体に対して効率的に適用するようにリファクタリングする。
+- [x] Task: `TerminalBufferEntity::print_string` が結合文字、ワイド文字、および行末での折り返しを正しく処理できることを確認するユニットテストを追加する。
+- [x] Task: `cargo clippy` および `cargo fmt` を実行し、警告を解消する。
+- [x] Task: `AGENTS.md` の規約に従い、コミットを作成する。
+- [x] Task: Conductor - ユーザー手動検証 'フェーズ 3' (Protocol in workflow.md)
 
 ## フェーズ 4: プロトコルハンドラーでのバッファリング (Buffering in Protocol Handler)
-- [ ] Task: `src/domain/service/terminal_protocol_handler.rs` に `accumulator: String` を追加する。
+- [~] Task: `src/domain/service/terminal_protocol_handler.rs` に `accumulator: String` を追加する。
 - [ ] Task: `accumulator` を `print_string` でフラッシュする `flush_accumulator` メソッドを実装し、`Perform` トレイトの全メソッド（`print` 以外）の先頭で呼び出すよう改修する。
 - [ ] Task: `TerminalProtocolHandler` が属性変更前に正しくバッファをフラッシュすることを検証するテストを追加する。
 - [ ] Task: `cargo clippy` および `cargo fmt` を実行し、警告を解消する。

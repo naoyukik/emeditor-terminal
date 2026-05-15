@@ -7,11 +7,22 @@ use vte::{Params, Perform};
 /// ターミナルプロトコル（ANSI/VT100等）の解釈と実行を担うドメインサービス
 pub(crate) struct TerminalProtocolHandler<'a> {
     buffer: &'a mut TerminalBufferEntity,
+    accumulator: String,
 }
 
 impl<'a> TerminalProtocolHandler<'a> {
     pub fn new(buffer: &'a mut TerminalBufferEntity) -> Self {
-        Self { buffer }
+        Self {
+            buffer,
+            accumulator: String::new(),
+        }
+    }
+
+    fn flush_accumulator(&mut self) {
+        if !self.accumulator.is_empty() {
+            let s = std::mem::take(&mut self.accumulator);
+            self.buffer.print_string(&s);
+        }
     }
 
     fn get_param(&self, params: &Params, index: usize, default: u16) -> u16 {
@@ -24,6 +35,7 @@ impl<'a> TerminalProtocolHandler<'a> {
     }
 
     fn handle_decscusr(&mut self, params: &Params) {
+        self.flush_accumulator();
         let n = params
             .iter()
             .last()
@@ -43,6 +55,7 @@ impl<'a> TerminalProtocolHandler<'a> {
     }
 
     fn handle_sgr(&mut self, params: &Params) {
+        self.flush_accumulator();
         if params.is_empty() {
             self.buffer.set_attribute(TerminalAttribute::default());
             return;
@@ -160,9 +173,10 @@ impl<'a> TerminalProtocolHandler<'a> {
 
 impl<'a> Perform for TerminalProtocolHandler<'a> {
     fn print(&mut self, c: char) {
-        self.buffer.print_cell(c);
+        self.accumulator.push(c);
     }
     fn execute(&mut self, byte: u8) {
+        self.flush_accumulator();
         self.buffer.flush_pending_cluster();
         match byte {
             0x08 => self.buffer.move_cursor_backward(1),
@@ -176,18 +190,23 @@ impl<'a> Perform for TerminalProtocolHandler<'a> {
         }
     }
     fn hook(&mut self, _params: &Params, _intermediates: &[u8], _ignore: bool, _action: char) {
+        self.flush_accumulator();
         self.buffer.flush_pending_cluster();
     }
     fn put(&mut self, _byte: u8) {
+        self.flush_accumulator();
         self.buffer.flush_pending_cluster();
     }
     fn unhook(&mut self) {
+        self.flush_accumulator();
         self.buffer.flush_pending_cluster();
     }
     fn osc_dispatch(&mut self, _params: &[&[u8]], _bell_terminated: bool) {
+        self.flush_accumulator();
         self.buffer.flush_pending_cluster();
     }
     fn csi_dispatch(&mut self, params: &Params, intermediates: &[u8], _ignore: bool, action: char) {
+        self.flush_accumulator();
         self.buffer.flush_pending_cluster();
         match action {
             'm' => self.handle_sgr(params),
@@ -314,6 +333,7 @@ impl<'a> Perform for TerminalProtocolHandler<'a> {
         }
     }
     fn esc_dispatch(&mut self, _intermediates: &[u8], _ignore: bool, byte: u8) {
+        self.flush_accumulator();
         self.buffer.flush_pending_cluster();
         match byte as char {
             '7' => self.buffer.save_cursor(),
@@ -322,5 +342,47 @@ impl<'a> Perform for TerminalProtocolHandler<'a> {
             'D' => self.buffer.index(),
             _ => {}
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_handler_buffering_and_flush_on_sgr() {
+        let mut buffer = TerminalBufferEntity::new(20, 10);
+        let mut handler = TerminalProtocolHandler::new(&mut buffer);
+
+        // 1. 文字を送る（バッファに貯まるはず）
+        handler.print('A');
+        handler.print('B');
+        assert_eq!(handler.accumulator, "AB");
+
+        // 2. SGRを送る（ここでフラッシュされるはず）
+        let params = vte::Params::default();
+        handler.handle_sgr(&params);
+        assert!(handler.accumulator.is_empty());
+
+        // 3. バッファに書き込まれているか確認
+        buffer.flush_pending_cluster();
+        let (x, _) = buffer.get_cursor_pos();
+        assert_eq!(x, 2);
+    }
+
+    #[test]
+    fn test_handler_flush_on_csi() {
+        let mut buffer = TerminalBufferEntity::new(20, 10);
+        let mut handler = TerminalProtocolHandler::new(&mut buffer);
+
+        handler.print('X');
+        // CSI 'K' (erase in line) を送る
+        let params = vte::Params::default();
+        handler.csi_dispatch(&params, &[], false, 'K');
+
+        assert!(handler.accumulator.is_empty());
+        buffer.flush_pending_cluster();
+        let (x, _) = buffer.get_cursor_pos();
+        assert_eq!(x, 1);
     }
 }

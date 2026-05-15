@@ -61,6 +61,7 @@ impl TerminalBufferEntity {
         }
     }
 
+    #[allow(dead_code)]
     pub fn print_cell(&mut self, c: char) {
         if self.cursor.x < self.width
             && self.cursor.y < self.height
@@ -75,7 +76,6 @@ impl TerminalBufferEntity {
         self.process_graphemes();
     }
 
-    #[allow(dead_code)]
     pub fn print_string(&mut self, s: &str) {
         if self.cursor.x < self.width
             && self.cursor.y < self.height
