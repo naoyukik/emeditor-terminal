@@ -13,20 +13,6 @@ prefix_rule(
     ]
 )
 
-# Automatically allow read-only tools from JetBrains MCP
-prefix_rule(
-    pattern = [["build_project", "find_files_by_glob", "find_files_by_name_keyword", "get_all_open_file_paths", "get_file_problems", "get_file_text_by_path", "get_project_dependencies", "get_project_modules", "get_repositories", "get_symbol_info", "list_directory_tree", "open_file_in_editor", "search_file", "search_in_files_by_regex", "search_in_files_by_text", "search_regex", "search_symbol", "search_text"]],
-    decision = "allow",
-    justification = "JetBrains MCP read-only tools are allowed",
-)
-
-# Automatically allow read-only tools from Learn Microsoft MCP
-prefix_rule(
-    pattern = ["microsoft_docs_search"],
-    decision = "allow",
-    justification = "Microsoft documentation search is allowed",
-)
-
 # Automatically allow safe git commands
 prefix_rule(
     pattern = ["git", ["status", "diff", "log", "rev-parse", "config", "branch", "remote"]],
@@ -63,13 +49,6 @@ prefix_rule(
         "cat README.md",
         "Test-Path .env",
     ]
-)
-
-# Automatically allow standard GitHub read operations
-prefix_rule(
-    pattern = [["get_label", "issue_read", "list_issue_types", "list_issues", "list_pull_requests", "pull_request_read", "search_issues", "search_pull_requests"]],
-    decision = "allow",
-    justification = "GitHub MCP read operations are allowed",
 )
 
 # Automatically allow safe gh commands
