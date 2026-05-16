@@ -18,7 +18,7 @@ impl<'a> TerminalProtocolHandler<'a> {
         }
     }
 
-    fn flush_accumulator(&mut self) {
+    pub(crate) fn flush_accumulator(&mut self) {
         if !self.accumulator.is_empty() {
             let s = std::mem::take(&mut self.accumulator);
             self.buffer.print_string(&s);

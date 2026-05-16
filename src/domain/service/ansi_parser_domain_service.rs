@@ -20,6 +20,8 @@ impl AnsiParserDomainService {
             let mut handler = TerminalProtocolHandler::new(buffer);
             // vte 0.15 の advance は &[u8] を受け取るため、入力全体をまとめて渡す
             self.parser.advance(&mut handler, bytes);
+            // パース完了後に残った蓄積テキストをフラッシュする
+            handler.flush_accumulator();
         }
         // 各データ受信パケットの処理後に強制的にフラッシュを行い、表示遅延を解消する
         buffer.flush_pending_cluster();
