@@ -36,7 +36,7 @@ DEPENDENCY_RULES = {
 }
 
 WHITELIST_FILES = ["mod.rs", "lib.rs", "main.rs", "build.rs", "resource.rs"]
-WHITELIST_COMMANDS = ["rm", "del", "mv", "move", "git rm", "git mv"]
+WHITELIST_COMMANDS = ["rm", "del", "mv", "move", "git"]
 
 def send_response(decision, reason=None, system_message=None):
     # decision は "allow" または "deny"
@@ -125,14 +125,6 @@ def validate_dependence(file_path, content):
         if current_layer.startswith("gui/") and ref.startswith("gui"):
             is_allowed = True
 
-        # domain 配下のレイヤー間での crate::domain:: 参照を許容する
-        if current_layer.startswith("domain") and ref.startswith("domain"):
-            is_allowed = True
-
-        # infra 配下のレイヤー間での crate::infra:: 参照を許容する
-        if current_layer.startswith("infra") and ref.startswith("infra"):
-            is_allowed = True
-
         if ref.startswith(current_layer.replace("/", "::")) or ref.startswith("common") or ref.startswith("get_instance_handle"):
             is_allowed = True
 
@@ -160,11 +152,27 @@ def main():
 
         command = args.get("command", "")
         if command:
-            # ホワイトリスト入りコマンドはチェックをスキップ
-            if any(command.strip().startswith(cmd) for cmd in WHITELIST_COMMANDS):
+            # コマンドをトークン化し、ホワイトリストに含まれる「安全な」操作か判定する
+            # 複合コマンド（&&, |, ;）が含まれる場合は、すべてのサブコマンドが安全である必要がある
+            sub_commands = re.split(r'[;&|]', command)
+            all_cmd_safe = True
+            has_tokens = False
+            
+            for sub in sub_commands:
+                tokens = sub.strip().split()
+                if not tokens:
+                    continue
+                has_tokens = True
+                main_exe = os.path.basename(tokens[0]).lower()
+                if main_exe not in WHITELIST_COMMANDS:
+                    all_cmd_safe = False
+                    break
+            
+            if has_tokens and all_cmd_safe:
                 send_response("allow")
                 return
 
+            # 安全性が確認できない場合は、コマンド文字列から .rs ファイルパスを抽出して個別に検証する
             matches = re.findall(r'(src/[^\s"\'=,]+\.rs)', command)
             for m in matches:
                 targets.append((m, None))

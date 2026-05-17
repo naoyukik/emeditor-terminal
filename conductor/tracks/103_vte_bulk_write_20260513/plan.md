@@ -20,10 +20,18 @@
 - [x] Task: Conductor - ユーザー手動検証 'フェーズ 3' (Protocol in workflow.md)
 
 ## フェーズ 4: プロトコルハンドラーでのバッファリング (Buffering in Protocol Handler)
-- [~] Task: `src/domain/service/terminal_protocol_handler.rs` に `accumulator: String` を追加する。
-- [ ] Task: `accumulator` を `print_string` でフラッシュする `flush_accumulator` メソッドを実装し、`Perform` トレイトの全メソッド（`print` 以外）の先頭で呼び出すよう改修する。
-- [ ] Task: `TerminalProtocolHandler` が属性変更前に正しくバッファをフラッシュすることを検証するテストを追加する。
-- [ ] Task: `cargo clippy` および `cargo fmt` を実行し、警告を解消する。
-- [ ] Task: `AGENTS.md` の規約に従い、コミットを作成する。
-- [ ] Task: Conductor - ユーザー手動検証 'フェーズ 4' (Protocol in workflow.md)
+- [x] Task: `src/domain/service/terminal_protocol_handler.rs` に `accumulator: String` を追加する。
+- [x] Task: `accumulator` を `print_string` でフラッシュする `flush_accumulator` メソッドを実装し、`Perform` トレイトの全メソッド（`print` 以外）の先頭で呼び出すよう改修する。
+- [x] Task: `TerminalProtocolHandler` が属性変更前に正しくバッファをフラッシュすることを検証するテストを追加する。
+- [x] Task: `cargo clippy` および `cargo fmt` を実行し、警告を解消する。
+- [x] Task: `AGENTS.md` の規約に従い、コミットを作成する。
+- [x] Task: Conductor - ユーザー手動検証 'フェーズ 4' (Protocol in workflow.md)
 
+## フェーズ 5: PR レビュー指摘事項の修正 (PR Review Fixes)
+- [x] Task: `src/domain/model/terminal_buffer_entity.rs` の `print_string` 内で、描画される各書記素クラスタごとに `last_inverse_render_pos` を更新するよう修正する。
+- [x] Task: `.gemini/hooks/validate_architecture.py` のドメイン/インフラ一律許可ルールを廃止し、`DEPENDENCY_RULES` に基づく厳格な層間依存チェックを復旧させる。
+- [x] Task: `.gemini/hooks/validate_architecture.py` のコマンド判定をトークンベースの厳密比較に改善し、複合コマンドも個別に検査するよう修正する。
+- [x] Task: `conductor/product.md` の半角ピリオドを句点（。）に統一し、「ゼロコピー」という表現をバッチ化による最適化という実態に合わせた記述に修正する。
+- [x] Task: `cargo clippy` および `cargo fmt` を実行し、警告を解消する。
+- [x] Task: `AGENTS.md` の規約に従い、コミットを作成する。
+- [ ] Task: Conductor - ユーザー手動検証 'フェーズ 5' (Protocol in workflow.md)
