@@ -37,6 +37,8 @@ priority = 50
 [[rule]]
 mcpName = "learn-microsoft"
 toolName = [
+    "microsoft_code_sample_search",
+    "microsoft_docs_fetch",
     "microsoft_docs_search",
 ]
 decision = "allow"
@@ -120,13 +122,31 @@ priority = 100
 
 [[rule]]
 mcpName = "osvScanner"
-toolName = ["scan_vulnerable_dependencies"]
+toolName = [
+    "get_vulnerability_details",
+    "scan_vulnerable_dependencies",
+]
 decision = "allow"
 priority = 100
 
 [[rule]]
 mcpName = "securityServer"
-toolName = ["get_files_to_audit", "get_line_count"]
+toolName = [
+    "convert_report_to_json",
+    "find_line_numbers",
+    "get_audit_scope",
+    "get_files_to_audit",
+    "get_line_count",
+    "poc_context",
+    "run_poc",
+    "security_patch_context",
+]
+decision = "allow"
+priority = 100
+
+[[rule]]
+mcpName = "sequential-thinking"
+toolName = "sequentialthinking"
 decision = "allow"
 priority = 100
 

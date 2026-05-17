@@ -43,3 +43,12 @@ Conductor で生成される `plan.md` は、原則として以下の構成を�
 - フェーズ内の全ての実装完了後、必ず `cargo clippy` および `cargo fmt` の順番で実行し、警告を解消すること。
 - フェーズ内のclippyとfmtが全て解消された後、成果物を `AGENTS.md` の規約に従ってコミットすること。
 - 各フェーズの最後には必ず「Conductor - ユーザー手動検証」タスクを配置すること。
+
+## トラック管理 (Track Management)
+
+### トラックの作成 (Track Creation)
+1. **Tracks Registry への登録**: `conductor/tracks.md` に新しいトラックを追加する。
+2. **トラックフォルダの初期化**: `conductor/tracks/<track_id>/` フォルダを作成し、`index.md`, `spec.md`, `plan.md`, `metadata.json` を配置する。
+3. **ブランチの作成**: トラック作成と同時に、`<track_id>` を名前に含む Git ブランチを作成し、以降の作業はこのブランチ上で行う。
+   - `git checkout -b <track_id>`
+   - 例: `git checkout -b 103_vte_bulk_write_20260513`

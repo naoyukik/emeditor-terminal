@@ -22,6 +22,7 @@
   - `Win32_System_DataExchange`, `Win32_System_Memory`, `Win32_System_Ole`: システムクリップボードへのアクセス。
 - **simplelog / log**: デバッグログ出力。
 - **vte**: ANSI/VT エスケープシーケンスのパース。業界標準のステートマシン実装により、高信頼・高性能なパースを実現。
+  - **Bulk Write 最適化**: 同一属性の印字文字を一時バッファに蓄積し、状態変化時に一括処理する機構を導入。関数呼び出しのオーバーヘッドを削減。
 - **unicode-width / unicode-segmentation**: 高精度なテキスト測定と書記素クラスター境界判定に使用。
 - **which**: システムパスから実行ファイルの絶対パスを探索するために導入。シェル起動の安定性を向上。
   - **Grapheme Clusters 判定**: `unicode-segmentation` により、ユーザーが「1文字」と認識する最小単位を正確に識別。
@@ -35,6 +36,9 @@
 - **Clippy**: Rust の静的解析ツール（リンター）。
 - **rustfmt**: Rust のコードフォーマッタ。
   - **style_edition**: 2024 エディションのフォーマット規則に準拠。
+
+## Git Workflow
+- **Branch Strategy**: トラック（開発タスク）作成時に、トラック ID に対応する Git ブランチを即座に作成し、作業の独立性と履歴の透明性を確保する運用をルール化。
 
 ## Architecture
 **厳格な物理隔離レイヤードアーキテクチャ (Strict Rigid Architecture)** を採用し、ファイル名と配置によって境界を強制している。

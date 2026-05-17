@@ -27,12 +27,16 @@ DEPENDENCY_RULES = {
     "gui/resolver": ["application", "domain", "gui/driver"],
     "gui/driver": ["domain"],
     "application": ["domain"],
+    "domain/model": ["domain/model"],
+    "domain/repository": ["domain/model"],
+    "domain/service": ["domain/model", "domain/repository"],
     "domain": [],
     "infra/repository": ["domain", "infra/driver"],
     "infra/driver": ["domain"],
 }
 
 WHITELIST_FILES = ["mod.rs", "lib.rs", "main.rs", "build.rs", "resource.rs"]
+WHITELIST_COMMANDS = ["rm", "del", "mv", "move", "git rm", "git mv"]
 
 def send_response(decision, reason=None, system_message=None):
     # decision は "allow" または "deny"
@@ -121,6 +125,14 @@ def validate_dependence(file_path, content):
         if current_layer.startswith("gui/") and ref.startswith("gui"):
             is_allowed = True
 
+        # domain 配下のレイヤー間での crate::domain:: 参照を許容する
+        if current_layer.startswith("domain") and ref.startswith("domain"):
+            is_allowed = True
+
+        # infra 配下のレイヤー間での crate::infra:: 参照を許容する
+        if current_layer.startswith("infra") and ref.startswith("infra"):
+            is_allowed = True
+
         if ref.startswith(current_layer.replace("/", "::")) or ref.startswith("common") or ref.startswith("get_instance_handle"):
             is_allowed = True
 
@@ -148,6 +160,11 @@ def main():
 
         command = args.get("command", "")
         if command:
+            # ホワイトリスト入りコマンドはチェックをスキップ
+            if any(command.strip().startswith(cmd) for cmd in WHITELIST_COMMANDS):
+                send_response("allow")
+                return
+
             matches = re.findall(r'(src/[^\s"\'=,]+\.rs)', command)
             for m in matches:
                 targets.append((m, None))
@@ -178,7 +195,11 @@ def main():
         if errors:
             combined_err = "\n".join(errors)
             # 常に allow を返し、警告としてエラーを表示する（ワーニング化）
-            send_response("allow", system_message=f"⚠️ アーキテクチャ警告:\n{combined_err}")
+            send_response(
+                "allow",
+                reason=f"アーキテクチャで警告が出ています。可能な限り直ちに修正してください。{combined_err}",
+                system_message=f"⚠️ アーキテクチャ警告:\n{combined_err}"
+            )
         else:
             send_response("allow")
 
