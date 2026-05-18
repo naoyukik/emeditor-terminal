@@ -77,12 +77,6 @@ impl TerminalBufferEntity {
     }
 
     pub fn print_string(&mut self, s: &str) {
-        if self.cursor.x < self.width
-            && self.cursor.y < self.height
-            && self.current_attribute.is_inverse
-        {
-            self.last_inverse_render_pos = Some((self.cursor.x, self.cursor.y));
-        }
         // 制御文字は個別に処理されるべきだが、一括書き込み内では無視するかフィルタリングする
         // vte から渡される文字列は基本的に印字可能文字のみのはず
         self.pending_cluster.push_str(s);
@@ -98,6 +92,13 @@ impl TerminalBufferEntity {
         if clusters.len() > 1 {
             let last = clusters.pop().unwrap();
             for cluster in clusters {
+                if self.cursor.x < self.width
+                    && self.cursor.y < self.height
+                    && self.current_attribute.is_inverse
+                {
+                    self.last_inverse_render_pos = Some((self.cursor.x, self.cursor.y));
+                }
+
                 let w = cluster.width().clamp(1, 2);
                 if self.cursor.x + w > self.width {
                     self.cursor.x = 0;
@@ -125,6 +126,12 @@ impl TerminalBufferEntity {
             return;
         }
         let cluster = std::mem::take(&mut self.pending_cluster);
+        if self.cursor.x < self.width
+            && self.cursor.y < self.height
+            && self.current_attribute.is_inverse
+        {
+            self.last_inverse_render_pos = Some((self.cursor.x, self.cursor.y));
+        }
         let w = cluster.width().clamp(1, 2);
         if self.cursor.x + w > self.width {
             self.cursor.x = 0;
