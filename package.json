@@ -15,5 +15,9 @@
   "devDependencies": {
     "danger": "13.0.7",
     "keep-a-changelog": "2.8.0"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/server-sequential-thinking": "2025.12.18",
+    "zod": "4.4.3"
   }
 }
