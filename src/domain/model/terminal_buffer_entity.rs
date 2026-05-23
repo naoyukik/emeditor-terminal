@@ -1,6 +1,8 @@
 use unicode_segmentation::UnicodeSegmentation;
 use unicode_width::UnicodeWidthStr;
 
+use super::terminal_buffer_view_entity::{SelectionRange, TerminalBufferViewEntity};
+use super::terminal_history_view_entity::TerminalHistoryViewEntity;
 // 基本型を再エクスポートし、外部からアクセス可能にする
 use super::terminal_grid_entity::TerminalGridEntity;
 use super::terminal_scrollback_entity::TerminalScrollbackEntity;
@@ -414,25 +416,12 @@ impl TerminalBufferEntity {
     }
 
     pub fn get_line_at_visual_row(&self, visual_row: usize) -> Option<&Vec<Cell>> {
-        let dist = (self.height.saturating_sub(1).saturating_sub(visual_row))
-            + self.scrollback.viewport_offset();
-        if dist < self.grid.lines().len() {
-            self.grid.lines().get(
-                self.grid
-                    .lines()
-                    .len()
-                    .saturating_sub(1)
-                    .saturating_sub(dist),
-            )
-        } else {
-            self.scrollback.history().get(
-                self.scrollback
-                    .history()
-                    .len()
-                    .saturating_sub(1)
-                    .saturating_sub(dist.saturating_sub(self.grid.lines().len())),
-            )
-        }
+        TerminalHistoryViewEntity::resolve_visual_row(
+            visual_row,
+            self.height,
+            self.grid.lines(),
+            &self.scrollback,
+        )
     }
 
     pub fn get_width(&self) -> usize {
@@ -442,10 +431,10 @@ impl TerminalBufferEntity {
         self.height
     }
     pub fn get_history_len(&self) -> usize {
-        self.scrollback.history().len()
+        TerminalHistoryViewEntity::history_len(&self.scrollback)
     }
     pub fn get_viewport_offset(&self) -> usize {
-        self.scrollback.viewport_offset()
+        TerminalHistoryViewEntity::viewport_offset(&self.scrollback)
     }
     pub fn is_cursor_visible(&self) -> bool {
         self.cursor.is_visible
@@ -469,13 +458,13 @@ impl TerminalBufferEntity {
         )
     }
     pub fn scroll_to(&mut self, o: usize) {
-        self.scrollback.scroll_to(o);
+        TerminalHistoryViewEntity::scroll_to(&mut self.scrollback, o);
     }
     pub fn scroll_lines(&mut self, d: isize) {
-        self.scrollback.scroll_lines(d);
+        TerminalHistoryViewEntity::scroll_lines(&mut self.scrollback, d);
     }
     pub fn reset_viewport(&mut self) {
-        self.scrollback.reset_viewport();
+        TerminalHistoryViewEntity::reset_viewport(&mut self.scrollback);
     }
 
     pub fn get_mouse_tracking_mode(&self) -> MouseTrackingMode {
@@ -544,6 +533,44 @@ impl TerminalBufferEntity {
     }
 }
 
+impl TerminalBufferViewEntity for TerminalBufferEntity {
+    fn get_line_at_visual_row(&self, visual_row: usize) -> Option<&Vec<Cell>> {
+        TerminalBufferEntity::get_line_at_visual_row(self, visual_row)
+    }
+
+    fn get_width(&self) -> usize {
+        TerminalBufferEntity::get_width(self)
+    }
+
+    fn get_height(&self) -> usize {
+        TerminalBufferEntity::get_height(self)
+    }
+
+    fn get_viewport_offset(&self) -> usize {
+        TerminalBufferEntity::get_viewport_offset(self)
+    }
+
+    fn get_ime_anchor_pos(&self) -> (usize, usize) {
+        TerminalBufferEntity::get_ime_anchor_pos(self)
+    }
+
+    fn get_cursor_pos(&self) -> (usize, usize) {
+        TerminalBufferEntity::get_cursor_pos(self)
+    }
+
+    fn get_selection_range(&self) -> SelectionRange {
+        TerminalBufferEntity::get_selection_range(self)
+    }
+
+    fn is_cursor_visible(&self) -> bool {
+        TerminalBufferEntity::is_cursor_visible(self)
+    }
+
+    fn get_cursor_style(&self) -> CursorStyle {
+        TerminalBufferEntity::get_cursor_style(self)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -598,5 +625,21 @@ mod tests {
         assert_eq!(line[0].text, "👨‍👩‍👧‍👦");
         assert_eq!(line[1].text, " ");
         assert!(line[1].is_wide_continuation);
+    }
+
+    #[test]
+    fn test_buffer_view_trait_delegation() {
+        let mut buffer = TerminalBufferEntity::new(10, 3);
+        buffer.print_string("AB");
+        buffer.flush_pending_cluster();
+
+        let view: &dyn TerminalBufferViewEntity = &buffer;
+        assert_eq!(view.get_width(), 10);
+        assert_eq!(view.get_height(), 3);
+        assert_eq!(view.get_cursor_pos(), (2, 0));
+
+        let line = view.get_line_at_visual_row(0).unwrap();
+        assert_eq!(line[0].text, "A");
+        assert_eq!(line[1].text, "B");
     }
 }

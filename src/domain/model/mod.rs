@@ -1,4 +1,6 @@
 pub mod color_theme_value;
+pub mod terminal_buffer_view_entity;
+pub mod terminal_history_view_entity;
 pub mod input_value;
 pub mod terminal_buffer_entity;
 pub mod terminal_config_value;

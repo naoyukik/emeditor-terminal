@@ -30,7 +30,7 @@ pub fn on_vscroll(window_id: WindowId, wparam: usize, lparam: isize) -> isize {
     let action = {
         let mut window_data = data_arc.lock().unwrap();
         let history_count = window_data.service.get_history_count() as i32;
-        let height = window_data.service.get_buffer().get_height() as i32;
+        let height = window_data.service.get_buffer_height() as i32;
         window_data.scroll_manager.max = history_count + height - 1;
         window_data.scroll_manager.page = height as u32;
         window_data.scroll_manager.handle_vscroll(wparam, lparam)
@@ -196,15 +196,15 @@ pub fn on_paint(window_id: WindowId) -> isize {
         renderer.render(
             ctx.hdc,
             &ctx.rect,
-            service.get_buffer(),
+            service.buffer_view(),
             composition.as_ref(),
             &service.color_theme,
             &service.config,
         );
         sync_system_caret(
             window_id,
-            service.get_buffer().get_ime_anchor_pos(),
-            service.get_buffer().get_viewport_offset(),
+            service.get_ime_anchor_pos(),
+            service.get_viewport_offset(),
             renderer,
             caret.as_ref(),
         );
@@ -264,8 +264,8 @@ fn dispatch_mouse_event(window_id: WindowId, msg: u32, wparam: usize, lparam: is
             let y = (py / metrics.char_height).max(0) as usize;
 
             // 境界チェック
-            let buffer_width = window_data.service.get_buffer().get_width();
-            let buffer_height = window_data.service.get_buffer().get_height();
+            let buffer_width = window_data.service.get_buffer_width();
+            let buffer_height = window_data.service.get_buffer_height();
 
             if x < buffer_width && y < buffer_height {
                 let button = match msg {
@@ -434,8 +434,8 @@ pub fn on_ime_start_composition(window_id: WindowId) -> isize {
         } = *window_data;
         sync_system_caret(
             window_id,
-            service.get_buffer().get_ime_anchor_pos(),
-            service.get_buffer().get_viewport_offset(),
+            service.get_ime_anchor_pos(),
+            service.get_viewport_offset(),
             renderer,
             caret.as_ref(),
         );
@@ -457,8 +457,8 @@ pub fn on_ime_composition(window_id: WindowId, msg: u32, wparam: usize, lparam: 
         handle_composition(
             window_id,
             lparam,
-            service.get_buffer().get_ime_anchor_pos(),
-            service.get_buffer().get_viewport_offset(),
+            service.get_ime_anchor_pos(),
+            service.get_viewport_offset(),
             renderer,
             caret.as_ref(),
         )
@@ -530,8 +530,8 @@ pub fn on_app_repaint(window_id: WindowId) -> isize {
         } = *window_data;
         sync_system_caret(
             window_id,
-            service.get_buffer().get_ime_anchor_pos(),
-            service.get_buffer().get_viewport_offset(),
+            service.get_ime_anchor_pos(),
+            service.get_viewport_offset(),
             renderer,
             caret.as_ref(),
         );

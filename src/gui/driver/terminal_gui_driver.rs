@@ -1,6 +1,5 @@
-use crate::domain::model::terminal_buffer_entity::{
-    CursorStyle, TerminalBufferEntity, TerminalColor,
-};
+use crate::domain::model::terminal_buffer_entity::{CursorStyle, TerminalColor};
+use crate::domain::model::terminal_buffer_view_entity::TerminalBufferViewEntity;
 use crate::gui::common::points_to_pixels_from_hdc;
 use std::collections::HashMap;
 use unicode_width::UnicodeWidthStr;
@@ -326,7 +325,7 @@ impl TerminalGuiDriver {
         &mut self,
         hdc: HDC,
         client_rect: &RECT,
-        buffer: &TerminalBufferEntity,
+        buffer: &dyn TerminalBufferViewEntity,
         composition: Option<&CompositionInfo>,
         theme: &crate::domain::model::color_theme_value::ColorTheme,
         config: &crate::domain::model::terminal_config_value::TerminalConfig,
@@ -378,7 +377,7 @@ impl TerminalGuiDriver {
         &mut self,
         hdc: HDC,
         client_rect: &RECT,
-        buffer: &TerminalBufferEntity,
+        buffer: &dyn TerminalBufferViewEntity,
         composition: Option<&CompositionInfo>,
         theme: &crate::domain::model::color_theme_value::ColorTheme,
         config: &crate::domain::model::terminal_config_value::TerminalConfig,
