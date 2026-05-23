@@ -5,6 +5,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
+
+## [0.8.2] - 2026-05-23
 ### Changed
 - 描画の最適化処理
 
@@ -98,7 +100,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - RustによるEmEditorプラグイン開発基盤を構築し、Hello World動作を確認
 - 簡易ターミナル入出力機能を実装し、基本動作を検証
 
-[Unreleased]: https://github.com/naoyukik/emeditor-terminal/compare/v0.8.0...HEAD
+[Unreleased]: https://github.com/naoyukik/emeditor-terminal/compare/v0.8.2...HEAD
+[0.8.2]: https://github.com/naoyukik/emeditor-terminal/compare/v0.8.0...v0.8.2
 [0.8.0]: https://github.com/naoyukik/emeditor-terminal/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/naoyukik/emeditor-terminal/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/naoyukik/emeditor-terminal/compare/v0.5.0...v0.6.0
