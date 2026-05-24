@@ -15,7 +15,7 @@ prefix_rule(
 
 # Automatically allow safe git commands
 prefix_rule(
-    pattern = ["git", ["fetch", ""status", "diff", "log", "rev-parse", "config", "branch", "remote"]],
+    pattern = ["git", ["fetch", "status", "diff", "log", "rev-parse", "config", "branch", "remote"]],
     decision = "allow",
     justification = "Safe git read and inspection commands are allowed",
     match = [
