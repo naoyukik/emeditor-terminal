@@ -19,7 +19,8 @@ impl TerminalHistoryViewEntity {
         grid_lines: &'a VecDeque<Vec<Cell>>,
         scrollback: &'a TerminalScrollbackEntity,
     ) -> Option<&'a Vec<Cell>> {
-        let dist = (height.saturating_sub(1).saturating_sub(visual_row)) + scrollback.viewport_offset();
+        let dist =
+            (height.saturating_sub(1).saturating_sub(visual_row)) + scrollback.viewport_offset();
         if dist < grid_lines.len() {
             grid_lines.get(grid_lines.len().saturating_sub(1).saturating_sub(dist))
         } else {
@@ -70,7 +71,8 @@ mod tests {
         scrollback.push(vec![cell_with_text("H1")]);
 
         // viewport=0: visual_row 2 is newest screen line
-        let bottom = TerminalHistoryViewEntity::resolve_visual_row(2, 3, &grid_lines, &scrollback).unwrap();
+        let bottom =
+            TerminalHistoryViewEntity::resolve_visual_row(2, 3, &grid_lines, &scrollback).unwrap();
         assert_eq!(bottom[0].text, "S2");
 
         // viewport=2: visual_row 0 points to older history side
