@@ -3,7 +3,7 @@
 ## フェーズ 1: 依存面の棚卸しと分離方針の固定
 - [x] Task: `TerminalBufferEntity` の責務を screen、history / viewport、interaction state の 3 系統に分類し、今回の対象を screen と history / viewport に固定する。
 - [x] Task: `TerminalProtocolHandler`、`TerminalWorkflow`、`TerminalGuiDriver`、`window_message_resolver` が buffer に何を要求しているかを列挙し、読み取り面と更新面に分ける。
-- [ ] Task: Conductor - ユーザー手動検証 'フェーズ 1' (分離方針の確認)
+- [x] Task: Conductor - ユーザー手動検証 'フェーズ 1' (分離方針の確認)
 
 ## フェーズ 2: history / viewport 読み取り責務の独立
 - [x] Task: visual row 解決、履歴長、viewport offset、スクロール操作を専用責務へ寄せ、`TerminalBufferEntity` から直接的な履歴計算ロジックを削減する。
@@ -11,7 +11,7 @@
 - [x] Task: scrollback と current screen を跨ぐ visual row 解決のテストを追加または更新する。
 
 ## フェーズ 3: screen 更新面の整理
-- [ ] Task: カーソル移動、消去、スクロール領域、セル挿入削除などの screen 操作群を明確にまとめ、`TerminalProtocolHandler` が依存する更新面を縮小する。
+- [x] Task: カーソル移動、消去、スクロール領域、セル挿入削除などの screen 操作群を明確にまとめ、`TerminalProtocolHandler` が依存する更新面を縮小する。
 - [x] Task: `TerminalProtocolHandler` が history / viewport を直接知らない構造へ整理する。
 - [x] Task: ANSI パース、SGR、cursor visibility、mouse mode の回帰テストを維持する。
 

@@ -3,6 +3,7 @@ use unicode_width::UnicodeWidthStr;
 
 use super::terminal_buffer_view_entity::{SelectionRange, TerminalBufferViewEntity};
 use super::terminal_history_view_entity::TerminalHistoryViewEntity;
+use super::terminal_screen_update_entity::TerminalScreenUpdateEntity;
 // 基本型を再エクスポートし、外部からアクセス可能にする
 use super::terminal_grid_entity::TerminalGridEntity;
 use super::terminal_scrollback_entity::TerminalScrollbackEntity;
@@ -568,6 +569,136 @@ impl TerminalBufferViewEntity for TerminalBufferEntity {
 
     fn get_cursor_style(&self) -> CursorStyle {
         TerminalBufferEntity::get_cursor_style(self)
+    }
+}
+
+impl TerminalScreenUpdateEntity for TerminalBufferEntity {
+    fn print_string(&mut self, text: &str) {
+        TerminalBufferEntity::print_string(self, text);
+    }
+
+    fn flush_pending_cluster(&mut self) {
+        TerminalBufferEntity::flush_pending_cluster(self);
+    }
+
+    fn move_cursor_up(&mut self, n: usize) {
+        TerminalBufferEntity::move_cursor_up(self, n);
+    }
+
+    fn move_cursor_down(&mut self, n: usize) {
+        TerminalBufferEntity::move_cursor_down(self, n);
+    }
+
+    fn move_cursor_forward(&mut self, n: usize) {
+        TerminalBufferEntity::move_cursor_forward(self, n);
+    }
+
+    fn move_cursor_backward(&mut self, n: usize) {
+        TerminalBufferEntity::move_cursor_backward(self, n);
+    }
+
+    fn move_cursor_to_pos(&mut self, row: usize, col: usize) {
+        TerminalBufferEntity::move_cursor_to_pos(self, row, col);
+    }
+
+    fn move_cursor_to_col(&mut self, col: usize) {
+        TerminalBufferEntity::move_cursor_to_col(self, col);
+    }
+
+    fn move_cursor_to_row(&mut self, row: usize) {
+        TerminalBufferEntity::move_cursor_to_row(self, row);
+    }
+
+    fn handle_tab(&mut self) {
+        TerminalBufferEntity::handle_tab(self);
+    }
+
+    fn index(&mut self) {
+        TerminalBufferEntity::index(self);
+    }
+
+    fn reverse_index(&mut self) {
+        TerminalBufferEntity::reverse_index(self);
+    }
+
+    fn insert_lines(&mut self, n: usize) {
+        TerminalBufferEntity::insert_lines(self, n);
+    }
+
+    fn delete_lines(&mut self, n: usize) {
+        TerminalBufferEntity::delete_lines(self, n);
+    }
+
+    fn insert_cells(&mut self, n: usize) {
+        TerminalBufferEntity::insert_cells(self, n);
+    }
+
+    fn delete_cells(&mut self, n: usize) {
+        TerminalBufferEntity::delete_cells(self, n);
+    }
+
+    fn erase_cells(&mut self, n: usize) {
+        TerminalBufferEntity::erase_cells(self, n);
+    }
+
+    fn erase_in_line(&mut self, mode: u8) {
+        TerminalBufferEntity::erase_in_line(self, mode);
+    }
+
+    fn erase_in_display(&mut self, mode: u8) {
+        TerminalBufferEntity::erase_in_display(self, mode);
+    }
+
+    fn set_scroll_region(&mut self, top: usize, bottom: usize) {
+        TerminalBufferEntity::set_scroll_region(self, top, bottom);
+    }
+
+    fn scroll_up(&mut self) {
+        TerminalBufferEntity::scroll_up(self);
+    }
+
+    fn scroll_down(&mut self) {
+        TerminalBufferEntity::scroll_down(self);
+    }
+
+    fn get_height(&self) -> usize {
+        TerminalBufferEntity::get_height(self)
+    }
+
+    fn set_origin_mode(&mut self, on: bool) {
+        TerminalBufferEntity::set_origin_mode(self, on);
+    }
+
+    fn set_cursor_visible(&mut self, visible: bool) {
+        TerminalBufferEntity::set_cursor_visible(self, visible);
+    }
+
+    fn set_cursor_style(&mut self, style: CursorStyle) {
+        TerminalBufferEntity::set_cursor_style(self, style);
+    }
+
+    fn set_attribute(&mut self, attribute: TerminalAttribute) {
+        TerminalBufferEntity::set_attribute(self, attribute);
+    }
+
+    fn get_current_attribute(&self) -> &TerminalAttribute {
+        TerminalBufferEntity::get_current_attribute(self)
+    }
+
+    fn save_cursor(&mut self) {
+        TerminalBufferEntity::save_cursor(self);
+    }
+
+    fn restore_cursor(&mut self) {
+        TerminalBufferEntity::restore_cursor(self);
+    }
+
+    fn set_mouse_tracking_mode(&mut self, mode: MouseTrackingMode) {
+        TerminalBufferEntity::set_mouse_tracking_mode(self, mode);
+    }
+
+    fn set_sgr_mouse_encoding(&mut self, enabled: bool) {
+        TerminalBufferEntity::set_sgr_mouse_encoding(self, enabled);
     }
 }
 

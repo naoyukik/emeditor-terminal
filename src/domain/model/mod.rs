@@ -6,5 +6,6 @@ pub mod terminal_config_value;
 pub mod terminal_grid_entity;
 pub mod terminal_history_view_entity;
 pub mod terminal_scrollback_entity;
+pub mod terminal_screen_update_entity;
 pub mod terminal_types_entity;
 pub mod window_id_value;

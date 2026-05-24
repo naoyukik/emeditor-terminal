@@ -1,17 +1,17 @@
-use crate::domain::model::terminal_buffer_entity::TerminalBufferEntity;
+use crate::domain::model::terminal_screen_update_entity::TerminalScreenUpdateEntity;
 use crate::domain::model::terminal_types_entity::{
     CursorStyle, MouseTrackingMode, TerminalAttribute, TerminalColor,
 };
 use vte::{Params, Perform};
 
 /// ターミナルプロトコル（ANSI/VT100等）の解釈と実行を担うドメインサービス
-pub(crate) struct TerminalProtocolHandler<'a> {
-    buffer: &'a mut TerminalBufferEntity,
+pub(crate) struct TerminalProtocolHandler<'a, T: TerminalScreenUpdateEntity> {
+    buffer: &'a mut T,
     accumulator: String,
 }
 
-impl<'a> TerminalProtocolHandler<'a> {
-    pub fn new(buffer: &'a mut TerminalBufferEntity) -> Self {
+impl<'a, T: TerminalScreenUpdateEntity> TerminalProtocolHandler<'a, T> {
+    pub fn new(buffer: &'a mut T) -> Self {
         Self {
             buffer,
             accumulator: String::new(),
@@ -171,7 +171,7 @@ impl<'a> TerminalProtocolHandler<'a> {
     }
 }
 
-impl<'a> Perform for TerminalProtocolHandler<'a> {
+impl<'a, T: TerminalScreenUpdateEntity> Perform for TerminalProtocolHandler<'a, T> {
     fn print(&mut self, c: char) {
         self.accumulator.push(c);
     }
@@ -348,6 +348,7 @@ impl<'a> Perform for TerminalProtocolHandler<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::domain::model::terminal_buffer_entity::TerminalBufferEntity;
 
     #[test]
     fn test_handler_buffering_and_flush_on_sgr() {
