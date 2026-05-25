@@ -1,6 +1,7 @@
 use crate::domain::model::color_theme_value::ColorTheme;
 use crate::domain::model::input_value::{InputKey, MouseEvent};
 use crate::domain::model::terminal_buffer_entity::TerminalBufferEntity;
+use crate::domain::model::terminal_buffer_view_entity::TerminalBufferViewEntity;
 use crate::domain::model::terminal_config_value::TerminalConfig;
 use crate::domain::repository::clipboard_repository::ClipboardRepository;
 use crate::domain::repository::configuration_repository::{ConfigError, ConfigurationRepository};
@@ -131,8 +132,25 @@ impl TerminalWorkflow {
         self.buffer.reset_viewport();
     }
 
+    #[allow(dead_code)]
     pub fn get_buffer(&self) -> &TerminalBufferEntity {
         &self.buffer
+    }
+
+    pub fn buffer_view(&self) -> &dyn TerminalBufferViewEntity {
+        &self.buffer
+    }
+
+    pub fn get_buffer_width(&self) -> usize {
+        self.buffer.get_width()
+    }
+
+    pub fn get_buffer_height(&self) -> usize {
+        self.buffer.get_height()
+    }
+
+    pub fn get_ime_anchor_pos(&self) -> (usize, usize) {
+        self.buffer.get_ime_anchor_pos()
     }
 
     /// ヒストリーの現在の行数を取得する
