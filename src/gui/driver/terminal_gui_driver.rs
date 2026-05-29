@@ -432,6 +432,7 @@ impl TerminalGuiDriver {
             for visual_row in 0..buffer.get_height() {
                 let mut x_offset = 0;
                 if let Some(line) = buffer.get_line_at_visual_row(visual_row) {
+                    let logical_row = buffer.visual_row_to_logical_row(visual_row);
                     let mut cell_idx = 0;
                     while cell_idx < buffer.get_width() {
                         let cell = match line.get(cell_idx) {
@@ -444,7 +445,6 @@ impl TerminalGuiDriver {
                         }
 
                         let start_attr = &cell.attribute;
-                        let logical_row = buffer.visual_row_to_logical_row(visual_row);
                         let is_selected_start = selection_contains(selection, cell_idx, logical_row);
                         let mut run_text = String::new();
                         let mut run_dx = Vec::new();
