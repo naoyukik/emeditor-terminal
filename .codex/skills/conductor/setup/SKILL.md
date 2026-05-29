@@ -440,7 +440,7 @@ PLAN MODE PROTOCOL: This setup process runs entirely within Plan Mode. While in 
 
                 ---
 
-                <Insert Drafted Requirements Here>
+                {Insert Drafted Requirements Here}
             - **type:** "choice"
             - **multiSelect:** false
             - **options:**

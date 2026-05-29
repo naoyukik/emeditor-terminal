@@ -97,7 +97,7 @@ PLAN MODE PROTOCOL: Parts of this process run within Plan Mode. While in Plan Mo
 
                 ---
 
-                <Insert Drafted spec.md Content Here>
+                {Insert Drafted spec.md Content Here}
             - **type:** "choice"
             - **multiSelect:** false
             - **options:**
@@ -129,7 +129,7 @@ PLAN MODE PROTOCOL: Parts of this process run within Plan Mode. While in Plan Mo
 
                 ---
 
-                <Insert Drafted plan.md Content Here>
+                {Insert Drafted plan.md Content Here}
             - **type:** "choice"
             - **multiSelect:** false
             - **options:**
@@ -143,7 +143,7 @@ PLAN MODE PROTOCOL: Parts of this process run within Plan Mode. While in Plan Mo
 2.  **Generate Track ID:** Create a unique Track ID (e.g., ``shortname_YYYYMMDD``).
 3.  **Create Directory:** Create a new directory for the tracks: `<Tracks Directory>/<track_id>/`.
 4.  **Create `metadata.json`:** Create a metadata file at `<Tracks Directory>/<track_id>/metadata.json` with content like:
-    ```json
+    ```json5
     {
       "track_id": "<track_id>",
       "type": "feature", // or "bug", "chore", etc.
