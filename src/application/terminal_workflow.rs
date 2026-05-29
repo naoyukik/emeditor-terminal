@@ -1,7 +1,7 @@
 use crate::domain::model::color_theme_value::ColorTheme;
 use crate::domain::model::input_value::{InputKey, MouseEvent};
 use crate::domain::model::terminal_buffer_entity::TerminalBufferEntity;
-use crate::domain::model::terminal_buffer_view_entity::TerminalBufferViewEntity;
+use crate::domain::model::terminal_buffer_view_entity::{SelectionPoint, TerminalBufferViewEntity};
 use crate::domain::model::terminal_config_value::TerminalConfig;
 use crate::domain::repository::clipboard_repository::ClipboardRepository;
 use crate::domain::repository::configuration_repository::{ConfigError, ConfigurationRepository};
@@ -232,22 +232,31 @@ impl TerminalWorkflow {
                 if !event.is_release {
                     if !event.is_drag {
                         // ダウン時：選択範囲を開始座標で初期化
-                        self.buffer
-                            .set_selection_range(Some(((event.x, event.y), (event.x, event.y))));
+                        let logical_row = self.buffer.visual_row_to_logical_row(event.y);
+                        let point = SelectionPoint {
+                            x: event.x,
+                            logical_row,
+                        };
+                        self.buffer.set_selection_range(Some((point, point)));
                     } else {
                         // ドラッグ中：選択範囲の更新
                         let current_range = self.buffer.get_selection_range();
                         match current_range {
                             Some((start, _)) => {
-                                self.buffer
-                                    .set_selection_range(Some((start, (event.x, event.y))));
+                                let end = SelectionPoint {
+                                    x: event.x,
+                                    logical_row: self.buffer.visual_row_to_logical_row(event.y),
+                                };
+                                self.buffer.set_selection_range(Some((start, end)));
                             }
                             None => {
                                 // セーフティ：万が一Downを逃していた場合
-                                self.buffer.set_selection_range(Some((
-                                    (event.x, event.y),
-                                    (event.x, event.y),
-                                )));
+                                let logical_row = self.buffer.visual_row_to_logical_row(event.y);
+                                let point = SelectionPoint {
+                                    x: event.x,
+                                    logical_row,
+                                };
+                                self.buffer.set_selection_range(Some((point, point)));
                             }
                         }
                         return Ok(true); // 再描画を促す
@@ -569,7 +578,19 @@ mod tests {
         // Down時は初期化されるが再描画は必要ない（描画側で同一座標は非表示にするため）
         assert!(!result);
         let range = workflow.buffer.get_selection_range().unwrap();
-        assert_eq!(range, ((10, 5), (10, 5)));
+        assert_eq!(
+            range,
+            (
+                SelectionPoint {
+                    x: 10,
+                    logical_row: 5,
+                },
+                SelectionPoint {
+                    x: 10,
+                    logical_row: 5,
+                },
+            )
+        );
 
         // ドラッグ移動 (20, 6)
         let event_move = MouseEvent::new(
@@ -584,7 +605,19 @@ mod tests {
         let result = workflow.handle_mouse_event(event_move).unwrap();
         assert!(result);
         let range = workflow.buffer.get_selection_range().unwrap();
-        assert_eq!(range, ((10, 5), (20, 6)));
+        assert_eq!(
+            range,
+            (
+                SelectionPoint {
+                    x: 10,
+                    logical_row: 5,
+                },
+                SelectionPoint {
+                    x: 20,
+                    logical_row: 6,
+                },
+            )
+        );
 
         // アップ（移動後）
         let event_up = MouseEvent::new(
@@ -599,7 +632,19 @@ mod tests {
         assert!(!result);
         // 範囲は維持されているはず
         let range = workflow.buffer.get_selection_range().unwrap();
-        assert_eq!(range, ((10, 5), (20, 6)));
+        assert_eq!(
+            range,
+            (
+                SelectionPoint {
+                    x: 10,
+                    logical_row: 5,
+                },
+                SelectionPoint {
+                    x: 20,
+                    logical_row: 6,
+                },
+            )
+        );
 
         // クリックで解除
         let event_down_again =
@@ -607,7 +652,19 @@ mod tests {
         workflow.handle_mouse_event(event_down_again).unwrap();
         // Downの瞬間に以前の選択はクリアされ、新しい (5,5)-(5,5) で初期化される
         let range = workflow.buffer.get_selection_range().unwrap();
-        assert_eq!(range, ((5, 5), (5, 5)));
+        assert_eq!(
+            range,
+            (
+                SelectionPoint {
+                    x: 5,
+                    logical_row: 5,
+                },
+                SelectionPoint {
+                    x: 5,
+                    logical_row: 5,
+                },
+            )
+        );
 
         let event_up_again =
             MouseEvent::new(MouseButton::Left, 5, 5, Modifiers::none(), true, false);
@@ -638,7 +695,16 @@ mod tests {
         workflow.buffer.flush_pending_cluster();
 
         // 範囲を選択 (0,0) to (1,0) -> "AB"
-        workflow.buffer.set_selection_range(Some(((0, 0), (1, 0))));
+        workflow.buffer.set_selection_range(Some((
+            SelectionPoint {
+                x: 0,
+                logical_row: 0,
+            },
+            SelectionPoint {
+                x: 1,
+                logical_row: 0,
+            },
+        )));
 
         // 右クリック
         let event = MouseEvent::new(MouseButton::Right, 10, 10, Modifiers::none(), false, false);
@@ -672,7 +738,16 @@ mod tests {
         workflow.buffer.flush_pending_cluster();
 
         // 範囲を選択 (0,0) to (1,0) -> "XY"
-        workflow.buffer.set_selection_range(Some(((0, 0), (1, 0))));
+        workflow.buffer.set_selection_range(Some((
+            SelectionPoint {
+                x: 0,
+                logical_row: 0,
+            },
+            SelectionPoint {
+                x: 1,
+                logical_row: 0,
+            },
+        )));
 
         // Ctrl+C (VK_C = 0x43)
         let key = InputKey::new(

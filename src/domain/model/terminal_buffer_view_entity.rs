@@ -1,9 +1,16 @@
 use super::terminal_types_entity::{Cell, CursorStyle};
 
-pub type SelectionRange = Option<((usize, usize), (usize, usize))>;
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct SelectionPoint {
+    pub x: usize,
+    pub logical_row: usize,
+}
+
+pub type SelectionRange = Option<(SelectionPoint, SelectionPoint)>;
 
 pub trait TerminalBufferViewEntity {
     fn get_line_at_visual_row(&self, visual_row: usize) -> Option<&Vec<Cell>>;
+    fn visual_row_to_logical_row(&self, visual_row: usize) -> usize;
     fn get_width(&self) -> usize;
     fn get_height(&self) -> usize;
     fn get_viewport_offset(&self) -> usize;

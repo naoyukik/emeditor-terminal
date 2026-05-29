@@ -1,5 +1,5 @@
 use crate::domain::model::terminal_buffer_entity::{CursorStyle, TerminalColor};
-use crate::domain::model::terminal_buffer_view_entity::TerminalBufferViewEntity;
+use crate::domain::model::terminal_buffer_view_entity::{SelectionRange, TerminalBufferViewEntity};
 use crate::gui::common::points_to_pixels_from_hdc;
 use std::collections::HashMap;
 use unicode_width::UnicodeWidthStr;
@@ -444,7 +444,8 @@ impl TerminalGuiDriver {
                         }
 
                         let start_attr = &cell.attribute;
-                        let is_selected_start = is_in_selection(cell_idx, visual_row, selection);
+                        let logical_row = buffer.visual_row_to_logical_row(visual_row);
+                        let is_selected_start = is_in_selection(cell_idx, logical_row, selection);
                         let mut run_text = String::new();
                         let mut run_dx = Vec::new();
 
@@ -457,7 +458,8 @@ impl TerminalGuiDriver {
                                 break;
                             }
                             // 選択状態が変化した場合はランを切断する
-                            if is_in_selection(cell_idx, visual_row, selection) != is_selected_start
+                            if is_in_selection(cell_idx, logical_row, selection)
+                                != is_selected_start
                             {
                                 break;
                             }
@@ -645,38 +647,38 @@ impl TerminalGuiDriver {
     }
 }
 
-fn is_in_selection(x: usize, y: usize, range: Option<((usize, usize), (usize, usize))>) -> bool {
-    let ((start_x, start_y), (end_x, end_y)) = match range {
+fn is_in_selection(x: usize, logical_row: usize, range: SelectionRange) -> bool {
+    let (start, end) = match range {
         Some(r) => r,
         None => return false,
     };
 
-    if start_x == end_x && start_y == end_y {
+    if start == end {
         return false;
     }
 
-    // 開始点と終了点を正規化（どちらが先でもよいように）
-    let (s_x, s_y, e_x, e_y) = if start_y < end_y || (start_y == end_y && start_x <= end_x) {
-        (start_x, start_y, end_x, end_y)
+    let (start, end) = if start.logical_row < end.logical_row
+        || (start.logical_row == end.logical_row && start.x <= end.x)
+    {
+        (start, end)
     } else {
-        (end_x, end_y, start_x, start_y)
+        (end, start)
     };
 
-    // ストリーム選択の判定
-    if y < s_y || y > e_y {
+    if logical_row < start.logical_row || logical_row > end.logical_row {
         return false;
     }
-    if y > s_y && y < e_y {
+    if logical_row > start.logical_row && logical_row < end.logical_row {
         return true;
     }
-    if s_y == e_y {
-        return y == s_y && x >= s_x && x <= e_x;
+    if start.logical_row == end.logical_row {
+        return logical_row == start.logical_row && x >= start.x && x <= end.x;
     }
-    if y == s_y {
-        return x >= s_x;
+    if logical_row == start.logical_row {
+        return x >= start.x;
     }
-    if y == e_y {
-        return x <= e_x;
+    if logical_row == end.logical_row {
+        return x <= end.x;
     }
     false
 }

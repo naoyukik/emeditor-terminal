@@ -27,7 +27,7 @@ pub struct TerminalBufferEntity {
     mouse_tracking_mode: MouseTrackingMode,
     use_sgr_mouse_encoding: bool,
     last_mouse_pos: Option<(usize, usize)>,
-    selection_range: Option<((usize, usize), (usize, usize))>, // ((start_x, start_y), (end_x, end_y))
+    selection_range: SelectionRange,
 }
 
 impl TerminalBufferEntity {
@@ -425,6 +425,23 @@ impl TerminalBufferEntity {
         )
     }
 
+    pub fn visual_row_to_logical_row(&self, visual_row: usize) -> usize {
+        self.get_history_len()
+            .saturating_add(visual_row)
+            .saturating_sub(self.get_viewport_offset())
+    }
+
+    pub fn get_line_at_logical_row(&self, logical_row: usize) -> Option<&Vec<Cell>> {
+        let history_len = self.get_history_len();
+        if logical_row < history_len {
+            self.scrollback.history().get(logical_row)
+        } else {
+            self.grid
+                .lines()
+                .get(logical_row.saturating_sub(history_len))
+        }
+    }
+
     pub fn get_width(&self) -> usize {
         self.width
     }
@@ -488,32 +505,37 @@ impl TerminalBufferEntity {
         self.last_mouse_pos = pos;
     }
 
-    pub fn get_selection_range(&self) -> Option<((usize, usize), (usize, usize))> {
+    pub fn get_selection_range(&self) -> SelectionRange {
         self.selection_range
     }
-    pub fn set_selection_range(&mut self, range: Option<((usize, usize), (usize, usize))>) {
+    pub fn set_selection_range(&mut self, range: SelectionRange) {
         self.selection_range = range;
     }
 
     pub fn get_selected_text(&self) -> String {
-        let ((start_x, start_y), (end_x, end_y)) = match self.selection_range {
+        let (start, end) = match self.selection_range {
             Some(r) => r,
             None => return String::new(),
         };
 
-        // 開始点と終了点を正規化
-        let (s_x, s_y, e_x, e_y) = if start_y < end_y || (start_y == end_y && start_x <= end_x) {
-            (start_x, start_y, end_x, end_y)
+        let (start, end) = if start.logical_row < end.logical_row
+            || (start.logical_row == end.logical_row && start.x <= end.x)
+        {
+            (start, end)
         } else {
-            (end_x, end_y, start_x, start_y)
+            (end, start)
         };
 
         let mut selected_text = String::new();
-        for y in s_y..=e_y {
-            if let Some(line) = self.get_line_at_visual_row(y) {
-                let start_col = if y == s_y { s_x } else { 0 };
-                let end_col = if y == e_y {
-                    e_x
+        for logical_row in start.logical_row..=end.logical_row {
+            if let Some(line) = self.get_line_at_logical_row(logical_row) {
+                let start_col = if logical_row == start.logical_row {
+                    start.x
+                } else {
+                    0
+                };
+                let end_col = if logical_row == end.logical_row {
+                    end.x
                 } else {
                     self.width.saturating_sub(1)
                 };
@@ -525,7 +547,7 @@ impl TerminalBufferEntity {
                         selected_text.push_str(&cell.text);
                     }
                 }
-                if y < e_y {
+                if logical_row < end.logical_row {
                     selected_text.push('\n');
                 }
             }
@@ -537,6 +559,10 @@ impl TerminalBufferEntity {
 impl TerminalBufferViewEntity for TerminalBufferEntity {
     fn get_line_at_visual_row(&self, visual_row: usize) -> Option<&Vec<Cell>> {
         TerminalBufferEntity::get_line_at_visual_row(self, visual_row)
+    }
+
+    fn visual_row_to_logical_row(&self, visual_row: usize) -> usize {
+        TerminalBufferEntity::visual_row_to_logical_row(self, visual_row)
     }
 
     fn get_width(&self) -> usize {
