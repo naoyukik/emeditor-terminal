@@ -5,6 +5,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
+### Changed
+- 選択範囲がスクロールに追従しないように変更
+  - 開始位置が移動せずに選択範囲を拡張できるようになった
 
 ## [0.8.2] - 2026-05-23
 ### Changed
