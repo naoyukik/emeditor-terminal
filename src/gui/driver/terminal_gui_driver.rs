@@ -1,5 +1,7 @@
 use crate::domain::model::terminal_buffer_entity::{CursorStyle, TerminalColor};
-use crate::domain::model::terminal_buffer_view_entity::{SelectionRange, TerminalBufferViewEntity};
+use crate::domain::model::terminal_buffer_view_entity::{
+    selection_contains, TerminalBufferViewEntity,
+};
 use crate::gui::common::points_to_pixels_from_hdc;
 use std::collections::HashMap;
 use unicode_width::UnicodeWidthStr;
@@ -390,7 +392,6 @@ impl TerminalGuiDriver {
             right: width,
             bottom: height,
         };
-
         let bg_colorref = self.color_to_colorref(&TerminalColor::Default, true, theme);
         // SAFETY: 背景塗りつぶし用のブラシ作成と描画。
         // CreateSolidBrush で作成したブラシは GdiObjectGuard により確実に削除される。
@@ -428,7 +429,6 @@ impl TerminalGuiDriver {
             };
             let viewport_offset = buffer.get_viewport_offset();
             let selection = buffer.get_selection_range();
-
             for visual_row in 0..buffer.get_height() {
                 let mut x_offset = 0;
                 if let Some(line) = buffer.get_line_at_visual_row(visual_row) {
@@ -445,7 +445,7 @@ impl TerminalGuiDriver {
 
                         let start_attr = &cell.attribute;
                         let logical_row = buffer.visual_row_to_logical_row(visual_row);
-                        let is_selected_start = is_in_selection(cell_idx, logical_row, selection);
+                        let is_selected_start = selection_contains(selection, cell_idx, logical_row);
                         let mut run_text = String::new();
                         let mut run_dx = Vec::new();
 
@@ -458,7 +458,7 @@ impl TerminalGuiDriver {
                                 break;
                             }
                             // 選択状態が変化した場合はランを切断する
-                            if is_in_selection(cell_idx, logical_row, selection)
+                            if selection_contains(selection, cell_idx, logical_row)
                                 != is_selected_start
                             {
                                 break;
@@ -645,40 +645,4 @@ impl TerminalGuiDriver {
             }
         }
     }
-}
-
-fn is_in_selection(x: usize, logical_row: usize, range: SelectionRange) -> bool {
-    let (start, end) = match range {
-        Some(r) => r,
-        None => return false,
-    };
-
-    if start == end {
-        return false;
-    }
-
-    let (start, end) = if start.logical_row < end.logical_row
-        || (start.logical_row == end.logical_row && start.x <= end.x)
-    {
-        (start, end)
-    } else {
-        (end, start)
-    };
-
-    if logical_row < start.logical_row || logical_row > end.logical_row {
-        return false;
-    }
-    if logical_row > start.logical_row && logical_row < end.logical_row {
-        return true;
-    }
-    if start.logical_row == end.logical_row {
-        return logical_row == start.logical_row && x >= start.x && x <= end.x;
-    }
-    if logical_row == start.logical_row {
-        return x >= start.x;
-    }
-    if logical_row == end.logical_row {
-        return x <= end.x;
-    }
-    false
 }

@@ -25,6 +25,14 @@
 - [ ] 逆方向ドラッグを含む選択でも開始/終了正規化が正しく動作する。
 - [ ] 関連ユニットテストが追加・更新され、回帰がない。
 
+## 追加仕様: 座標不変条件
+- `SelectionPoint.logical_row` は、表示中 viewport ではなく、`history + screen` を連結した論理行番号を表す。
+- `viewport_offset` の変更は、既存の `SelectionRange` の start/end を直接変更してはならない。
+- 描画時の選択判定は、`get_line_at_visual_row(visual_row)` が返す行と同じ論理行番号を使わなければならない。
+- マウス Down/Drag 時は、その時点の viewport における visual row を論理行へ変換して保存する。ただし既存の start は Drag 更新で再計算してはならない。
+- 選択開始後に `scroll_lines` / `scroll_to` が発生した場合、次の再描画で選択ハイライトは選択済み論理行だけに残る。visual row だけを基準にしたハイライト移動は不合格とする。
+- 選択範囲が viewport 外へ出た場合は非表示になってよいが、再度 viewport 内へ戻した時に同じ論理行・列へ復元されなければならない。
+
 ## Out of Scope
 - 矩形選択や複数選択など新機能追加。
 - マウス入力モデル全体の再設計。

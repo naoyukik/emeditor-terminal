@@ -42,3 +42,10 @@
 - `TerminalWorkflow` で mouse Down/Drag 時に `visual_row_to_logical_row` を通して保存する。
 - `TerminalBufferEntity::get_selected_text` を `logical_row` ベースへ変更する。
 - `TerminalGuiDriver` の選択判定を logical row 基準へ切り替える。
+
+## Post-implementation Review (2026-05-29)
+- 現在ブランチ `198_selection_range_scroll_fix` の先頭コミットは `aa6fc87 fix: スクロール時に選択範囲の開始位置がずれる不具合の修正` である。
+- `origin/main...HEAD` の差分では、`SelectionPoint { x, logical_row }` の導入、`TerminalWorkflow` の Down/Drag 変換、`get_selected_text` の logical row 化、`terminal_gui_driver` の logical row 判定化が確認できた。
+- 一方で、追加テストは既存の選択 API 追従が中心であり、`scroll_lines` / `scroll_to` 後に `SelectionRange` の start/end が不変であること、または描画対象行が `get_line_at_visual_row` と同じ logical row で判定されることを直接検証する回帰テストが不足している。
+- `TerminalHistoryViewEntity::resolve_visual_row` は bottom からの距離 `dist = height - 1 - visual_row + viewport_offset` で行を解決している。`TerminalBufferEntity::visual_row_to_logical_row` は `history_len + visual_row - viewport_offset` で論理行を計算しており、通常の `grid.lines().len() == height` 前提では整合する。ただし、この前提をテストで固定していないため、開始点ずれの再発時に保存値の問題か描画判定の問題かを切り分けにくい。
+- 次の実装では、まず viewport 変換の同値性テストと選択 start/end 不変条件テストを追加し、失敗再現を確認してから修正する。実機でのみ再現する場合は一時 debug ログで Down/Drag/Scroll/Render 時の `viewport_offset`、visual row、logical row、selection start/end を記録して原因を特定する。

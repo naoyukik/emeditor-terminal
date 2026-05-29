@@ -41,7 +41,9 @@ fn init_logger() {
 
     match File::create(&path) {
         Ok(file) => match WriteLogger::init(LevelFilter::Info, config, file) {
-            Ok(_) => log::info!("Logger initialized"),
+            Ok(_) => {
+                log::info!("Logger initialized");
+            }
             Err(e) => eprintln!("Failed to initialize logger: {}", e),
         },
         Err(e) => eprintln!("Failed to create log file '{}': {}", path.display(), e),

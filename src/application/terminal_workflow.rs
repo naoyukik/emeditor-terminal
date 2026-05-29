@@ -203,7 +203,6 @@ impl TerminalWorkflow {
         use crate::domain::model::terminal_types_entity::MouseTrackingMode;
 
         let mode = self.buffer.get_mouse_tracking_mode();
-
         if mode == MouseTrackingMode::None {
             // 右クリックでコピーまたは貼り付け (Down時に実行)
             if event.button == MouseButton::Right && !event.is_release && !event.is_drag {
@@ -671,6 +670,108 @@ mod tests {
         workflow.handle_mouse_event(event_up_again).unwrap();
         // ドラッグなしのUp（クリック確定）で範囲がNoneになる
         assert!(workflow.buffer.get_selection_range().is_none());
+    }
+
+    #[test]
+    fn test_handle_mouse_event_selection_down_uses_logical_row_when_viewport_is_scrolled() {
+        let sent = Arc::new(Mutex::new(Vec::new()));
+        let clipboard_text = Arc::new(Mutex::new("".to_string()));
+        let mut workflow = TerminalWorkflow::new(
+            2,
+            2,
+            Box::new(MockOutputRepo { sent: sent.clone() }),
+            Box::new(MockConfigRepo),
+            Box::new(MockTranslator),
+            Box::new(MockClipboardRepo {
+                text: clipboard_text.clone(),
+            }),
+            false,
+        );
+
+        workflow.buffer.print_string("ABCDEFGH");
+        workflow.buffer.flush_pending_cluster();
+        workflow.buffer.scroll_to(1);
+
+        let event_down = MouseEvent::new(
+            MouseButton::Left,
+            0,
+            0,
+            Modifiers::none(),
+            false,
+            false,
+        );
+
+        let result = workflow.handle_mouse_event(event_down).unwrap();
+        assert!(!result);
+
+        let range = workflow.buffer.get_selection_range().unwrap();
+        assert_eq!(
+            range,
+            (
+                SelectionPoint {
+                    x: 0,
+                    logical_row: 1,
+                },
+                SelectionPoint {
+                    x: 0,
+                    logical_row: 1,
+                },
+            )
+        );
+    }
+
+    #[test]
+    fn test_handle_mouse_event_selection_drag_keeps_anchor_across_scroll() {
+        let sent = Arc::new(Mutex::new(Vec::new()));
+        let clipboard_text = Arc::new(Mutex::new("".to_string()));
+        let mut workflow = TerminalWorkflow::new(
+            2,
+            2,
+            Box::new(MockOutputRepo { sent: sent.clone() }),
+            Box::new(MockConfigRepo),
+            Box::new(MockTranslator),
+            Box::new(MockClipboardRepo {
+                text: clipboard_text.clone(),
+            }),
+            false,
+        );
+
+        workflow.buffer.print_string("ABCDEFGH");
+        workflow.buffer.flush_pending_cluster();
+        workflow.buffer.scroll_to(1);
+
+        let event_down = MouseEvent::new(
+            MouseButton::Left,
+            0,
+            0,
+            Modifiers::none(),
+            false,
+            false,
+        );
+        workflow.handle_mouse_event(event_down).unwrap();
+        let start = workflow.buffer.get_selection_range().unwrap().0;
+
+        workflow.buffer.scroll_lines(1);
+
+        let event_drag = MouseEvent::new(
+            MouseButton::Left,
+            1,
+            0,
+            Modifiers::none(),
+            false,
+            true,
+        );
+        let result = workflow.handle_mouse_event(event_drag).unwrap();
+        assert!(result);
+
+        let range = workflow.buffer.get_selection_range().unwrap();
+        assert_eq!(range.0, start);
+        assert_eq!(range.1.logical_row, 0);
+
+        let selected_before = workflow.buffer.get_selected_text();
+        workflow.buffer.scroll_to(1);
+        assert_eq!(workflow.buffer.get_selection_range().unwrap().0, start);
+        assert_eq!(workflow.buffer.get_selected_text(), selected_before);
     }
 
     #[test]

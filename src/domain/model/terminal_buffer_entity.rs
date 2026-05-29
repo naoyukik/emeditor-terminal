@@ -1,7 +1,10 @@
 use unicode_segmentation::UnicodeSegmentation;
 use unicode_width::UnicodeWidthStr;
 
-use super::terminal_buffer_view_entity::{SelectionRange, TerminalBufferViewEntity};
+use super::terminal_buffer_view_entity::{
+    normalized_selection_range, SelectionRange, TerminalBufferViewEntity,
+    selection_contains,
+};
 use super::terminal_history_view_entity::TerminalHistoryViewEntity;
 use super::terminal_screen_update_entity::TerminalScreenUpdateEntity;
 // 基本型を再エクスポートし、外部からアクセス可能にする
@@ -417,18 +420,24 @@ impl TerminalBufferEntity {
     }
 
     pub fn get_line_at_visual_row(&self, visual_row: usize) -> Option<&Vec<Cell>> {
-        TerminalHistoryViewEntity::resolve_visual_row(
+        TerminalHistoryViewEntity::resolve_visual_row_with_logical_row(
             visual_row,
             self.height,
             self.grid.lines(),
             &self.scrollback,
         )
+        .map(|(_, line)| line)
     }
 
     pub fn visual_row_to_logical_row(&self, visual_row: usize) -> usize {
-        self.get_history_len()
-            .saturating_add(visual_row)
-            .saturating_sub(self.get_viewport_offset())
+        TerminalHistoryViewEntity::resolve_visual_row_with_logical_row(
+            visual_row,
+            self.height,
+            self.grid.lines(),
+            &self.scrollback,
+        )
+        .map(|(logical_row, _)| logical_row)
+        .unwrap_or_else(|| self.get_history_len().saturating_add(visual_row))
     }
 
     pub fn get_line_at_logical_row(&self, logical_row: usize) -> Option<&Vec<Cell>> {
@@ -513,35 +522,17 @@ impl TerminalBufferEntity {
     }
 
     pub fn get_selected_text(&self) -> String {
-        let (start, end) = match self.selection_range {
+        let (start, end) = match normalized_selection_range(self.selection_range) {
             Some(r) => r,
             None => return String::new(),
-        };
-
-        let (start, end) = if start.logical_row < end.logical_row
-            || (start.logical_row == end.logical_row && start.x <= end.x)
-        {
-            (start, end)
-        } else {
-            (end, start)
         };
 
         let mut selected_text = String::new();
         for logical_row in start.logical_row..=end.logical_row {
             if let Some(line) = self.get_line_at_logical_row(logical_row) {
-                let start_col = if logical_row == start.logical_row {
-                    start.x
-                } else {
-                    0
-                };
-                let end_col = if logical_row == end.logical_row {
-                    end.x
-                } else {
-                    self.width.saturating_sub(1)
-                };
-
-                for x in start_col..=end_col {
-                    if let Some(cell) = line.get(x)
+                for x in 0..self.width {
+                    if selection_contains(self.selection_range, x, logical_row)
+                        && let Some(cell) = line.get(x)
                         && !cell.is_wide_continuation
                     {
                         selected_text.push_str(&cell.text);
@@ -731,6 +722,14 @@ impl TerminalScreenUpdateEntity for TerminalBufferEntity {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::domain::model::terminal_buffer_view_entity::SelectionPoint;
+
+    fn line_text(line: &Vec<Cell>) -> String {
+        line.iter()
+            .filter(|cell| !cell.is_wide_continuation)
+            .map(|cell| cell.text.as_str())
+            .collect()
+    }
 
     #[test]
     fn test_print_string_basic() {
@@ -782,6 +781,62 @@ mod tests {
         assert_eq!(line[0].text, "👨‍👩‍👧‍👦");
         assert_eq!(line[1].text, " ");
         assert!(line[1].is_wide_continuation);
+    }
+
+    #[test]
+    fn test_visual_and_logical_row_mapping_share_viewport_interpretation() {
+        let mut buffer = TerminalBufferEntity::new(2, 2);
+        buffer.print_string("ABCDEFGH");
+        buffer.flush_pending_cluster();
+
+        let expected_rows = [
+            (0, ["EF", "GH"]),
+            (1, ["CD", "EF"]),
+            (2, ["AB", "CD"]),
+        ];
+
+        for (offset, expected) in expected_rows {
+            buffer.scroll_to(offset);
+            for visual_row in 0..buffer.get_height() {
+                let visual = buffer.get_line_at_visual_row(visual_row).unwrap();
+                let logical_row = buffer.visual_row_to_logical_row(visual_row);
+                let logical = buffer.get_line_at_logical_row(logical_row).unwrap();
+                assert_eq!(
+                    line_text(visual),
+                    line_text(logical),
+                    "viewport_offset={offset}, visual_row={visual_row}"
+                );
+                assert_eq!(line_text(visual), expected[visual_row]);
+            }
+        }
+    }
+
+    #[test]
+    fn test_selection_range_is_stable_across_scroll_operations() {
+        let mut buffer = TerminalBufferEntity::new(2, 2);
+        buffer.print_string("ABCDEFGH");
+        buffer.flush_pending_cluster();
+        buffer.scroll_to(1);
+
+        let start = SelectionPoint {
+            x: 0,
+            logical_row: buffer.visual_row_to_logical_row(0),
+        };
+        let end = SelectionPoint {
+            x: 1,
+            logical_row: buffer.visual_row_to_logical_row(1),
+        };
+        buffer.set_selection_range(Some((start, end)));
+
+        let selected_before = buffer.get_selected_text();
+
+        buffer.scroll_lines(1);
+        assert_eq!(buffer.get_selection_range(), Some((start, end)));
+        assert_eq!(buffer.get_selected_text(), selected_before);
+
+        buffer.scroll_to(1);
+        assert_eq!(buffer.get_selection_range(), Some((start, end)));
+        assert_eq!(buffer.get_selected_text(), selected_before);
     }
 
     #[test]
