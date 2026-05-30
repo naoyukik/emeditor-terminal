@@ -68,3 +68,7 @@
 
 ## Phase: Review Fixes
 - [x] Task: Apply review suggestions 9e97315
+- [x] Task: PR 201 のレビューコメントを Future Ticket として記録する。
+  - 対象: `src/domain/model/terminal_buffer_entity.rs`
+  - 内容: `get_selected_text()` 内の `selection_contains()` 反復呼び出しを削減し、正規化済みの選択範囲を直接走査する最適化は今回の PR では実装しない。
+  - Issue: #202
