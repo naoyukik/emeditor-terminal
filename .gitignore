@@ -85,6 +85,9 @@ AGENTS.override.md
 # Junie CLI
 .junie
 
+# Antigravity
+.antigravitycli
+
 # EmEditor SDK Documentation
 /sdk
 
