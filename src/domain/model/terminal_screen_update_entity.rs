@@ -1,6 +1,4 @@
-use super::terminal_types_entity::{
-    CursorStyle, MouseTrackingMode, TerminalAttribute,
-};
+use super::terminal_types_entity::{CursorStyle, MouseTrackingMode, TerminalAttribute};
 
 pub trait TerminalScreenUpdateEntity {
     fn print_string(&mut self, text: &str);

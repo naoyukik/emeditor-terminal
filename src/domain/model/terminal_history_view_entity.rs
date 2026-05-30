@@ -13,7 +13,7 @@ fn cell_with_text(text: &str) -> Cell {
 }
 
 impl TerminalHistoryViewEntity {
-    pub fn resolve_visual_row<'a>(
+    fn resolve_visual_row_line<'a>(
         visual_row: usize,
         height: usize,
         grid_lines: &'a VecDeque<Vec<Cell>>,
@@ -22,16 +22,41 @@ impl TerminalHistoryViewEntity {
         let dist =
             (height.saturating_sub(1).saturating_sub(visual_row)) + scrollback.viewport_offset();
         if dist < grid_lines.len() {
-            grid_lines.get(grid_lines.len().saturating_sub(1).saturating_sub(dist))
+            let grid_index = grid_lines.len().saturating_sub(1).saturating_sub(dist);
+            grid_lines.get(grid_index)
         } else {
-            scrollback.history().get(
-                scrollback
-                    .history()
-                    .len()
-                    .saturating_sub(1)
-                    .saturating_sub(dist.saturating_sub(grid_lines.len())),
-            )
+            let history_index = scrollback
+                .history()
+                .len()
+                .saturating_sub(1)
+                .saturating_sub(dist.saturating_sub(grid_lines.len()));
+            scrollback.history().get(history_index)
         }
+    }
+
+    pub fn resolve_visual_row_with_logical_row<'a>(
+        visual_row: usize,
+        height: usize,
+        grid_lines: &'a VecDeque<Vec<Cell>>,
+        scrollback: &'a TerminalScrollbackEntity,
+    ) -> Option<(usize, &'a Vec<Cell>)> {
+        let line = Self::resolve_visual_row_line(visual_row, height, grid_lines, scrollback)?;
+        let logical_row = scrollback
+            .history()
+            .len()
+            .saturating_add(visual_row)
+            .saturating_sub(scrollback.viewport_offset());
+        Some((logical_row, line))
+    }
+
+    #[allow(dead_code)]
+    pub fn resolve_visual_row<'a>(
+        visual_row: usize,
+        height: usize,
+        grid_lines: &'a VecDeque<Vec<Cell>>,
+        scrollback: &'a TerminalScrollbackEntity,
+    ) -> Option<&'a Vec<Cell>> {
+        Self::resolve_visual_row_line(visual_row, height, grid_lines, scrollback)
     }
 
     pub fn history_len(scrollback: &TerminalScrollbackEntity) -> usize {
@@ -80,6 +105,42 @@ mod tests {
         let from_history =
             TerminalHistoryViewEntity::resolve_visual_row(0, 3, &grid_lines, &scrollback).unwrap();
         assert_eq!(from_history[0].text, "H0");
+    }
+
+    #[test]
+    fn resolve_visual_row_matches_logical_row_across_viewports() {
+        let mut grid_lines = VecDeque::new();
+        grid_lines.push_back(vec![cell_with_text("S0")]);
+        grid_lines.push_back(vec![cell_with_text("S1")]);
+        grid_lines.push_back(vec![cell_with_text("S2")]);
+
+        let mut scrollback = TerminalScrollbackEntity::new(10);
+        scrollback.push(vec![cell_with_text("H0")]);
+        scrollback.push(vec![cell_with_text("H1")]);
+
+        let cases = [
+            (0, [(2, "S0"), (3, "S1"), (4, "S2")]),
+            (1, [(1, "H1"), (2, "S0"), (3, "S1")]),
+            (2, [(0, "H0"), (1, "H1"), (2, "S0")]),
+        ];
+
+        for (offset, expected_rows) in cases {
+            TerminalHistoryViewEntity::scroll_to(&mut scrollback, offset);
+            for (visual_row, (expected_logical_row, expected_text)) in
+                expected_rows.iter().enumerate()
+            {
+                let (logical_row, line) = TerminalHistoryViewEntity::
+                    resolve_visual_row_with_logical_row(
+                    visual_row,
+                    3,
+                    &grid_lines,
+                    &scrollback,
+                )
+                .unwrap();
+                assert_eq!(logical_row, *expected_logical_row);
+                assert_eq!(line[0].text, *expected_text);
+            }
+        }
     }
 
     #[test]

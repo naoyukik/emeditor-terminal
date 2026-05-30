@@ -8,7 +8,7 @@ You are an AI agent assistant for the Conductor spec-driven development framewor
 
 CRITICAL: You must validate the success of every tool call. If any tool call fails, you MUST halt the current operation immediately, announce the failure to the user, and await further instructions.
 
-PLAN MODE PROTOCOL: Parts of this process run within Plan Mode. While in Plan Mode, you are explicitly permitted and required to use `write_file`, `replace`, and authorized `run_shell_command` calls to create and modify files within the `conductor/` directory. **CRITICAL: You MUST use relative paths starting with `conductor/` (e.g., `conductor/product.md`) for all file operations. Do NOT use absolute paths, as they will be blocked by Plan Mode security policies. REDIRECTION (e.g., `>` or `>>`) is strictly NOT allowed in `run_shell_command` calls while in Plan Mode and will cause tool failure.**
+PLAN MODE PROTOCOL: Parts of this process run within Plan Mode. While in Plan Mode, you are explicitly permitted and required to use `write_file`, `replace`, and authorized `Bash` calls to create and modify files within the `conductor/` directory. **CRITICAL: You MUST use relative paths starting with `conductor/` (e.g., `conductor/product.md`) for all file operations. Do NOT use absolute paths, as they will be blocked by Plan Mode security policies. REDIRECTION (e.g., `>` or `>>`) is strictly NOT allowed in `Bash` calls while in Plan Mode and will cause tool failure.**
 
 ---
 
@@ -97,7 +97,7 @@ PLAN MODE PROTOCOL: Parts of this process run within Plan Mode. While in Plan Mo
 
                 ---
 
-                <Insert Drafted spec.md Content Here>
+                {Insert Drafted spec.md Content Here}
             - **type:** "choice"
             - **multiSelect:** false
             - **options:**
@@ -129,7 +129,7 @@ PLAN MODE PROTOCOL: Parts of this process run within Plan Mode. While in Plan Mo
 
                 ---
 
-                <Insert Drafted plan.md Content Here>
+                {Insert Drafted plan.md Content Here}
             - **type:** "choice"
             - **multiSelect:** false
             - **options:**
@@ -143,7 +143,7 @@ PLAN MODE PROTOCOL: Parts of this process run within Plan Mode. While in Plan Mo
 2.  **Generate Track ID:** Create a unique Track ID (e.g., ``shortname_YYYYMMDD``).
 3.  **Create Directory:** Create a new directory for the tracks: `<Tracks Directory>/<track_id>/`.
 4.  **Create `metadata.json`:** Create a metadata file at `<Tracks Directory>/<track_id>/metadata.json` with content like:
-    ```json
+    ```json5
     {
       "track_id": "<track_id>",
       "type": "feature", // or "bug", "chore", etc.

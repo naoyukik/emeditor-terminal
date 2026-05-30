@@ -63,7 +63,6 @@ pub fn on_mousewheel(window_id: WindowId, wparam: usize, lparam: isize) -> isize
     let mut is_handled = false;
     {
         let mut window_data = data_arc.lock().unwrap();
-
         // マウスレポーティングの確認
         if !is_shift_pressed && let Some(metrics) = window_data.renderer.get_metrics() {
             // ScreenToClient 相当の変換が必要だが、lparam はスクリーン座標。
@@ -257,7 +256,6 @@ fn dispatch_mouse_event(window_id: WindowId, msg: u32, wparam: usize, lparam: is
     let mut is_handled = false;
     {
         let mut window_data = data_arc.lock().unwrap();
-
         // ピクセル座標をセル座標に変換
         if let Some(metrics) = window_data.renderer.get_metrics() {
             let x = (px / metrics.base_width).max(0) as usize;

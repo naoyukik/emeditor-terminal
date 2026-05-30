@@ -25,3 +25,7 @@
 - [x] Task: `cargo test` を実行し、parser・scrollback・描画関連の主要回帰を確認する。
 - [ ] Task: 必要に応じて `cargo clippy` を実行し、設計整理に伴う警告を解消する。
 - [ ] Task: Conductor - ユーザー手動検証 'フェーズ 5' (実装結果と挙動確認)
+
+## PRレビュー対応（#199）
+- [x] Task: `TerminalBufferViewEntity::get_line_at_visual_row` の戻り値を `Option<&[Cell]>` へ変更する設計タスクを別Issue化し、#187 の SubIssue として紐付ける。
+- [x] Task: PR説明に Node 依存追加（`@modelcontextprotocol/server-sequential-thinking`, `zod`）の理由を追記するか、依存追加差分を別PRへ分離する。
