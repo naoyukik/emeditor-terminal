@@ -849,4 +849,103 @@ mod tests {
         assert_eq!(line[0].text, "A");
         assert_eq!(line[1].text, "B");
     }
+
+    #[test]
+    fn test_get_selected_text_basic() {
+        let mut buffer = TerminalBufferEntity::new(10, 5);
+        buffer.print_string("ABCDEFGHIJ"); // row 0
+        buffer.print_string("KLMNOPQRST"); // row 1
+        buffer.flush_pending_cluster();
+
+        // 1. Single line: "CDE" (x: 2 to 4 in row 0)
+        let start = SelectionPoint {
+            x: 2,
+            logical_row: 0,
+        };
+        let end = SelectionPoint {
+            x: 4,
+            logical_row: 0,
+        };
+        buffer.set_selection_range(Some((start, end)));
+        assert_eq!(buffer.get_selected_text(), "CDE");
+
+        // 2. Multi-line: "HIJ\nKLM"
+        let start = SelectionPoint {
+            x: 7,
+            logical_row: 0,
+        };
+        let end = SelectionPoint {
+            x: 2,
+            logical_row: 1,
+        };
+        buffer.set_selection_range(Some((start, end)));
+        assert_eq!(buffer.get_selected_text(), "HIJ\nKLM");
+    }
+
+    #[test]
+    fn test_get_selected_text_wide_char() {
+        let mut buffer = TerminalBufferEntity::new(10, 5);
+        buffer.print_string("AあBい"); // A(1), あ(2), B(1), い(2)
+        buffer.flush_pending_cluster();
+
+        // [A][あ][ ][B][い][ ]
+        //  0  1  2  3  4  5
+
+        // Select "あBい"
+        let start = SelectionPoint {
+            x: 1,
+            logical_row: 0,
+        };
+        let end = SelectionPoint {
+            x: 4,
+            logical_row: 0,
+        };
+        buffer.set_selection_range(Some((start, end)));
+        // Note: x=2 and x=5 are wide continuation cells.
+        // x=1 to 4 contains: あ(1), continuation(2), B(3), い(4).
+        // Continuation cell at x=2 should be skipped if we only collect non-continuation.
+        assert_eq!(buffer.get_selected_text(), "あBい");
+    }
+
+    #[test]
+    fn test_get_selected_text_empty() {
+        let mut buffer = TerminalBufferEntity::new(10, 5);
+        buffer.print_string("ABC");
+        buffer.flush_pending_cluster();
+
+        // 1. None
+        buffer.set_selection_range(None);
+        assert_eq!(buffer.get_selected_text(), "");
+
+        // 2. Same point
+        let p = SelectionPoint {
+            x: 1,
+            logical_row: 0,
+        };
+        buffer.set_selection_range(Some((p, p)));
+        // Current implementation returns cell at x=1 if start==end?
+        // Let's check selection_contains.
+        // if start == end { return false; }
+        // So it should be empty.
+        assert_eq!(buffer.get_selected_text(), "");
+    }
+
+    #[test]
+    fn test_get_selected_text_reverse() {
+        let mut buffer = TerminalBufferEntity::new(10, 5);
+        buffer.print_string("ABCDEFG");
+        buffer.flush_pending_cluster();
+
+        // Select "CDE" but in reverse
+        let end = SelectionPoint {
+            x: 2,
+            logical_row: 0,
+        };
+        let start = SelectionPoint {
+            x: 4,
+            logical_row: 0,
+        };
+        buffer.set_selection_range(Some((start, end)));
+        assert_eq!(buffer.get_selected_text(), "CDE");
+    }
 }
