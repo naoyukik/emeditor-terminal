@@ -2,8 +2,7 @@ use unicode_segmentation::UnicodeSegmentation;
 use unicode_width::UnicodeWidthStr;
 
 use super::terminal_buffer_view_entity::{
-    normalized_selection_range, SelectionRange, TerminalBufferViewEntity,
-    selection_contains,
+    SelectionRange, TerminalBufferViewEntity, normalized_selection_range, selection_contains,
 };
 use super::terminal_history_view_entity::TerminalHistoryViewEntity;
 use super::terminal_screen_update_entity::TerminalScreenUpdateEntity;
@@ -789,11 +788,7 @@ mod tests {
         buffer.print_string("ABCDEFGH");
         buffer.flush_pending_cluster();
 
-        let expected_rows = [
-            (0, ["EF", "GH"]),
-            (1, ["CD", "EF"]),
-            (2, ["AB", "CD"]),
-        ];
+        let expected_rows = [(0, ["EF", "GH"]), (1, ["CD", "EF"]), (2, ["AB", "CD"])];
 
         for (offset, expected) in expected_rows {
             buffer.scroll_to(offset);

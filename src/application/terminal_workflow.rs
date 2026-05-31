@@ -692,14 +692,7 @@ mod tests {
         workflow.buffer.flush_pending_cluster();
         workflow.buffer.scroll_to(1);
 
-        let event_down = MouseEvent::new(
-            MouseButton::Left,
-            0,
-            0,
-            Modifiers::none(),
-            false,
-            false,
-        );
+        let event_down = MouseEvent::new(MouseButton::Left, 0, 0, Modifiers::none(), false, false);
 
         let result = workflow.handle_mouse_event(event_down).unwrap();
         assert!(!result);
@@ -740,27 +733,13 @@ mod tests {
         workflow.buffer.flush_pending_cluster();
         workflow.buffer.scroll_to(1);
 
-        let event_down = MouseEvent::new(
-            MouseButton::Left,
-            0,
-            0,
-            Modifiers::none(),
-            false,
-            false,
-        );
+        let event_down = MouseEvent::new(MouseButton::Left, 0, 0, Modifiers::none(), false, false);
         workflow.handle_mouse_event(event_down).unwrap();
         let start = workflow.buffer.get_selection_range().unwrap().0;
 
         workflow.buffer.scroll_lines(1);
 
-        let event_drag = MouseEvent::new(
-            MouseButton::Left,
-            1,
-            0,
-            Modifiers::none(),
-            false,
-            true,
-        );
+        let event_drag = MouseEvent::new(MouseButton::Left, 1, 0, Modifiers::none(), false, true);
         let result = workflow.handle_mouse_event(event_drag).unwrap();
         assert!(result);
 

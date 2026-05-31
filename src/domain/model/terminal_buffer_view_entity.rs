@@ -8,7 +8,9 @@ pub struct SelectionPoint {
 
 pub type SelectionRange = Option<(SelectionPoint, SelectionPoint)>;
 
-pub fn normalized_selection_range(range: SelectionRange) -> Option<(SelectionPoint, SelectionPoint)> {
+pub fn normalized_selection_range(
+    range: SelectionRange,
+) -> Option<(SelectionPoint, SelectionPoint)> {
     let (start, end) = range?;
     if start.logical_row < end.logical_row
         || (start.logical_row == end.logical_row && start.x <= end.x)
