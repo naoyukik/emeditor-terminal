@@ -2,7 +2,7 @@ use unicode_segmentation::UnicodeSegmentation;
 use unicode_width::UnicodeWidthStr;
 
 use super::terminal_buffer_view_entity::{
-    SelectionRange, TerminalBufferViewEntity, normalized_selection_range, selection_contains,
+    SelectionRange, TerminalBufferViewEntity, normalized_selection_range,
 };
 use super::terminal_history_view_entity::TerminalHistoryViewEntity;
 use super::terminal_screen_update_entity::TerminalScreenUpdateEntity;
@@ -526,12 +526,26 @@ impl TerminalBufferEntity {
             None => return String::new(),
         };
 
+        if start == end {
+            return String::new();
+        }
+
         let mut selected_text = String::new();
         for logical_row in start.logical_row..=end.logical_row {
             if let Some(line) = self.get_line_at_logical_row(logical_row) {
-                for x in 0..self.width {
-                    if selection_contains(self.selection_range, x, logical_row)
-                        && let Some(cell) = line.get(x)
+                let start_x = if logical_row == start.logical_row {
+                    start.x
+                } else {
+                    0
+                };
+                let end_x = if logical_row == end.logical_row {
+                    end.x
+                } else {
+                    self.width.saturating_sub(1)
+                };
+
+                for x in start_x..=end_x {
+                    if let Some(cell) = line.get(x)
                         && !cell.is_wide_continuation
                     {
                         selected_text.push_str(&cell.text);
