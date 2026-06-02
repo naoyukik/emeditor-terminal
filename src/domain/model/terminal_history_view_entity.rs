@@ -129,14 +129,14 @@ mod tests {
             for (visual_row, (expected_logical_row, expected_text)) in
                 expected_rows.iter().enumerate()
             {
-                let (logical_row, line) = TerminalHistoryViewEntity::
-                    resolve_visual_row_with_logical_row(
-                    visual_row,
-                    3,
-                    &grid_lines,
-                    &scrollback,
-                )
-                .unwrap();
+                let (logical_row, line) =
+                    TerminalHistoryViewEntity::resolve_visual_row_with_logical_row(
+                        visual_row,
+                        3,
+                        &grid_lines,
+                        &scrollback,
+                    )
+                    .unwrap();
                 assert_eq!(logical_row, *expected_logical_row);
                 assert_eq!(line[0].text, *expected_text);
             }

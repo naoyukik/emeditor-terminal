@@ -43,6 +43,7 @@
 ## Architecture
 **厳格な物理隔離レイヤードアーキテクチャ (Strict Rigid Architecture)** を採用し、ファイル名と配置によって境界を強制している。
 - **書記素クラスターベース・物理グリッド管理**: セルごとに可変長文字列を保持し、`pending_cluster` バッファによるストリーム判定を統合。端末標準の CUF/CUB カラム単位移動を維持しつつ、ワイド文字境界の整合性を自動修復する保護ロジックを搭載。
+  - **効率的な選択範囲抽出**: `get_selected_text()` において、正規化された開始・終了点から各行の抽出範囲を直接算出するアルゴリズムを採用し、走査コストを $O(\text{selected cells})$ から $O(\text{selected rows})$ のオーバーヘッドに低減。
 - **Dependency Injection (DI)**: コンストラクタ注入により依存関係を管理し、テスト容易性と結合度の低下を実現。
 - **Domain 層 (`src/domain/`)**: `windows` クレートに依存しない Pure Rust 領域。
     - **Entity / Value Object**: `_entity.rs` / `_value.rs`

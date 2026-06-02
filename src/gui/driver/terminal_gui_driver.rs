@@ -1,6 +1,6 @@
 use crate::domain::model::terminal_buffer_entity::{CursorStyle, TerminalColor};
 use crate::domain::model::terminal_buffer_view_entity::{
-    selection_contains, TerminalBufferViewEntity,
+    TerminalBufferViewEntity, selection_contains,
 };
 use crate::gui::common::points_to_pixels_from_hdc;
 use std::collections::HashMap;
@@ -445,7 +445,8 @@ impl TerminalGuiDriver {
                         }
 
                         let start_attr = &cell.attribute;
-                        let is_selected_start = selection_contains(selection, cell_idx, logical_row);
+                        let is_selected_start =
+                            selection_contains(selection, cell_idx, logical_row);
                         let mut run_text = String::new();
                         let mut run_dx = Vec::new();
 
