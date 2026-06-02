@@ -29,5 +29,14 @@
 - [x] Task: 全体テストを実行する (`cargo test`)
 - [x] Task: `evidence_report.md` を最終更新する
 - [x] Task: Conductor - Clippy & fmt Check
-- [ ] Task: Conductor - User Manual Verification 'フェーズ 4'
-- [ ] Task: Conductor - 'フェーズ 4' の成果をコミット
+- [x] Task: Conductor - User Manual Verification 'フェーズ 4'
+- [x] Task: Conductor - 'フェーズ 4' の成果をコミット
+
+## フェーズ 5: PRレビュー指摘の修正
+- [x] Task: PR #203 のレビューコメントに対応する
+    - [x] `src/domain/model/terminal_buffer_entity.rs` の `get_selected_text` 内で `end_x` をクランプする。
+    - [x] 同ファイルのテストコード内のコメントを整理・修正する。
+- [x] Task: 修正後のテスト実行 (`cargo test`)
+- [x] Task: Conductor - Clippy & fmt Check
+- [ ] Task: Conductor - User Manual Verification 'フェーズ 5'
+- [ ] Task: Conductor - 'フェーズ 5' の成果をコミット

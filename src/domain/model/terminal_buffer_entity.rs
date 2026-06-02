@@ -539,7 +539,7 @@ impl TerminalBufferEntity {
                     0
                 };
                 let end_x = if logical_row == end.logical_row {
-                    end.x
+                    end.x.min(self.width.saturating_sub(1))
                 } else {
                     self.width.saturating_sub(1)
                 };
@@ -765,11 +765,7 @@ mod tests {
         buffer.flush_pending_cluster();
         let (x, y) = buffer.get_cursor_pos();
         assert_eq!(x, 5);
-        assert_eq!(y, 1); // "Hello" (5) at row 0, cursor at end. "World" (5) at row 1.
-        // Wait, current logic:
-        // row 0: H, e, l, l, o (x=5)
-        // Next 'W': x+1 > 5? Yes. x=0, index(). row 1: W...
-        // After "World", x=5. y=1.
+        assert_eq!(y, 1); // "Hello" (5) at row 0, "World" (5) at row 1.
 
         let line0 = buffer.get_line_at_visual_row(0).unwrap();
         let text0: String = line0.iter().map(|c| c.text.clone()).collect();
@@ -937,10 +933,7 @@ mod tests {
             logical_row: 0,
         };
         buffer.set_selection_range(Some((p, p)));
-        // Current implementation returns cell at x=1 if start==end?
-        // Let's check selection_contains.
-        // if start == end { return false; }
-        // So it should be empty.
+        // start == end の場合は空文字を返すことを期待
         assert_eq!(buffer.get_selected_text(), "");
     }
 
