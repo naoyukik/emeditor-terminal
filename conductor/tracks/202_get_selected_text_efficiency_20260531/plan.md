@@ -38,5 +38,5 @@
     - [x] 同ファイルのテストコード内のコメントを整理・修正する。
 - [x] Task: 修正後のテスト実行 (`cargo test`)
 - [x] Task: Conductor - Clippy & fmt Check
-- [ ] Task: Conductor - User Manual Verification 'フェーズ 5'
-- [ ] Task: Conductor - 'フェーズ 5' の成果をコミット
+- [x] Task: Conductor - User Manual Verification 'フェーズ 5'
+- [x] Task: Conductor - 'フェーズ 5' の成果をコミット

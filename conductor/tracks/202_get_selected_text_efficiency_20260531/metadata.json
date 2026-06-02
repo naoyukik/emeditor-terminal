@@ -1,8 +1,8 @@
 {
   "track_id": "202_get_selected_text_efficiency_20260531",
   "type": "refactor",
-  "status": "in_progress",
+  "status": "completed",
   "created_at": "2026-05-31T08:09:19+09:00",
-  "updated_at": "2026-06-02T08:21:00+09:00",
+  "updated_at": "2026-06-02T08:30:00+09:00",
   "description": "GitHub Issue 202: get_selected_text の選択判定を効率化"
 }
